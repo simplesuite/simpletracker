@@ -12,7 +12,7 @@ Describe the feature or improvement.
 
 ## Why is this useful?
 
-Explain the problem this solves or how it improves simpleBudget.
+Explain the problem this solves or how it improves simpleTracker.
 
 ## Possible approach
 
