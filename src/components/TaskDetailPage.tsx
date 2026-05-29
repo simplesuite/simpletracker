@@ -24,8 +24,11 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import CircularProgress from '@mui/material/CircularProgress';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import Menu from '@mui/material/Menu';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -75,6 +78,8 @@ export default function TaskDetailPage() {
     const [subtaskError, setSubtaskError] = useState<string | null>(null);
     const [networkError, setNetworkError] = useState<string | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const menuOpen = Boolean(menuAnchorEl);
     const [loading, setLoading] = useState(false);
     const [isShared, setIsShared] = useState(false);
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
@@ -339,7 +344,7 @@ export default function TaskDetailPage() {
         setDeleteDialogOpen(false);
         const success = await deleteTask(id);
         if (success) {
-            navigate('/tasks');
+            navigate(-1);
         } else {
             setNetworkError('Failed to delete task');
         }
@@ -348,8 +353,13 @@ export default function TaskDetailPage() {
     // Show loading state
     if (loading) {
         return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
-                <CircularProgress />
+            <Box sx={{ p: 2 }}>
+                <IconButton onClick={() => navigate(-1)} aria-label="Back" sx={{ mb: 1 }}>
+                    <ArrowBackIcon />
+                </IconButton>
+                <Box display="flex" justifyContent="center" alignItems="center" minHeight="30vh">
+                    <CircularProgress />
+                </Box>
             </Box>
         );
     }
@@ -358,6 +368,9 @@ export default function TaskDetailPage() {
     if (offlineMessage) {
         return (
             <Box sx={{ p: 2 }}>
+                <IconButton onClick={() => navigate(-1)} aria-label="Back" sx={{ mb: 1 }}>
+                    <ArrowBackIcon />
+                </IconButton>
                 <Alert severity="warning">{offlineMessage}</Alert>
             </Box>
         );
@@ -367,6 +380,9 @@ export default function TaskDetailPage() {
     if (!task && !loading) {
         return (
             <Box sx={{ p: 2 }}>
+                <IconButton onClick={() => navigate(-1)} aria-label="Back" sx={{ mb: 1 }}>
+                    <ArrowBackIcon />
+                </IconButton>
                 <Alert severity="error">{networkError || 'Task not found'}</Alert>
             </Box>
         );
@@ -376,7 +392,57 @@ export default function TaskDetailPage() {
 
     return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Box sx={{ pb: 4 }}>
+            <Box sx={{ pb: 10 }}>
+                {/* Header with back button and menu */}
+                <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
+                    <IconButton onClick={() => navigate(-1)} aria-label="Back">
+                        <ArrowBackIcon />
+                    </IconButton>
+                    {/* Project assignment */}
+                    <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                        <InputLabel>Project</InputLabel>
+                        <Select
+                            value={projectID || ''}
+                            onChange={(e) => handleProjectChange(e.target.value)}
+                            label="Project"
+                            disabled={isShared && !isOnline}
+                        >
+                            <MenuItem value="">
+                                <em>None</em>
+                            </MenuItem>
+                            {projects.map((p) => (
+                                <MenuItem key={p.recordID} value={p.recordID}>
+                                    {p.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                    {isCreator && (
+                        <>
+                            <IconButton
+                                onClick={(e) => setMenuAnchorEl(e.currentTarget)}
+                                aria-label="More options"
+                                aria-controls={menuOpen ? 'task-actions-menu' : undefined}
+                                aria-haspopup="true"
+                                aria-expanded={menuOpen ? 'true' : undefined}
+                            >
+                                <MoreVertIcon />
+                            </IconButton>
+                            <Menu
+                                id="task-actions-menu"
+                                anchorEl={menuAnchorEl}
+                                open={menuOpen}
+                                onClose={() => setMenuAnchorEl(null)}
+                            >
+                                <MenuItem onClick={() => { setMenuAnchorEl(null); setDeleteDialogOpen(true); }}>
+                                    <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                                    <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    )}
+                </Box>
+
                 {/* Error messages */}
                 {networkError && (
                     <Alert severity="error" sx={{ mb: 2 }} onClose={() => setNetworkError(null)}>
@@ -392,7 +458,8 @@ export default function TaskDetailPage() {
                 {/* Title input */}
                 <TextField
                     fullWidth
-                    label="Title"
+                    variant="standard"
+                    placeholder="Untitled"
                     value={title}
                     onChange={(e) => {
                         const val = e.target.value;
@@ -404,7 +471,7 @@ export default function TaskDetailPage() {
                     }}
                     error={!!titleError}
                     helperText={titleError || `${title.trim().length}/255`}
-                    sx={{ mb: 2 }}
+                    sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
                     disabled={isShared && !isOnline}
                 />
 
@@ -433,26 +500,6 @@ export default function TaskDetailPage() {
                     disabled={isShared && !isOnline}
                 />
 
-                {/* Project assignment */}
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <InputLabel>Project</InputLabel>
-                    <Select
-                        value={projectID || ''}
-                        onChange={(e) => handleProjectChange(e.target.value)}
-                        label="Project"
-                        disabled={isShared && !isOnline}
-                    >
-                        <MenuItem value="">
-                            <em>None</em>
-                        </MenuItem>
-                        {projects.map((p) => (
-                            <MenuItem key={p.recordID} value={p.recordID}>
-                                {p.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
-
                 {/* Complete/Reopen button */}
                 <Button
                     variant="contained"
@@ -464,25 +511,9 @@ export default function TaskDetailPage() {
                     {task.status === 'open' ? 'Mark Complete' : 'Reopen Task'}
                 </Button>
 
-                {/* Delete button (creator only) */}
-                {isCreator && (
-                    <Button
-                        variant="outlined"
-                        color="error"
-                        onClick={() => setDeleteDialogOpen(true)}
-                        sx={{ mb: 2 }}
-                    >
-                        Delete Task
-                    </Button>
-                )}
-
                 <Divider sx={{ my: 2 }} />
 
                 {/* Recurrence settings */}
-                <Typography variant="h6" gutterBottom>
-                    Recurrence
-                </Typography>
-
                 <FormControlLabel
                     control={
                         <Switch
@@ -491,7 +522,7 @@ export default function TaskDetailPage() {
                             disabled={isShared && !isOnline}
                         />
                     }
-                    label="Recurring task"
+                    label="Recurring"
                     sx={{ mb: 1, display: 'block' }}
                 />
 

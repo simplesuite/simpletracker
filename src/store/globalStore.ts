@@ -2,8 +2,8 @@ import { create } from "zustand";
 import { createTheme } from "@mui/material/styles";
 import { getSupabaseStorageKey } from "../lib/supabase";
 
-export const primaryMain = '#4c809e';
-export const secondaryMain = '#D6A058';
+export const primaryMain = '#d79a00ff';
+export const secondaryMain = '#586bd6ff';
 
 export const themes = {
     darkTheme: createTheme({

@@ -20,7 +20,7 @@ interface TaskStore {
 
     setStatusFilter: (filter: 'open' | 'completed' | 'all') => void;
     fetchTasks: () => Promise<void>;
-    createTask: (title: string) => Promise<Task | null>;
+    createTask: (title: string, projectID?: string | null) => Promise<Task | null>;
     updateTask: (id: string, fields: Partial<Pick<Task, 'title' | 'body' | 'dueDate' | 'projectID' | 'isRecurring' | 'recurrenceInterval' | 'recurrenceUnit' | 'recurrenceAnchor'>>) => Promise<boolean>;
     completeTask: (id: string) => Promise<boolean>;
     reopenTask: (id: string) => Promise<boolean>;
@@ -145,7 +145,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         }
     },
 
-    createTask: async (title: string) => {
+    createTask: async (title: string, projectID?: string | null) => {
         const validation = validateTaskTitle(title);
         if (!validation.valid) {
             set({ error: validation.error || 'Invalid task title' });
@@ -159,7 +159,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         const newTask: Task = {
             recordID,
             creatorID: currentUser.recordID,
-            projectID: null,
+            projectID: projectID || null,
             title: title.trim(),
             body: '',
             status: 'open',

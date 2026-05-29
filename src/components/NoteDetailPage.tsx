@@ -18,14 +18,27 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
 import Stack from '@mui/material/Stack';
+import Menu from '@mui/material/Menu';
+import Tooltip from '@mui/material/Tooltip';
+import Switch from '@mui/material/Switch';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
+import ShareIcon from '@mui/icons-material/Share';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import FormatBoldIcon from '@mui/icons-material/FormatBold';
+import FormatItalicIcon from '@mui/icons-material/FormatItalic';
+import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
+import CheckBoxIcon from '@mui/icons-material/CheckBox';
+import TitleIcon from '@mui/icons-material/Title';
+import CodeIcon from '@mui/icons-material/Code';
+import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
+import LinkIcon from '@mui/icons-material/Link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNoteStore } from '../store/noteStore';
@@ -66,7 +79,14 @@ export default function NoteDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
     const [bodyError, setBodyError] = useState<string | null>(null);
-    const [tabIndex, setTabIndex] = useState(0);
+    const [showPreview, setShowPreview] = useState(() => {
+        const stored = localStorage.getItem('notePreviewEnabled');
+        return stored === null ? true : stored === 'true';
+    });
+    const handlePreviewToggle = (checked: boolean) => {
+        setShowPreview(checked);
+        localStorage.setItem('notePreviewEnabled', String(checked));
+    };
     const [isShared, setIsShared] = useState(false);
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
@@ -79,8 +99,19 @@ export default function NoteDetailPage() {
     // Delete confirmation dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
+    // Empty note back-navigation dialog
+    const [emptyNoteDialogOpen, setEmptyNoteDialogOpen] = useState(false);
+
+    // Menu state
+    const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const menuOpen = Boolean(menuAnchorEl);
+
+    // Share dialog state
+    const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
     // Debounce timer ref
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     const isCreator = creatorID === currentUserID;
 
@@ -259,6 +290,69 @@ export default function NoteDetailPage() {
         debouncedSave({ projectID: value });
     };
 
+    // Insert markdown at cursor position
+    const insertMarkdown = (prefix: string, suffix: string = '', defaultText: string = '') => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = body.substring(start, end);
+        const insertText = selectedText || defaultText;
+        const newBody = body.substring(0, start) + prefix + insertText + suffix + body.substring(end);
+
+        if (newBody.length > 100000) {
+            setBodyError('Body must not exceed 100,000 characters');
+            return;
+        }
+
+        setBodyError(null);
+        setBody(newBody);
+        debouncedSave({ body: newBody });
+
+        // Restore focus and set cursor position after the inserted text
+        setTimeout(() => {
+            textarea.focus();
+            const cursorPos = start + prefix.length + insertText.length + suffix.length;
+            textarea.setSelectionRange(
+                selectedText ? cursorPos : start + prefix.length,
+                selectedText ? cursorPos : start + prefix.length + insertText.length
+            );
+        }, 0);
+    };
+
+    const insertLinePrefix = (prefix: string) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = body.substring(start, end);
+
+        // If there's a selection spanning multiple lines, prefix each line
+        if (selectedText.includes('\n')) {
+            const lines = selectedText.split('\n').map(line => prefix + line);
+            const newText = lines.join('\n');
+            const newBody = body.substring(0, start) + newText + body.substring(end);
+            setBody(newBody);
+            debouncedSave({ body: newBody });
+            setTimeout(() => {
+                textarea.focus();
+                textarea.setSelectionRange(start, start + newText.length);
+            }, 0);
+        } else {
+            // Find the start of the current line
+            const lineStart = body.lastIndexOf('\n', start - 1) + 1;
+            const newBody = body.substring(0, lineStart) + prefix + body.substring(lineStart);
+            setBody(newBody);
+            debouncedSave({ body: newBody });
+            setTimeout(() => {
+                textarea.focus();
+                textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+            }, 0);
+        }
+    };
+
     const handleArchive = async () => {
         if (!id) return;
         const success = archived ? await unarchiveNote(id) : await archiveNote(id);
@@ -274,7 +368,26 @@ export default function NoteDetailPage() {
         setDeleteDialogOpen(false);
         const success = await deleteNote(id);
         if (success) {
-            navigate('/notes');
+            navigate(-1);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to delete note.');
+        }
+    };
+
+    const handleBack = () => {
+        if (!title.trim() && !body.trim()) {
+            setEmptyNoteDialogOpen(true);
+        } else {
+            navigate(-1);
+        }
+    };
+
+    const handleDeleteEmptyNote = async () => {
+        if (!id) return;
+        setEmptyNoteDialogOpen(false);
+        const success = await deleteNote(id);
+        if (success) {
+            navigate(-1);
         } else {
             setError(useNoteStore.getState().error || 'Failed to delete note.');
         }
@@ -323,7 +436,7 @@ export default function NoteDetailPage() {
     if (error && !title && !body) {
         return (
             <Box sx={{ p: 2 }}>
-                <IconButton onClick={() => navigate('/notes')} sx={{ mb: 1 }}>
+                <IconButton onClick={handleBack} sx={{ mb: 1 }}>
                     <ArrowBackIcon />
                 </IconButton>
                 <Alert severity="error">{error}</Alert>
@@ -333,25 +446,65 @@ export default function NoteDetailPage() {
 
     return (
         <Box sx={{ pb: 4 }}>
-            {/* Header with back button and actions */}
-            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                <IconButton onClick={() => navigate('/notes')} aria-label="Back to notes">
+            {/* Header with back button and menu */}
+            <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
+                <IconButton onClick={handleBack} aria-label="Back to notes">
                     <ArrowBackIcon />
                 </IconButton>
-                <Stack direction="row" spacing={1}>
-                    <IconButton onClick={handleArchive} aria-label={archived ? 'Unarchive' : 'Archive'}>
-                        {archived ? <UnarchiveIcon /> : <ArchiveIcon />}
-                    </IconButton>
+                {/* Project assignment */}
+                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                    <InputLabel id="project-select-label">Project</InputLabel>
+                    <Select
+                        labelId="project-select-label"
+                        value={projectID || ''}
+                        onChange={(e) => handleProjectChange(e.target.value)}
+                        label="Project"
+                        disabled={!!offlineMessage && isShared}
+                    >
+                        <MenuItem value="">
+                            <em>None</em>
+                        </MenuItem>
+                        {projects.map((project) => (
+                            <MenuItem key={project.recordID} value={project.recordID}>
+                                {project.name}
+                            </MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+                <IconButton
+                    onClick={(e) => setMenuAnchorEl(e.currentTarget)}
+                    aria-label="More options"
+                    aria-controls={menuOpen ? 'note-actions-menu' : undefined}
+                    aria-haspopup="true"
+                    aria-expanded={menuOpen ? 'true' : undefined}
+                >
+                    <MoreVertIcon />
+                </IconButton>
+                <Menu
+                    id="note-actions-menu"
+                    anchorEl={menuAnchorEl}
+                    open={menuOpen}
+                    onClose={() => setMenuAnchorEl(null)}
+                >
                     {isCreator && (
-                        <IconButton
-                            onClick={() => setDeleteDialogOpen(true)}
-                            color="error"
-                            aria-label="Delete note"
-                        >
-                            <DeleteIcon />
-                        </IconButton>
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }}>
+                            <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText>Share</ListItemText>
+                        </MenuItem>
                     )}
-                </Stack>
+                    <MenuItem onClick={() => { setMenuAnchorEl(null); handleArchive(); }}>
+                        <ListItemIcon>
+                            {archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
+                        </ListItemIcon>
+                        <ListItemText>{archived ? 'Unarchive' : 'Archive'}</ListItemText>
+                    </MenuItem>
+                    {isCreator && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); setDeleteDialogOpen(true); }}>
+                            <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                            <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+                        </MenuItem>
+                    )}
+                </Menu>
             </Box>
 
             {/* Error messages */}
@@ -372,152 +525,178 @@ export default function NoteDetailPage() {
                 sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
             />
 
-            {/* Project assignment */}
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-                <InputLabel id="project-select-label">Project</InputLabel>
-                <Select
-                    labelId="project-select-label"
-                    value={projectID || ''}
-                    onChange={(e) => handleProjectChange(e.target.value)}
-                    label="Project"
-                    disabled={!!offlineMessage && isShared}
-                >
-                    <MenuItem value="">
-                        <em>None</em>
-                    </MenuItem>
-                    {projects.map((project) => (
-                        <MenuItem key={project.recordID} value={project.recordID}>
-                            {project.name}
-                        </MenuItem>
-                    ))}
-                </Select>
-            </FormControl>
+            {/* Markdown toolbar + editor + live preview */}
+            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
+                {/* Toolbar */}
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, p: 0.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover', alignItems: 'center' }}>
+                    <Tooltip title="Heading">
+                        <IconButton size="small" onClick={() => insertLinePrefix('## ')} disabled={!!offlineMessage && isShared}>
+                            <TitleIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Bold">
+                        <IconButton size="small" onClick={() => insertMarkdown('**', '**', 'bold')} disabled={!!offlineMessage && isShared}>
+                            <FormatBoldIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Italic">
+                        <IconButton size="small" onClick={() => insertMarkdown('*', '*', 'italic')} disabled={!!offlineMessage && isShared}>
+                            <FormatItalicIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Bullet list">
+                        <IconButton size="small" onClick={() => insertLinePrefix('- ')} disabled={!!offlineMessage && isShared}>
+                            <FormatListBulletedIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Checkbox">
+                        <IconButton size="small" onClick={() => insertLinePrefix('- [ ] ')} disabled={!!offlineMessage && isShared}>
+                            <CheckBoxIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                    <Tooltip title="Code">
+                        <IconButton size="small" onClick={() => insertMarkdown('`', '`', 'code')} disabled={!!offlineMessage && isShared}>
+                            <CodeIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Quote">
+                        <IconButton size="small" onClick={() => insertLinePrefix('> ')} disabled={!!offlineMessage && isShared}>
+                            <FormatQuoteIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Link">
+                        <IconButton size="small" onClick={() => insertMarkdown('[', '](url)', 'link text')} disabled={!!offlineMessage && isShared}>
+                            <LinkIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Box sx={{ flex: 1 }} />
+                    <Tooltip title={showPreview ? 'Hide preview' : 'Show preview'}>
+                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">Preview</Typography>
+                            <Switch size="small" checked={showPreview} onChange={(e) => handlePreviewToggle(e.target.checked)} />
+                        </Stack>
+                    </Tooltip>
+                </Box>
 
-            {/* Edit / Preview tabs */}
-            <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} sx={{ mb: 2 }}>
-                <Tab label="Edit" />
-                <Tab label="Preview" />
-            </Tabs>
-
-            {tabIndex === 0 && (
+                {/* Textarea */}
                 <TextField
                     fullWidth
                     multiline
-                    minRows={10}
-                    maxRows={30}
+                    minRows={12}
                     placeholder="Write your note in markdown..."
                     value={body}
                     onChange={handleBodyChange}
                     error={!!bodyError}
                     helperText={bodyError || `${body.length}/100,000`}
                     disabled={!!offlineMessage && isShared}
-                    sx={{ mb: 2 }}
-                />
-            )}
-
-            {tabIndex === 1 && (
-                <Box
+                    inputRef={textareaRef}
                     sx={{
-                        p: 2,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        minHeight: 200,
-                        mb: 2,
-                        '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 2, mb: 1 },
-                        '& p': { mb: 1 },
-                        '& ul, & ol': { pl: 3 },
-                        '& blockquote': {
-                            borderLeft: '4px solid',
-                            borderColor: 'divider',
-                            pl: 2,
-                            ml: 0,
-                            color: 'text.secondary',
-                        },
-                        '& code': {
-                            bgcolor: 'action.hover',
-                            px: 0.5,
-                            borderRadius: 0.5,
-                            fontFamily: 'monospace',
-                        },
-                        '& pre': {
-                            bgcolor: 'action.hover',
-                            p: 2,
-                            borderRadius: 1,
-                            overflow: 'auto',
-                        },
-                        '& a': { color: 'primary.main' },
+                        '& .MuiOutlinedInput-root': { borderRadius: 0 },
+                        '& fieldset': { border: 'none' },
                     }}
-                >
-                    {body ? (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                    ) : (
-                        <Typography color="text.secondary" fontStyle="italic">
-                            Nothing to preview
-                        </Typography>
-                    )}
-                </Box>
-            )}
+                />
 
-            <Divider sx={{ my: 3 }} />
-
-            {/* Share management section — creator only */}
-            {isCreator && (
-                <Box sx={{ mb: 3 }}>
-                    <Typography variant="h6" gutterBottom>
-                        Sharing
-                    </Typography>
-
-                    {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
-
-                    <Box display="flex" gap={1} sx={{ mb: 2 }}>
-                        <TextField
-                            size="small"
-                            placeholder="Enter email to share"
-                            value={shareEmail}
-                            onChange={(e) => setShareEmail(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleShare();
+                {/* Live preview */}
+                {showPreview && body && (
+                    <>
+                        <Divider />
+                        <Box
+                            sx={{
+                                p: 2,
+                                minHeight: 100,
+                                '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 2, mb: 1 },
+                                '& p': { mb: 1 },
+                                '& ul, & ol': { pl: 3 },
+                                '& blockquote': {
+                                    borderLeft: '4px solid',
+                                    borderColor: 'divider',
+                                    pl: 2,
+                                    ml: 0,
+                                    color: 'text.secondary',
+                                },
+                                '& code': {
+                                    bgcolor: 'action.hover',
+                                    px: 0.5,
+                                    borderRadius: 0.5,
+                                    fontFamily: 'monospace',
+                                },
+                                '& pre': {
+                                    bgcolor: 'action.hover',
+                                    p: 2,
+                                    borderRadius: 1,
+                                    overflow: 'auto',
+                                },
+                                '& a': { color: 'primary.main' },
+                                '& input[type="checkbox"]': { mr: 1 },
                             }}
-                            sx={{ flex: 1 }}
-                        />
-                        <Button
-                            variant="contained"
-                            size="small"
-                            onClick={handleShare}
-                            disabled={shareLoading || !shareEmail.trim()}
                         >
-                            {shareLoading ? <CircularProgress size={20} /> : 'Share'}
-                        </Button>
-                    </Box>
-
-                    {shares.length > 0 && (
-                        <Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                Shared with:
-                            </Typography>
-                            <Stack spacing={1}>
-                                {shares.map((share) => (
-                                    <Box
-                                        key={share.recordID}
-                                        display="flex"
-                                        alignItems="center"
-                                        justifyContent="space-between"
-                                    >
-                                        <Chip label={share.sharedToID} size="small" />
-                                        <IconButton
-                                            size="small"
-                                            onClick={() => handleUnshare(share.sharedToID)}
-                                            aria-label="Remove share"
-                                        >
-                                            <PersonRemoveIcon fontSize="small" />
-                                        </IconButton>
-                                    </Box>
-                                ))}
-                            </Stack>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                         </Box>
-                    )}
-                </Box>
+                    </>
+                )}
+            </Box>
+
+
+            {/* Share dialog — creator only */}
+            {isCreator && (
+                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm">
+                    <DialogTitle>Share Note</DialogTitle>
+                    <DialogContent>
+                        {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
+
+                        <Box display="flex" gap={1} sx={{ mt: 1, mb: 2 }}>
+                            <TextField
+                                size="small"
+                                placeholder="Enter email to share"
+                                value={shareEmail}
+                                onChange={(e) => setShareEmail(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleShare();
+                                }}
+                                sx={{ flex: 1 }}
+                            />
+                            <Button
+                                variant="contained"
+                                size="small"
+                                onClick={handleShare}
+                                disabled={shareLoading || !shareEmail.trim()}
+                            >
+                                {shareLoading ? <CircularProgress size={20} /> : 'Share'}
+                            </Button>
+                        </Box>
+
+                        {shares.length > 0 && (
+                            <Box>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                    Shared with:
+                                </Typography>
+                                <Stack spacing={1}>
+                                    {shares.map((share) => (
+                                        <Box
+                                            key={share.recordID}
+                                            display="flex"
+                                            alignItems="center"
+                                            justifyContent="space-between"
+                                        >
+                                            <Chip label={share.sharedToID} size="small" />
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => handleUnshare(share.sharedToID)}
+                                                aria-label="Remove share"
+                                            >
+                                                <PersonRemoveIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            </Box>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
+                    </DialogActions>
+                </Dialog>
             )}
 
             {/* Delete confirmation dialog */}
@@ -531,6 +710,24 @@ export default function NoteDetailPage() {
                 <DialogActions>
                     <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                     <Button onClick={handleDelete} color="error" variant="contained">
+                        Delete
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Empty note dialog */}
+            <Dialog open={emptyNoteDialogOpen} onClose={() => setEmptyNoteDialogOpen(false)}>
+                <DialogTitle>Delete empty note?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        This note has no title or content. Would you like to delete it?
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => { setEmptyNoteDialogOpen(false); navigate(-1); }}>
+                        Keep
+                    </Button>
+                    <Button onClick={handleDeleteEmptyNote} color="error" variant="contained">
                         Delete
                     </Button>
                 </DialogActions>

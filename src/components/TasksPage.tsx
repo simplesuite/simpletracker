@@ -97,10 +97,6 @@ export default function TasksPage() {
 
     return (
         <Box>
-            <Typography variant="h5" gutterBottom>
-                Tasks
-            </Typography>
-
             <Tabs
                 value={statusFilter}
                 onChange={handleTabChange}
@@ -170,7 +166,11 @@ export default function TasksPage() {
                 color="primary"
                 aria-label="Create task"
                 onClick={handleFabClick}
-                sx={{ position: 'fixed', bottom: 80, right: 24 }}
+                sx={{
+                    position: 'fixed',
+                    bottom: 72,
+                    right: 16,
+                }}
             >
                 <AddIcon />
             </Fab>

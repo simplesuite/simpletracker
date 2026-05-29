@@ -23,7 +23,7 @@ interface NoteStore {
 
     fetchNotes: () => Promise<void>;
     fetchArchivedNotes: () => Promise<void>;
-    createNote: () => Promise<Note | null>;
+    createNote: (projectID?: string | null) => Promise<Note | null>;
     updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => Promise<boolean>;
     archiveNote: (id: string) => Promise<boolean>;
     unarchiveNote: (id: string) => Promise<boolean>;
@@ -179,7 +179,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
     },
 
-    createNote: async () => {
+    createNote: async (projectID?: string | null) => {
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const now = Date.now();
         const newNote: Note = {
@@ -189,7 +189,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             body: '',
             createdAt: now,
             updatedAt: now,
-            projectID: null,
+            projectID: projectID || null,
             archived: false,
         };
 

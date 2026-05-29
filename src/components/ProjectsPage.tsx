@@ -15,9 +15,19 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
+import Tooltip from '@mui/material/Tooltip';
+import PeopleIcon from '@mui/icons-material/People';
+import NotesIcon from '@mui/icons-material/Notes';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
+import { useNoteStore } from '../store/noteStore';
+import { useTaskStore } from '../store/taskStore';
+import { useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
+import { supabase } from '../lib/supabase';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { dialogPaperStyles } from '../store/globalStore';
@@ -30,6 +40,10 @@ export default function ProjectsPage() {
     const error = useProjectStore(s => s.error);
     const fetchProjects = useProjectStore(s => s.fetchProjects);
     const createProject = useProjectStore(s => s.createProject);
+    const notes = useNoteStore(s => s.notes);
+    const sharedNotes = useNoteStore(s => s.sharedNotes);
+    const tasks = useTaskStore(s => s.tasks);
+    const currentUserID = useGlobalStore(s => s.currentUser.recordID);
     const navigate = useNavigate();
     const theme = useTheme();
     const bigger = useMediaQuery(theme.breakpoints.up('sm'));
@@ -38,10 +52,32 @@ export default function ProjectsPage() {
     const [projectName, setProjectName] = React.useState('');
     const [nameError, setNameError] = React.useState('');
     const [creating, setCreating] = React.useState(false);
+    const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<Set<string>>(new Set());
 
     React.useEffect(() => {
         fetchProjects();
     }, []);
+
+    // Fetch which of my projects are shared with others
+    React.useEffect(() => {
+        const fetchSharedByMe = async () => {
+            const ownedProjectIDs = projects
+                .filter(p => p.creatorID === currentUserID)
+                .map(p => p.recordID);
+            if (ownedProjectIDs.length === 0) {
+                setSharedByMeProjectIDs(new Set());
+                return;
+            }
+            const { data } = await supabase
+                .from('task_projects_shared')
+                .select('projectID')
+                .in('projectID', ownedProjectIDs);
+            if (data) {
+                setSharedByMeProjectIDs(new Set(data.map(r => r.projectID)));
+            }
+        };
+        fetchSharedByMe();
+    }, [projects, currentUserID]);
 
     // Projects are already sorted by updatedAt desc from the store
     const sortedProjects = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -90,10 +126,6 @@ export default function ProjectsPage() {
     return (
         <Box display="flex" flexDirection="column" alignItems="center">
             <Box sx={{ maxWidth: 600, width: '100%' }}>
-                <Typography sx={{ alignSelf: 'flex-start' }} color="text.secondary" variant="h6">
-                    Projects
-                </Typography>
-
                 {loading && projects.length === 0 && (
                     <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
                         <CircularProgress />
@@ -115,24 +147,66 @@ export default function ProjectsPage() {
                 {sortedProjects.length > 0 && (
                     <Paper elevation={4} sx={{ width: '100%', borderRadius: 3, mt: 2 }}>
                         <List disablePadding>
-                            {sortedProjects.map((project, index) => (
-                                <React.Fragment key={project.recordID}>
-                                    <ListItem disablePadding>
-                                        <ListItemButton onClick={() => navigate(`/projects/${project.recordID}`)}>
-                                            <ListItemText
-                                                primary={project.name}
-                                                secondary={
-                                                    project.description
-                                                        ? project.description.length > 80
-                                                            ? project.description.substring(0, 80) + '…'
-                                                            : project.description
-                                                        : undefined
-                                                }
-                                            />
-                                        </ListItemButton>
-                                    </ListItem>
-                                </React.Fragment>
-                            ))}
+                            {sortedProjects.map((project) => {
+                                const noteCount = [...notes, ...sharedNotes].filter(n => n.projectID === project.recordID).length;
+                                const taskCount = tasks.filter(t => t.projectID === project.recordID).length;
+                                const isSharedToMe = project.creatorID !== currentUserID;
+                                const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
+
+                                return (
+                                    <React.Fragment key={project.recordID}>
+                                        <ListItem disablePadding>
+                                            <ListItemButton onClick={() => navigate(`/projects/${project.recordID}`)}>
+                                                <ListItemText
+                                                    primary={
+                                                        <Box display="flex" alignItems="center" gap={1}>
+                                                            <Typography variant="body1" noWrap sx={{ flex: 1 }}>
+                                                                {project.name}
+                                                            </Typography>
+                                                            {isSharedToMe && (
+                                                                <Tooltip title="Shared with you">
+                                                                    <PeopleIcon fontSize="small" color="info" />
+                                                                </Tooltip>
+                                                            )}
+                                                            {isSharedByMe && (
+                                                                <Tooltip title="Shared with others">
+                                                                    <PeopleIcon fontSize="small" color="action" />
+                                                                </Tooltip>
+                                                            )}
+                                                        </Box>
+                                                    }
+                                                    secondary={
+                                                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                                                            <Chip
+                                                                icon={<NotesIcon sx={{ fontSize: 16 }} />}
+                                                                label={noteCount}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                sx={{ height: 22, '& .MuiChip-label': { px: 0.5 } }}
+                                                            />
+                                                            <Chip
+                                                                icon={<TaskAltIcon sx={{ fontSize: 16 }} />}
+                                                                label={taskCount}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                sx={{ height: 22, '& .MuiChip-label': { px: 0.5 } }}
+                                                            />
+                                                            {project.description && (
+                                                                <Typography variant="caption" color="text.secondary" noWrap sx={{ ml: 1 }}>
+                                                                    {project.description.length > 60
+                                                                        ? project.description.substring(0, 60) + '…'
+                                                                        : project.description}
+                                                                </Typography>
+                                                            )}
+                                                        </Stack>
+                                                    }
+                                                    disableTypography
+                                                />
+                                            </ListItemButton>
+                                        </ListItem>
+                                    </React.Fragment>
+                                );
+                            })}
                         </List>
                     </Paper>
                 )}
@@ -142,7 +216,11 @@ export default function ProjectsPage() {
                 color="primary"
                 aria-label="Create project"
                 onClick={handleOpenDialog}
-                sx={{ position: 'fixed', bottom: 80, right: 24 }}
+                sx={{
+                    position: 'fixed',
+                    bottom: 72,
+                    right: 16,
+                }}
             >
                 <AddIcon />
             </Fab>

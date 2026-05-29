@@ -90,10 +90,6 @@ export default function NotesPage() {
 
     return (
         <Box>
-            <Typography variant="h5" gutterBottom>
-                Notes
-            </Typography>
-
             <Tabs
                 value={tabValue}
                 onChange={handleTabChange}
