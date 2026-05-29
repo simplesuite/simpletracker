@@ -22,12 +22,16 @@ import Button from '@mui/material/Button';
 import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
+import { dialogPaperStyles } from '../store/globalStore';
+import IconButton from '@mui/material/IconButton';
 
 export default function TasksPage() {
     const tasks = useTaskStore((s) => s.tasks);
     const statusFilter = useTaskStore((s) => s.statusFilter);
     const setStatusFilter = useTaskStore((s) => s.setStatusFilter);
     const createTask = useTaskStore((s) => s.createTask);
+    const completeTask = useTaskStore((s) => s.completeTask);
+    const reopenTask = useTaskStore((s) => s.reopenTask);
     const projects = useProjectStore((s) => s.projects);
     const navigate = useNavigate();
 
@@ -66,7 +70,26 @@ export default function TasksPage() {
         setTitleError('');
     };
 
-    const handleCreateTask = async () => {
+    const handleSaveAndClose = async () => {
+        const trimmed = newTitle.trim();
+        if (trimmed.length === 0) {
+            setTitleError('Title is required');
+            return;
+        }
+        if (trimmed.length > 255) {
+            setTitleError('Title must be 255 characters or less');
+            return;
+        }
+
+        const task = await createTask(trimmed);
+        if (task) {
+            setDialogOpen(false);
+            setNewTitle('');
+            setTitleError('');
+        }
+    };
+
+    const handleAddDetails = async () => {
         const trimmed = newTitle.trim();
         if (trimmed.length === 0) {
             setTitleError('Title is required');
@@ -118,14 +141,21 @@ export default function TasksPage() {
                 <List disablePadding>
                     {filteredTasks.map((task) => (
                         <ListItem key={task.recordID} disablePadding>
-                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                <ListItemIcon sx={{ minWidth: 36 }}>
+                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                <IconButton
+                                    edge="start"
+                                    size="small"
+                                    onClick={() => task.status === 'completed' ? reopenTask(task.recordID) : completeTask(task.recordID)}
+                                    aria-label={task.status === 'completed' ? 'Reopen task' : 'Complete task'}
+                                >
                                     {task.status === 'completed' ? (
                                         <CheckCircleIcon color="success" />
                                     ) : (
                                         <RadioButtonUncheckedIcon color="action" />
                                     )}
-                                </ListItemIcon>
+                                </IconButton>
+                            </ListItemIcon>
+                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
                                 <ListItemText
                                     primary={task.title}
                                     secondary={
@@ -175,37 +205,42 @@ export default function TasksPage() {
                 <AddIcon />
             </Fab>
 
-            <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm">
-                <DialogTitle>New Task</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Task title"
-                        fullWidth
-                        variant="outlined"
-                        value={newTitle}
-                        onChange={(e) => {
-                            setNewTitle(e.target.value);
-                            if (titleError) setTitleError('');
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleCreateTask();
-                            }
-                        }}
-                        error={!!titleError}
-                        helperText={titleError}
-                        inputProps={{ maxLength: 255 }}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleDialogClose}>Cancel</Button>
-                    <Button onClick={handleCreateTask} variant="contained">
-                        Create
-                    </Button>
-                </DialogActions>
+            <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>New Task</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            label="Task title"
+                            fullWidth
+                            variant="outlined"
+                            value={newTitle}
+                            onChange={(e) => {
+                                setNewTitle(e.target.value);
+                                if (titleError) setTitleError('');
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleSaveAndClose();
+                                }
+                            }}
+                            error={!!titleError}
+                            helperText={titleError}
+                            inputProps={{ maxLength: 255 }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleDialogClose}>Cancel</Button>
+                        <Button onClick={handleSaveAndClose} variant="outlined">
+                            Save + Close
+                        </Button>
+                        <Button onClick={handleAddDetails} variant="contained">
+                            Add Details
+                        </Button>
+                    </DialogActions>
+                </Box>
             </Dialog>
         </Box>
     );

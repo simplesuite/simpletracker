@@ -43,7 +43,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNoteStore } from '../store/noteStore';
 import { useProjectStore } from '../store/projectStore';
-import { useGlobalStore } from '../store/globalStore';
+import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
@@ -640,97 +640,103 @@ export default function NoteDetailPage() {
 
             {/* Share dialog — creator only */}
             {isCreator && (
-                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm">
-                    <DialogTitle>Share Note</DialogTitle>
-                    <DialogContent>
-                        {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
+                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
+                    <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                        <DialogTitle>Share Note</DialogTitle>
+                        <DialogContent>
+                            {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
 
-                        <Box display="flex" gap={1} sx={{ mt: 1, mb: 2 }}>
-                            <TextField
-                                size="small"
-                                placeholder="Enter email to share"
-                                value={shareEmail}
-                                onChange={(e) => setShareEmail(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleShare();
-                                }}
-                                sx={{ flex: 1 }}
-                            />
-                            <Button
-                                variant="contained"
-                                size="small"
-                                onClick={handleShare}
-                                disabled={shareLoading || !shareEmail.trim()}
-                            >
-                                {shareLoading ? <CircularProgress size={20} /> : 'Share'}
-                            </Button>
-                        </Box>
-
-                        {shares.length > 0 && (
-                            <Box>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                                    Shared with:
-                                </Typography>
-                                <Stack spacing={1}>
-                                    {shares.map((share) => (
-                                        <Box
-                                            key={share.recordID}
-                                            display="flex"
-                                            alignItems="center"
-                                            justifyContent="space-between"
-                                        >
-                                            <Chip label={share.sharedToID} size="small" />
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => handleUnshare(share.sharedToID)}
-                                                aria-label="Remove share"
-                                            >
-                                                <PersonRemoveIcon fontSize="small" />
-                                            </IconButton>
-                                        </Box>
-                                    ))}
-                                </Stack>
+                            <Box display="flex" gap={1} sx={{ mt: 1, mb: 2 }}>
+                                <TextField
+                                    size="small"
+                                    placeholder="Enter email to share"
+                                    value={shareEmail}
+                                    onChange={(e) => setShareEmail(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleShare();
+                                    }}
+                                    sx={{ flex: 1 }}
+                                />
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={handleShare}
+                                    disabled={shareLoading || !shareEmail.trim()}
+                                >
+                                    {shareLoading ? <CircularProgress size={20} /> : 'Share'}
+                                </Button>
                             </Box>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
-                    </DialogActions>
+
+                            {shares.length > 0 && (
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                        Shared with:
+                                    </Typography>
+                                    <Stack spacing={1}>
+                                        {shares.map((share) => (
+                                            <Box
+                                                key={share.recordID}
+                                                display="flex"
+                                                alignItems="center"
+                                                justifyContent="space-between"
+                                            >
+                                                <Chip label={share.sharedToID} size="small" />
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => handleUnshare(share.sharedToID)}
+                                                    aria-label="Remove share"
+                                                >
+                                                    <PersonRemoveIcon fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                        ))}
+                                    </Stack>
+                                </Box>
+                            )}
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
+                        </DialogActions>
+                    </Box>
                 </Dialog>
             )}
 
             {/* Delete confirmation dialog */}
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>Delete Note</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to permanently delete this note? This action cannot be undone.
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleDelete} color="error" variant="contained">
-                        Delete
-                    </Button>
-                </DialogActions>
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>Delete Note</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Are you sure you want to permanently delete this note? This action cannot be undone.
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleDelete} color="error" variant="contained">
+                            Delete
+                        </Button>
+                    </DialogActions>
+                </Box>
             </Dialog>
 
             {/* Empty note dialog */}
-            <Dialog open={emptyNoteDialogOpen} onClose={() => setEmptyNoteDialogOpen(false)}>
-                <DialogTitle>Delete empty note?</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        This note has no title or content. Would you like to delete it?
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => { setEmptyNoteDialogOpen(false); navigate(-1); }}>
-                        Keep
-                    </Button>
-                    <Button onClick={handleDeleteEmptyNote} color="error" variant="contained">
-                        Delete
-                    </Button>
-                </DialogActions>
+            <Dialog open={emptyNoteDialogOpen} onClose={() => setEmptyNoteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>Delete empty note?</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            This note has no title or content. Would you like to delete it?
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => { setEmptyNoteDialogOpen(false); navigate(-1); }}>
+                            Keep
+                        </Button>
+                        <Button onClick={handleDeleteEmptyNote} color="error" variant="contained">
+                            Delete
+                        </Button>
+                    </DialogActions>
+                </Box>
             </Dialog>
         </Box>
     );

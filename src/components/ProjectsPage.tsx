@@ -79,8 +79,17 @@ export default function ProjectsPage() {
         fetchSharedByMe();
     }, [projects, currentUserID]);
 
-    // Projects are already sorted by updatedAt desc from the store
-    const sortedProjects = [...projects].sort((a, b) => b.updatedAt - a.updatedAt);
+    // Sort projects by total associated objects (notes + tasks) descending
+    const sortedProjects = React.useMemo(() => {
+        const allNotes = [...notes, ...sharedNotes];
+        return [...projects].sort((a, b) => {
+            const aCount = allNotes.filter(n => n.projectID === a.recordID).length
+                + tasks.filter(t => t.projectID === a.recordID).length;
+            const bCount = allNotes.filter(n => n.projectID === b.recordID).length
+                + tasks.filter(t => t.projectID === b.recordID).length;
+            return bCount - aCount;
+        });
+    }, [projects, notes, sharedNotes, tasks]);
 
     const handleOpenDialog = () => {
         setProjectName('');
@@ -155,7 +164,7 @@ export default function ProjectsPage() {
 
                                 return (
                                     <React.Fragment key={project.recordID}>
-                                        <ListItem disablePadding>
+                                        <ListItem disablePadding divider>
                                             <ListItemButton onClick={() => navigate(`/projects/${project.recordID}`)}>
                                                 <ListItemText
                                                     primary={

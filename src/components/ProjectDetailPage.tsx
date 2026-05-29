@@ -30,7 +30,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
-import { useGlobalStore } from '../store/globalStore';
+import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import type { ProjectShared } from '../types/index';
@@ -374,112 +374,118 @@ export default function ProjectDetailPage() {
 
             {/* Share dialog (creator only) */}
             {isCreator && (
-                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm">
-                    <DialogTitle>Share Project</DialogTitle>
-                    <DialogContent>
-                        <Box sx={{ display: 'flex', gap: 1, mt: 1, mb: 2 }}>
-                            <TextField
-                                size="small"
-                                label="Email address"
-                                value={shareEmail}
-                                onChange={(e) => setShareEmail(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleShare();
-                                }}
-                                sx={{ flex: 1 }}
-                            />
-                            <Button
-                                variant="contained"
-                                size="small"
-                                onClick={handleShare}
-                                disabled={!shareEmail.trim()}
-                            >
-                                Share
-                            </Button>
-                        </Box>
+                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
+                    <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                        <DialogTitle>Share Project</DialogTitle>
+                        <DialogContent>
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1, mb: 2 }}>
+                                <TextField
+                                    size="small"
+                                    label="Email address"
+                                    value={shareEmail}
+                                    onChange={(e) => setShareEmail(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleShare();
+                                    }}
+                                    sx={{ flex: 1 }}
+                                />
+                                <Button
+                                    variant="contained"
+                                    size="small"
+                                    onClick={handleShare}
+                                    disabled={!shareEmail.trim()}
+                                >
+                                    Share
+                                </Button>
+                            </Box>
 
-                        {sharesLoading ? (
-                            <CircularProgress size={20} sx={{ mb: 2 }} />
-                        ) : shares.length > 0 ? (
-                            <List dense sx={{ mb: 1 }}>
-                                {shares.map((share) => (
-                                    <ListItem
-                                        key={share.recordID}
-                                        secondaryAction={
-                                            <IconButton
-                                                edge="end"
-                                                aria-label="remove share"
-                                                onClick={() => handleUnshare(share.sharedToID)}
-                                                size="small"
-                                            >
-                                                <PersonRemoveIcon fontSize="small" />
-                                            </IconButton>
-                                        }
-                                    >
-                                        <ListItemText primary={share.email} />
-                                    </ListItem>
-                                ))}
-                            </List>
-                        ) : (
-                            <Typography variant="body2" color="text.secondary">
-                                Not shared with anyone.
-                            </Typography>
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
-                    </DialogActions>
+                            {sharesLoading ? (
+                                <CircularProgress size={20} sx={{ mb: 2 }} />
+                            ) : shares.length > 0 ? (
+                                <List dense sx={{ mb: 1 }}>
+                                    {shares.map((share) => (
+                                        <ListItem
+                                            key={share.recordID}
+                                            secondaryAction={
+                                                <IconButton
+                                                    edge="end"
+                                                    aria-label="remove share"
+                                                    onClick={() => handleUnshare(share.sharedToID)}
+                                                    size="small"
+                                                >
+                                                    <PersonRemoveIcon fontSize="small" />
+                                                </IconButton>
+                                            }
+                                        >
+                                            <ListItemText primary={share.email} />
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                    Not shared with anyone.
+                                </Typography>
+                            )}
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
+                        </DialogActions>
+                    </Box>
                 </Dialog>
             )}
 
             {/* Delete confirmation dialog */}
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>Delete Project</DialogTitle>
-                <DialogContent>
-                    <DialogContentText>
-                        Are you sure you want to delete "{project.name}"? This will remove the project and unlink all associated notes and tasks (they will not be deleted, but will no longer belong to any project).
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleDelete} color="error" variant="contained">
-                        Delete
-                    </Button>
-                </DialogActions>
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>Delete Project</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Are you sure you want to delete "{project.name}"? This will remove the project and unlink all associated notes and tasks (they will not be deleted, but will no longer belong to any project).
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleDelete} color="error" variant="contained">
+                            Delete
+                        </Button>
+                    </DialogActions>
+                </Box>
             </Dialog>
 
             {/* New Task dialog */}
-            <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>New Task</DialogTitle>
-                <DialogContent>
-                    <TextField
-                        autoFocus
-                        margin="dense"
-                        label="Task title"
-                        fullWidth
-                        variant="outlined"
-                        value={newTaskTitle}
-                        onChange={(e) => {
-                            setNewTaskTitle(e.target.value);
-                            if (taskTitleError) setTaskTitleError('');
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleAddTask();
-                            }
-                        }}
-                        error={!!taskTitleError}
-                        helperText={taskTitleError}
-                        inputProps={{ maxLength: 255 }}
-                    />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setTaskDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAddTask} variant="contained">
-                        Create
-                    </Button>
-                </DialogActions>
+            <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>New Task</DialogTitle>
+                    <DialogContent>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            label="Task title"
+                            fullWidth
+                            variant="outlined"
+                            value={newTaskTitle}
+                            onChange={(e) => {
+                                setNewTaskTitle(e.target.value);
+                                if (taskTitleError) setTaskTitleError('');
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddTask();
+                                }
+                            }}
+                            error={!!taskTitleError}
+                            helperText={taskTitleError}
+                            inputProps={{ maxLength: 255 }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setTaskDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAddTask} variant="contained">
+                            Create
+                        </Button>
+                    </DialogActions>
+                </Box>
             </Dialog>
         </Box>
     );

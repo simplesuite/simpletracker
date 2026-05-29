@@ -36,7 +36,7 @@ import dayjs from 'dayjs';
 
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
-import { useGlobalStore } from '../store/globalStore';
+import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
 import { isSharedItem } from '../lib/sharing';
@@ -648,20 +648,23 @@ export default function TaskDetailPage() {
                 <Dialog
                     open={deleteDialogOpen}
                     onClose={() => setDeleteDialogOpen(false)}
+                    slotProps={{ paper: dialogPaperStyles }}
                 >
-                    <DialogTitle>Delete Task</DialogTitle>
-                    <DialogContent>
-                        <DialogContentText>
-                            Are you sure you want to delete this task? This action cannot be undone.
-                            All subtasks will also be removed.
-                        </DialogContentText>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleDelete} color="error" variant="contained">
-                            Delete
-                        </Button>
-                    </DialogActions>
+                    <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                        <DialogTitle>Delete Task</DialogTitle>
+                        <DialogContent>
+                            <DialogContentText>
+                                Are you sure you want to delete this task? This action cannot be undone.
+                                All subtasks will also be removed.
+                            </DialogContentText>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                            <Button onClick={handleDelete} color="error" variant="contained">
+                                Delete
+                            </Button>
+                        </DialogActions>
+                    </Box>
                 </Dialog>
             </Box>
         </LocalizationProvider>
