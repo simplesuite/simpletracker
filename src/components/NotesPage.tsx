@@ -89,7 +89,7 @@ export default function NotesPage() {
     };
 
     return (
-        <Box>
+        <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             <Tabs
                 value={tabValue}
                 onChange={handleTabChange}

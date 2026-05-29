@@ -119,12 +119,11 @@ export default function TasksPage() {
     };
 
     return (
-        <Box>
+        <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             <Tabs
                 value={statusFilter}
                 onChange={handleTabChange}
                 sx={{ mb: 2 }}
-                variant="fullWidth"
             >
                 <Tab label="Open" value="open" />
                 <Tab label="Completed" value="completed" />
@@ -140,7 +139,7 @@ export default function TasksPage() {
             ) : (
                 <List disablePadding>
                     {filteredTasks.map((task) => (
-                        <ListItem key={task.recordID} disablePadding>
+                        <ListItem key={task.recordID} disablePadding divider>
                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                 <IconButton
                                     edge="start"

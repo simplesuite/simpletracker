@@ -445,7 +445,7 @@ export default function NoteDetailPage() {
     }
 
     return (
-        <Box sx={{ pb: 4 }}>
+        <Box sx={{ pb: 4, maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
                 <IconButton onClick={handleBack} aria-label="Back to notes">

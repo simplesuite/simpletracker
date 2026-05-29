@@ -212,7 +212,7 @@ export default function ProjectDetailPage() {
     };
 
     return (
-        <Box sx={{ maxWidth: 700, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
                 <IconButton onClick={() => navigate('/projects')} aria-label="Back to projects">

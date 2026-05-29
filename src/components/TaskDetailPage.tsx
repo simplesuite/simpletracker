@@ -28,6 +28,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ReplayIcon from '@mui/icons-material/Replay';
+import Grid from '@mui/material/Grid';
 import Menu from '@mui/material/Menu';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -392,7 +395,7 @@ export default function TaskDetailPage() {
 
     return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Box sx={{ pb: 10 }}>
+            <Box sx={{ pb: 10, maxWidth: 600, mx: 'auto' }}>
                 {/* Header with back button and menu */}
                 <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
                     <IconButton onClick={() => navigate(-1)} aria-label="Back">
@@ -488,28 +491,34 @@ export default function TaskDetailPage() {
                     disabled={isShared && !isOnline}
                 />
 
-                {/* Due date picker */}
-                <DatePicker
-                    label="Due Date"
-                    value={dueDate}
-                    onChange={handleDueDateChange}
-                    slotProps={{
-                        textField: { fullWidth: true, sx: { mb: 2 } },
-                        field: { clearable: true },
-                    }}
-                    disabled={isShared && !isOnline}
-                />
-
-                {/* Complete/Reopen button */}
-                <Button
-                    variant="contained"
-                    color={task.status === 'open' ? 'success' : 'warning'}
-                    onClick={handleCompleteReopen}
-                    sx={{ mb: 2, mr: 1 }}
-                    disabled={isShared && !isOnline}
-                >
-                    {task.status === 'open' ? 'Mark Complete' : 'Reopen Task'}
-                </Button>
+                {/* Due date picker and Complete/Reopen button */}
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                        <DatePicker
+                            label="Due Date"
+                            value={dueDate}
+                            onChange={handleDueDateChange}
+                            slotProps={{
+                                textField: { fullWidth: true },
+                                field: { clearable: true },
+                            }}
+                            disabled={isShared && !isOnline}
+                        />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            color={task.status === 'open' ? 'success' : 'warning'}
+                            onClick={handleCompleteReopen}
+                            sx={{ height: '100%' }}
+                            disabled={isShared && !isOnline}
+                            startIcon={task.status === 'open' ? <CheckCircleIcon /> : <ReplayIcon />}
+                        >
+                            {task.status === 'open' ? 'Complete' : 'Reopen Task'}
+                        </Button>
+                    </Grid>
+                </Grid>
 
                 <Divider sx={{ my: 2 }} />
 
@@ -528,42 +537,48 @@ export default function TaskDetailPage() {
 
                 {isRecurring && (
                     <Box sx={{ pl: 2, mb: 2 }}>
-                        <Box sx={{ display: 'flex', gap: 2, mb: 1, flexWrap: 'wrap' }}>
-                            <TextField
-                                label="Interval"
-                                type="number"
-                                value={recurrenceInterval}
-                                onChange={(e) => handleRecurrenceIntervalChange(e.target.value)}
-                                inputProps={{ min: 1, max: 365 }}
-                                sx={{ width: 100 }}
-                                disabled={isShared && !isOnline}
-                            />
-                            <FormControl sx={{ minWidth: 120 }}>
-                                <InputLabel>Unit</InputLabel>
-                                <Select
-                                    value={recurrenceUnit}
-                                    onChange={(e) => handleRecurrenceUnitChange(e.target.value as 'days' | 'weeks' | 'months')}
-                                    label="Unit"
+                        <Grid container spacing={2}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                                <TextField
+                                    label="Interval"
+                                    type="number"
+                                    value={recurrenceInterval}
+                                    onChange={(e) => handleRecurrenceIntervalChange(e.target.value)}
+                                    inputProps={{ min: 1, max: 365 }}
+                                    fullWidth
                                     disabled={isShared && !isOnline}
-                                >
-                                    <MenuItem value="days">Days</MenuItem>
-                                    <MenuItem value="weeks">Weeks</MenuItem>
-                                    <MenuItem value="months">Months</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl sx={{ minWidth: 160 }}>
-                                <InputLabel>Anchor</InputLabel>
-                                <Select
-                                    value={recurrenceAnchor}
-                                    onChange={(e) => handleRecurrenceAnchorChange(e.target.value as 'due_date' | 'completed_date')}
-                                    label="Anchor"
-                                    disabled={isShared && !isOnline}
-                                >
-                                    <MenuItem value="due_date">Due Date</MenuItem>
-                                    <MenuItem value="completed_date">Completed Date</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Box>
+                                />
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Unit</InputLabel>
+                                    <Select
+                                        value={recurrenceUnit}
+                                        onChange={(e) => handleRecurrenceUnitChange(e.target.value as 'days' | 'weeks' | 'months')}
+                                        label="Unit"
+                                        disabled={isShared && !isOnline}
+                                    >
+                                        <MenuItem value="days">Days</MenuItem>
+                                        <MenuItem value="weeks">Weeks</MenuItem>
+                                        <MenuItem value="months">Months</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Anchor</InputLabel>
+                                    <Select
+                                        value={recurrenceAnchor}
+                                        onChange={(e) => handleRecurrenceAnchorChange(e.target.value as 'due_date' | 'completed_date')}
+                                        label="Anchor"
+                                        disabled={isShared && !isOnline}
+                                    >
+                                        <MenuItem value="due_date">Due Date</MenuItem>
+                                        <MenuItem value="completed_date">Completed Date</MenuItem>
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+                        </Grid>
                     </Box>
                 )}
 
