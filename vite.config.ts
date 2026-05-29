@@ -16,9 +16,9 @@ export default defineConfig({
                 clientsClaim: true,
             },
             manifest: {
-                short_name: 'simpleBudget',
-                name: 'simpleBudget: Keep on track for your goals!',
-                description: "It's a simple budget to track your in vs out.",
+                short_name: 'simpleTracker',
+                name: 'simpleTracker',
+                description: "A simple app to track your notes and tasks.",
                 icons: [
                     {
                         src: 'favicon.ico',

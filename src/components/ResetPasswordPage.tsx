@@ -108,7 +108,7 @@ export default function ResetPasswordPage() {
                                     loading="lazy"
                                 />
                                 <Typography variant="h5" color='textSecondary' sx={{ ml: 1, fontWeight: 100 }}>simple</Typography>
-                                <Typography variant="h5" align="left">Budget</Typography>
+                                <Typography variant="h5" align="left">Tracker</Typography>
                             </Stack>
                         </Grid>
                         {success ? (

@@ -7,8 +7,16 @@ import { useGlobalStore } from "../../store/globalStore";
 import IconButton from "@mui/material/IconButton";
 import RefreshIcon from '@mui/icons-material/Refresh';
 import Chip from '@mui/material/Chip';
+import Badge from '@mui/material/Badge';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
+import SyncIcon from '@mui/icons-material/Sync';
 import { useOfflineStore } from "../../store/offlineStore";
+import { keyframes } from '@mui/system';
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
 
 export default function AppToolbar() {
     const currentTheme = useGlobalStore(s => s.themeAtom);
@@ -20,9 +28,59 @@ export default function AppToolbar() {
         window.location.reload();
     }
 
-    const offlineLabel = !isOnline
-        ? (pendingCount > 0 ? `Offline · ${pendingCount} pending` : 'Offline')
-        : (isSyncing ? `Syncing ${pendingCount}...` : '');
+    const renderConnectivityIndicator = () => {
+        // Offline state: show offline chip with pending count if any
+        if (!isOnline) {
+            const label = pendingCount > 0 ? `Offline · ${pendingCount} pending` : 'Offline';
+            return (
+                <Chip
+                    icon={<CloudOffIcon />}
+                    label={label}
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ mr: 1 }}
+                    aria-label={label}
+                />
+            );
+        }
+
+        // Online and syncing: show syncing chip with animation and pending count
+        if (isSyncing) {
+            const label = `Syncing${pendingCount > 0 ? ` ${pendingCount}` : ''}...`;
+            return (
+                <Chip
+                    icon={
+                        <SyncIcon
+                            sx={{ animation: `${spin} 1s linear infinite` }}
+                        />
+                    }
+                    label={label}
+                    size="small"
+                    color="info"
+                    variant="outlined"
+                    sx={{ mr: 1 }}
+                    aria-label={label}
+                />
+            );
+        }
+
+        // Online with pending mutations (not yet syncing): show pending badge
+        if (pendingCount > 0) {
+            return (
+                <Badge
+                    badgeContent={pendingCount}
+                    color="warning"
+                    sx={{ mr: 1.5 }}
+                    aria-label={`${pendingCount} pending mutations`}
+                >
+                    <SyncIcon fontSize="small" color="action" />
+                </Badge>
+            );
+        }
+
+        return null;
+    };
 
     return (
         <>
@@ -38,18 +96,9 @@ export default function AppToolbar() {
                     />
                     <Typography variant="h6" sx={{ ml: 1, fontWeight: 100 }}>simple</Typography>
                     <Typography variant="h6" align="left" sx={{ flexGrow: 1 }}>
-                        Budget
+                        Tracker
                     </Typography>
-                    {offlineLabel && (
-                        <Chip
-                            icon={<CloudOffIcon />}
-                            label={offlineLabel}
-                            size="small"
-                            color="warning"
-                            variant="outlined"
-                            sx={{ mr: 1 }}
-                        />
-                    )}
+                    {renderConnectivityIndicator()}
                     <IconButton
                         size='small'
                         onClick={handleRefresh}

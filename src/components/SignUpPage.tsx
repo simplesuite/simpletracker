@@ -172,7 +172,7 @@ export default function SignUpPage() {
                                     />
                                     <Typography variant="h5" color='textSecondary' sx={{ ml: 1, fontWeight: 100 }}>simple</Typography>
                                     <Typography variant="h5" align="left" >
-                                        Budget
+                                        Tracker
                                     </Typography>
                                 </Stack>
                             </Grid>

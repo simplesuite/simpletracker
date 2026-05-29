@@ -11,9 +11,12 @@ import { usePwaStore } from './store/pwaStore';
 
 // Core route components loaded eagerly so they work offline without needing
 // the service worker to have cached their chunks individually.
-import BudgetPage from "./components/BudgetPage";
-import TransactionsPage from "./components/TransactionsPage";
-import AnalyticsPage from "./components/AnalyticsPage";
+import NotesPage from "./components/NotesPage";
+import NoteDetailPage from "./components/NoteDetailPage";
+import TasksPage from "./components/TasksPage";
+import TaskDetailPage from "./components/TaskDetailPage";
+import ProjectsPage from "./components/ProjectsPage";
+import ProjectDetailPage from "./components/ProjectDetailPage";
 import SettingsPage from "./components/SettingsPage";
 
 // Auth pages can stay lazy — they require network anyway
@@ -64,9 +67,12 @@ root.render(
             <Suspense fallback={<PageLoader />}>
                 <Routes>
                     <Route path='/' errorElement={<ErrorPage />} element={<App />}>
-                        <Route path='budget' element={<BudgetPage />} />
-                        <Route path='transactions' element={<TransactionsPage />} />
-                        <Route path='analytics' element={<AnalyticsPage />} />
+                        <Route path='notes' element={<NotesPage />} />
+                        <Route path='notes/:id' element={<NoteDetailPage />} />
+                        <Route path='tasks' element={<TasksPage />} />
+                        <Route path='tasks/:id' element={<TaskDetailPage />} />
+                        <Route path='projects' element={<ProjectsPage />} />
+                        <Route path='projects/:id' element={<ProjectDetailPage />} />
                         <Route path='settings' element={<SettingsPage />} />
                     </Route>
                     <Route path='login' element={<LoginPage />} />

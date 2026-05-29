@@ -60,7 +60,7 @@ export default function LoginPage() {
             )
             localStorage.setItem('fullName', users[0].fullName)
             if (errorText === '') {
-                navigate("/budget", { replace: true });
+                navigate("/notes", { replace: true });
                 setSnackSev('success')
                 setSnackText('Login Successful')
                 setSnackOpen(true)
@@ -131,7 +131,7 @@ export default function LoginPage() {
                                     />
                                     <Typography variant="h5" color='textSecondary' sx={{ ml: 1, fontWeight: 100 }}>simple</Typography>
                                     <Typography variant="h5" align="left" >
-                                        Budget
+                                        Tracker
                                     </Typography>
                                 </Stack>
                             </Grid>

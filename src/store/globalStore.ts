@@ -85,10 +85,6 @@ interface GlobalState {
     setAreYouSureDetails: (val: string) => void;
     areYouSureAccept: boolean;
     setAreYouSureAccept: (val: boolean) => void;
-    addTransactionCategory: any;
-    setAddTransactionCategory: (val: any) => void;
-    addTransactionType: any;
-    setAddTransactionType: (val: any) => void;
 }
 
 export const useGlobalStore = create<GlobalState>((set) => ({
@@ -116,13 +112,9 @@ export const useGlobalStore = create<GlobalState>((set) => ({
     setAreYouSureDetails: (val) => set({ areYouSureDetails: val }),
     areYouSureAccept: false,
     setAreYouSureAccept: (val) => set({ areYouSureAccept: val }),
-    addTransactionCategory: null,
-    setAddTransactionCategory: (val) => set({ addTransactionCategory: val }),
-    addTransactionType: 'expense',
-    setAddTransactionType: (val) => set({ addTransactionType: val }),
 }));
 
-export const appName = 'simpleBudget';
+export const appName = 'simpleTracker';
 
 export const dialogPaperStyles = {
     style: {

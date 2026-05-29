@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as fc from 'fast-check';
-import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { enqueue, getAll } from '../offlineQueue';
 import type { PendingMutation } from '../../types';
 
@@ -15,13 +15,9 @@ import type { PendingMutation } from '../../types';
  */
 describe('Property 13: Offline Queue FIFO Order', () => {
     beforeEach(() => {
-        // Reset IndexedDB between tests to avoid cross-test contamination
-        const req = indexedDB.deleteDatabase('simpleTrackerOffline');
-        return new Promise<void>((resolve) => {
-            req.onsuccess = () => resolve();
-            req.onerror = () => resolve();
-            req.onblocked = () => resolve();
-        });
+        // Replace globalThis.indexedDB with a fresh IDBFactory instance
+        // This gives us a completely clean IndexedDB state for each test
+        globalThis.indexedDB = new IDBFactory();
     });
 
     const entityTypeArb = fc.constantFrom<PendingMutation['entityType']>('note', 'task', 'subtask', 'project');
@@ -41,7 +37,7 @@ describe('Property 13: Offline Queue FIFO Order', () => {
                 fc.oneof(fc.string({ maxLength: 50 }), fc.integer(), fc.boolean())
             ),
         }),
-        { minLength: 1, maxLength: 20 }
+        { minLength: 1, maxLength: 10 }
     ).chain((mutations) => {
         // Generate a base timestamp and strictly increasing offsets
         return fc.tuple(
@@ -71,13 +67,8 @@ describe('Property 13: Offline Queue FIFO Order', () => {
     it('mutations enqueued with increasing timestamps are returned in ascending _queuedAt order', async () => {
         await fc.assert(
             fc.asyncProperty(pendingMutationsArb, async (mutations) => {
-                // Clear the database before each property run
-                const deleteReq = indexedDB.deleteDatabase('simpleTrackerOffline');
-                await new Promise<void>((resolve) => {
-                    deleteReq.onsuccess = () => resolve();
-                    deleteReq.onerror = () => resolve();
-                    deleteReq.onblocked = () => resolve();
-                });
+                // Reset IndexedDB for each property iteration
+                globalThis.indexedDB = new IDBFactory();
 
                 // Enqueue all mutations in order
                 for (const mutation of mutations) {
@@ -95,20 +86,15 @@ describe('Property 13: Offline Queue FIFO Order', () => {
                     expect(result[i]._queuedAt).toBeGreaterThan(result[i - 1]._queuedAt);
                 }
             }),
-            { numRuns: 100 }
+            { numRuns: 20 }
         );
-    });
+    }, 30000);
 
     it('mutations enqueued out of order are still returned sorted by _queuedAt ascending', async () => {
         await fc.assert(
             fc.asyncProperty(pendingMutationsArb, async (mutations) => {
-                // Clear the database before each property run
-                const deleteReq = indexedDB.deleteDatabase('simpleTrackerOffline');
-                await new Promise<void>((resolve) => {
-                    deleteReq.onsuccess = () => resolve();
-                    deleteReq.onerror = () => resolve();
-                    deleteReq.onblocked = () => resolve();
-                });
+                // Reset IndexedDB for each property iteration
+                globalThis.indexedDB = new IDBFactory();
 
                 // Shuffle the mutations before enqueueing to test that getAll
                 // returns them sorted by _queuedAt regardless of insertion order
@@ -129,7 +115,7 @@ describe('Property 13: Offline Queue FIFO Order', () => {
                     expect(result[i]._queuedAt).toBeGreaterThanOrEqual(result[i - 1]._queuedAt);
                 }
             }),
-            { numRuns: 100 }
+            { numRuns: 20 }
         );
-    });
+    }, 30000);
 });

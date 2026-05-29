@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useGlobalStore } from '../store/globalStore';
 import { useModalStore } from '../store/modalStore';
-import { useTableStore } from '../store/tableStore';
 
 describe('globalStore', () => {
     beforeEach(() => {
@@ -11,8 +10,6 @@ describe('globalStore', () => {
             snackBarOpen: false,
             mainLoading: false,
             areYouSureAccept: false,
-            addTransactionCategory: null,
-            addTransactionType: 'expense',
         });
     });
 
@@ -42,79 +39,77 @@ describe('globalStore', () => {
         expect(state.areYouSureDetails).toBe('This is permanent');
         expect(state.areYouSureAccept).toBe(true);
     });
-
-    it('defaults addTransactionType to expense', () => {
-        expect(useGlobalStore.getState().addTransactionType).toBe('expense');
-    });
 });
 
 describe('modalStore', () => {
     beforeEach(() => {
         useModalStore.setState({
-            addSection: false,
-            addCategory: false,
-            editCategory: false,
-            editTransaction: false,
-            addTransaction: false,
-            selectBudget: false,
-            areYouSure: false,
-            currentSection: '',
-            currentCategory: '',
-            currentTransaction: '',
+            confirmDelete: { open: false, entityType: '', entityId: '', onConfirm: () => { } },
+            shareNote: { open: false, noteID: '' },
+            shareProject: { open: false, projectID: '' },
+            shareTask: { open: false, taskID: '' },
+            openChangePassword: false,
         });
     });
 
-    it('toggles modal booleans', () => {
-        const s = useModalStore.getState();
-        s.setAddTransaction(true);
-        s.setEditCategory(true);
-        s.setAreYouSure(true);
+    it('opens and closes confirmDelete modal', () => {
+        const onConfirm = () => { };
+        useModalStore.getState().openConfirmDelete('note', 'note-123', onConfirm);
         const state = useModalStore.getState();
-        expect(state.addTransaction).toBe(true);
-        expect(state.editCategory).toBe(true);
-        expect(state.areYouSure).toBe(true);
+        expect(state.confirmDelete.open).toBe(true);
+        expect(state.confirmDelete.entityType).toBe('note');
+        expect(state.confirmDelete.entityId).toBe('note-123');
+        expect(state.confirmDelete.onConfirm).toBe(onConfirm);
+
+        useModalStore.getState().closeConfirmDelete();
+        const closed = useModalStore.getState();
+        expect(closed.confirmDelete.open).toBe(false);
+        expect(closed.confirmDelete.entityType).toBe('');
+        expect(closed.confirmDelete.entityId).toBe('');
     });
 
-    it('sets current IDs', () => {
-        const s = useModalStore.getState();
-        s.setCurrentSection('sec-1');
-        s.setCurrentCategory('cat-1');
-        s.setCurrentTransaction('trans-1');
+    it('opens and closes shareNote modal', () => {
+        useModalStore.getState().openShareNote('note-456');
         const state = useModalStore.getState();
-        expect(state.currentSection).toBe('sec-1');
-        expect(state.currentCategory).toBe('cat-1');
-        expect(state.currentTransaction).toBe('trans-1');
+        expect(state.shareNote.open).toBe(true);
+        expect(state.shareNote.noteID).toBe('note-456');
+
+        useModalStore.getState().closeShareNote();
+        const closed = useModalStore.getState();
+        expect(closed.shareNote.open).toBe(false);
+        expect(closed.shareNote.noteID).toBe('');
+    });
+
+    it('opens and closes shareProject modal', () => {
+        useModalStore.getState().openShareProject('proj-789');
+        const state = useModalStore.getState();
+        expect(state.shareProject.open).toBe(true);
+        expect(state.shareProject.projectID).toBe('proj-789');
+
+        useModalStore.getState().closeShareProject();
+        const closed = useModalStore.getState();
+        expect(closed.shareProject.open).toBe(false);
+        expect(closed.shareProject.projectID).toBe('');
+    });
+
+    it('opens and closes shareTask modal', () => {
+        useModalStore.getState().openShareTask('task-101');
+        const state = useModalStore.getState();
+        expect(state.shareTask.open).toBe(true);
+        expect(state.shareTask.taskID).toBe('task-101');
+
+        useModalStore.getState().closeShareTask();
+        const closed = useModalStore.getState();
+        expect(closed.shareTask.open).toBe(false);
+        expect(closed.shareTask.taskID).toBe('');
+    });
+
+    it('toggles openChangePassword', () => {
+        useModalStore.getState().setOpenChangePassword(true);
+        expect(useModalStore.getState().openChangePassword).toBe(true);
+        useModalStore.getState().setOpenChangePassword(false);
+        expect(useModalStore.getState().openChangePassword).toBe(false);
     });
 });
 
-describe('tableStore', () => {
-    beforeEach(() => {
-        useTableStore.setState({
-            budgets: [],
-            sections: [],
-            categories: [],
-            transactions: [],
-        });
-    });
 
-    it('sets arrays directly', () => {
-        useTableStore.getState().setBudgets([{ recordID: 'b1', creatorID: 'u1', budgetName: 'Test' }]);
-        expect(useTableStore.getState().budgets).toHaveLength(1);
-        expect(useTableStore.getState().budgets[0].budgetName).toBe('Test');
-    });
-
-    it('supports functional updates for arrays', () => {
-        useTableStore.getState().setCategories([{ recordID: 'c1', sectionID: 's1', categoryName: 'Food', amount: 100 }]);
-        useTableStore.getState().setCategories((prev) => [...prev, { recordID: 'c2', sectionID: 's1', categoryName: 'Gas', amount: 50 }]);
-        expect(useTableStore.getState().categories).toHaveLength(2);
-        expect(useTableStore.getState().categories[1].categoryName).toBe('Gas');
-    });
-
-    it('sets currentBudgetAndMonth', () => {
-        useTableStore.getState().setCurrentBudgetAndMonth({ budgetID: 'b1', year: 2026, month: 'April' });
-        const state = useTableStore.getState();
-        expect(state.currentBudgetAndMonth.budgetID).toBe('b1');
-        expect(state.currentBudgetAndMonth.year).toBe(2026);
-        expect(state.currentBudgetAndMonth.month).toBe('April');
-    });
-});

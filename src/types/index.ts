@@ -12,6 +12,7 @@ export interface Note {
 export interface NoteShared {
     recordID: string;
     noteID: string;
+    creatorID: string;
     sharedToID: string;
 }
 
@@ -53,6 +54,7 @@ export interface Project {
 export interface ProjectShared {
     recordID: string;
     projectID: string;
+    creatorID: string;
     sharedToID: string;
     createdAt: number;
 }
