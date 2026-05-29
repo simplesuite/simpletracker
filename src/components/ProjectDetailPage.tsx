@@ -9,6 +9,7 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemButton from '@mui/material/ListItemButton';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -27,6 +28,9 @@ import NotesIcon from '@mui/icons-material/Notes';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import ShareIcon from '@mui/icons-material/Share';
 import AddIcon from '@mui/icons-material/Add';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import Chip from '@mui/material/Chip';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
@@ -52,6 +56,8 @@ export default function ProjectDetailPage() {
     const createNote = useNoteStore((s) => s.createNote);
     const tasks = useTaskStore((s) => s.tasks);
     const createTask = useTaskStore((s) => s.createTask);
+    const completeTask = useTaskStore((s) => s.completeTask);
+    const reopenTask = useTaskStore((s) => s.reopenTask);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
 
     const project = projects.find((p) => p.recordID === id);
@@ -211,6 +217,36 @@ export default function ProjectDetailPage() {
         }
     };
 
+    const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const date = new Date(dueDate);
+        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            const label = date.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+            });
+            return { label: `Overdue · ${label}`, color: 'error' };
+        }
+        if (diffDays === 0) return { label: 'Today', color: 'warning' };
+        if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
+        if (diffDays <= 7) {
+            const dayName = date.toLocaleDateString(undefined, { weekday: 'short' });
+            return { label: dayName, color: 'default' };
+        }
+
+        const label = date.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+        });
+        return { label, color: 'default' };
+    };
+
     return (
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
@@ -349,24 +385,52 @@ export default function ProjectDetailPage() {
                     No tasks in this project.
                 </Typography>
             ) : (
-                <List dense sx={{ mb: 2 }}>
+                <List disablePadding sx={{ mb: 2 }}>
                     {projectTasks.map((task) => (
-                        <ListItem
-                            key={task.recordID}
-                            component="div"
-                            onClick={() => navigate(`/tasks/${task.recordID}`)}
-                            sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1 }}
-                        >
-                            <ListItemIcon>
-                                <TaskAltIcon
-                                    fontSize="small"
-                                    color={task.status === 'completed' ? 'success' : 'inherit'}
-                                />
+                        <ListItem key={task.recordID} disablePadding divider>
+                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                <IconButton
+                                    edge="start"
+                                    size="small"
+                                    onClick={() => task.status === 'completed' ? reopenTask(task.recordID) : completeTask(task.recordID)}
+                                    aria-label={task.status === 'completed' ? 'Reopen task' : 'Complete task'}
+                                >
+                                    {task.status === 'completed' ? (
+                                        <CheckCircleIcon color="success" />
+                                    ) : (
+                                        <RadioButtonUncheckedIcon color="action" />
+                                    )}
+                                </IconButton>
                             </ListItemIcon>
-                            <ListItemText
-                                primary={task.title}
-                                secondary={task.status === 'completed' ? 'Completed' : (task.dueDate ? `Due: ${new Date(task.dueDate).toLocaleDateString()}` : 'Open')}
-                            />
+                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                <ListItemText
+                                    primary={task.title}
+                                    secondary={
+                                        task.status === 'completed'
+                                            ? 'Completed'
+                                            : task.dueDate
+                                                ? (() => {
+                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                    return (
+                                                        <Chip
+                                                            label={label}
+                                                            size="small"
+                                                            variant="outlined"
+                                                            color={color}
+                                                            sx={{ height: 20, fontSize: '0.75rem' }}
+                                                        />
+                                                    );
+                                                })()
+                                                : 'Open'
+                                    }
+                                    primaryTypographyProps={{
+                                        sx: {
+                                            textDecoration: task.status === 'completed' ? 'line-through' : 'none',
+                                            color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
+                                        },
+                                    }}
+                                />
+                            </ListItemButton>
                         </ListItem>
                     ))}
                 </List>
