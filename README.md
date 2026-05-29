@@ -2,25 +2,24 @@
 <img width="250" height="250" alt="logo" src="https://github.com/user-attachments/assets/57426cb2-3e99-45ba-918c-8d79126c6571" />
 </p>
 
-# simpleBudget
+# simpleTracker
 
 [![Made with Supabase](https://supabase.com/badge-made-with-supabase.svg)](https://supabase.com)
 
-A simple, mobile-first budget app for tracking income and expenses. Installable as a PWA on iOS and Android.
-
-**Live:** [simplebudget.vercel.app](https://simplebudget.vercel.app/)
+A simple, mobile-first productivity app for managing notes, tasks, and projects. Installable as a PWA on iOS and Android.
 
 ## Features
 
-- Create and manage multiple budgets
-- Organize spending with sections and categories
-- Track transactions with split-transaction support
-- Share budgets with other users via QR code
-- Analytics with pie charts for income and expense breakdown
-- Export data to CSV
+- Create and manage notes with Markdown support
+- Track tasks with subtasks, due dates, and completion status
+- Organize notes and tasks into projects
+- Recurring tasks with configurable intervals (days, weeks, months)
+- Share notes and projects with other users via QR code
+- Archive and restore notes
+- Offline-capable with automatic sync when back online
 - Dark/light theme
-- Offline-capable PWA with auto-update prompts
-- Works great on mobile — designed for daily use
+- PWA with auto-update prompts
+- Designed for daily mobile use
 
 ## Tech Stack
 
@@ -30,8 +29,11 @@ A simple, mobile-first budget app for tracking income and expenses. Installable 
 - **Zustand** for state management
 - **Supabase** for auth, database, and real-time
 - **react-router-dom v7** for routing
+- **dayjs** for date handling
+- **react-markdown** with remark-gfm for note rendering
+- **recharts** for data visualization
 - **vite-plugin-pwa** for service worker and installability
-- **Vitest** for unit testing
+- **Vitest** with fast-check for unit and property-based testing
 
 ## Getting Started
 
@@ -39,7 +41,7 @@ A simple, mobile-first budget app for tracking income and expenses. Installable 
 # Install dependencies
 npm install
 
-# Start dev server (http://localhost:3000)
+# Start dev server
 npm run dev
 
 # Run tests
@@ -52,9 +54,9 @@ npm run build
 npm run preview
 ```
 
-## Environment Variables (optional)
+## Environment Variables
 
-The app works out of the box with the default Supabase project. To use your own:
+Copy the example file and set your Supabase credentials:
 
 ```bash
 cp .env.example .env.local
@@ -67,18 +69,24 @@ Then set `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` in `.env.local`.
 ```
 src/
 ├── components/
-│   ├── modals/          # Dialog components (AddTransaction, EditCategory, etc.)
-│   ├── subcomponents/   # Shared UI (AppToolbar, AreYouSure, UpdatePrompt, etc.)
-│   └── extras/          # Utilities (api_functions, GrabBudgetData, etc.)
-├── store/               # Zustand stores (globalStore, modalStore, tableStore)
-├── lib/                 # Supabase client
-└── test/                # Unit tests
+│   ├── modals/          # Dialog components (ChangePassword, etc.)
+│   ├── subcomponents/   # Shared UI (AppToolbar, AreYouSure, UpdatePrompt)
+│   └── extras/          # Utilities (ensureSession, OfflineAlert)
+├── store/               # Zustand stores (global, notes, tasks, projects, modals, pwa, offline)
+├── lib/                 # Supabase client, caching, offline sync, recurrence, sharing, validation
+└── types/               # TypeScript interfaces
 ```
 
-## Deployment
+## Docker
 
-Deployed on [Vercel](https://vercel.com). Push to the main branch to trigger a deploy.
+Build and run with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at `http://localhost:8080`, served by Caddy.
 
 ## License
 
-See [LICENSE](LICENSE).
+[AGPL-3.0](LICENSE)
