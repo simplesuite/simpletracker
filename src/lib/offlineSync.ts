@@ -1,0 +1,368 @@
+/**
+ * Generalized offline sync engine.
+ * Handles insert/update/delete operations across notes, tasks, subtasks, and projects.
+ * Listens for online/offline events, performs periodic connectivity checks,
+ * and drains the pending mutation queue when connectivity returns.
+ */
+
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
+import { getAll, dequeue, pendingCount, enqueue } from './offlineQueue';
+import { withNetworkTimeout } from './networkUtils';
+import { useOfflineStore } from '../store/offlineStore';
+import { ensureSession } from '../components/extras/ensureSession';
+import type { PendingMutation } from '../types';
+
+let syncInProgress = false;
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
+/** How long to wait for a network request before assuming we're offline (ms) */
+const NETWORK_TIMEOUT = 8000;
+
+/** How often to verify connectivity with a real network request (ms) */
+const HEARTBEAT_INTERVAL = 30_000; // 30 seconds
+
+/** Map entity types to Supabase table names */
+const ENTITY_TABLE_MAP: Record<string, string> = {
+    note: 'notes',
+    task: 'tasks',
+    subtask: 'task_subtasks',
+    project: 'task_projects',
+};
+
+/**
+ * Performs a lightweight network check to verify actual internet connectivity.
+ * navigator.onLine only checks if there's a network adapter — it doesn't detect
+ * "lie-fi" (connected to WiFi but no internet). This pings Supabase's REST endpoint
+ * with a tiny request to confirm real connectivity.
+ */
+export async function verifyConnectivity(): Promise<boolean> {
+    // If the browser says we're offline, trust it immediately
+    if (!navigator.onLine) {
+        useOfflineStore.getState().setIsOnline(false);
+        return false;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/`,
+            {
+                method: 'HEAD',
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                },
+                signal: controller.signal,
+            }
+        );
+        clearTimeout(timeout);
+
+        // Any HTTP response (even 4xx/5xx) means the server is reachable.
+        useOfflineStore.getState().setIsOnline(true);
+        useOfflineStore.getState().setLastVerifiedAt(Date.now());
+        return true;
+    } catch {
+        // Network error, timeout, or abort — we're effectively offline
+        useOfflineStore.getState().setIsOnline(false);
+        return false;
+    }
+}
+
+/** Start periodic heartbeat checks */
+function startHeartbeat(): void {
+    if (heartbeatInterval) return;
+    heartbeatInterval = setInterval(async () => {
+        const wasOnline = useOfflineStore.getState().isOnline;
+        const isNowOnline = await verifyConnectivity();
+
+        // If we just came back online, trigger a sync
+        if (!wasOnline && isNowOnline) {
+            syncPendingMutations();
+        }
+    }, HEARTBEAT_INTERVAL);
+}
+
+/** Stop periodic heartbeat checks */
+function stopHeartbeat(): void {
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+}
+
+/**
+ * Execute a single mutation against Supabase based on its operation type.
+ * Returns { error } where error is null on success.
+ */
+async function executeMutation(mutation: PendingMutation): Promise<{ error: any }> {
+    const table = ENTITY_TABLE_MAP[mutation.entityType] || mutation.entityType;
+
+    switch (mutation.operation) {
+        case 'insert': {
+            const { error } = await withNetworkTimeout(
+                supabase.from(table).insert(mutation.payload),
+                NETWORK_TIMEOUT
+            );
+            return { error };
+        }
+        case 'update': {
+            const { error } = await withNetworkTimeout(
+                supabase.from(table).update(mutation.payload).eq('recordID', mutation.recordID),
+                NETWORK_TIMEOUT
+            );
+            return { error };
+        }
+        case 'delete': {
+            const { error } = await withNetworkTimeout(
+                supabase.from(table).delete().eq('recordID', mutation.recordID),
+                NETWORK_TIMEOUT
+            );
+            return { error };
+        }
+        default:
+            return { error: { message: `Unknown operation: ${mutation.operation}` } };
+    }
+}
+
+/** Attempt to sync all pending mutations to Supabase in FIFO order */
+export async function syncPendingMutations(): Promise<{ synced: number; failed: number }> {
+    if (syncInProgress) return { synced: 0, failed: 0 };
+    if (!navigator.onLine) return { synced: 0, failed: 0 };
+
+    syncInProgress = true;
+    useOfflineStore.getState().setIsSyncing(true);
+
+    let synced = 0;
+    let failed = 0;
+
+    try {
+        await withNetworkTimeout(ensureSession(), NETWORK_TIMEOUT);
+        const pending = await getAll(); // Already sorted by _queuedAt ascending (FIFO)
+
+        for (const mutation of pending) {
+            try {
+                const { error } = await executeMutation(mutation);
+
+                if (error) {
+                    // Duplicate key conflict (PostgreSQL error code 23505):
+                    // Server already has this record — remove from queue and notify user
+                    if (error.code === '23505') {
+                        await dequeue(mutation.id);
+                        synced++;
+                        console.warn(
+                            `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
+                        );
+                    } else {
+                        // Non-conflict error: retain in queue for retry on next cycle
+                        failed++;
+                        console.error(
+                            'Offline sync failed for',
+                            mutation.entityType,
+                            mutation.recordID,
+                            error.message
+                        );
+                    }
+                } else {
+                    await dequeue(mutation.id);
+                    synced++;
+                }
+            } catch (err) {
+                // Timeout or network error — stop trying, we're probably offline
+                failed++;
+                break;
+            }
+        }
+    } catch (err) {
+        console.error('Offline sync error:', err);
+    } finally {
+        syncInProgress = false;
+        useOfflineStore.getState().setIsSyncing(false);
+        // Update pending count
+        const count = await pendingCount();
+        useOfflineStore.getState().setPendingCount(count);
+        // If ALL items failed (not just some), we're likely offline.
+        if (count > 0 && failed > 0 && synced === 0) {
+            useOfflineStore.getState().setIsOnline(false);
+        }
+    }
+
+    return { synced, failed };
+}
+
+/**
+ * Insert a record with offline support.
+ * Enqueues the mutation for instant local response, then attempts background sync.
+ */
+export async function insertWithOfflineSupport(
+    entityType: string,
+    table: string,
+    payload: Record<string, unknown>
+): Promise<{ success: boolean; queued: boolean }> {
+    const recordID = (payload.recordID as string) || '';
+    const mutation: PendingMutation = {
+        id: `${entityType}-insert-${recordID}-${Date.now()}`,
+        entityType: entityType as PendingMutation['entityType'],
+        operation: 'insert',
+        recordID,
+        payload,
+        _queuedAt: Date.now(),
+    };
+
+    // Always enqueue first — guarantees the mutation is persisted locally
+    await enqueue(mutation);
+    const count = await pendingCount();
+    useOfflineStore.getState().setPendingCount(count);
+
+    // If clearly offline, don't even try the network
+    if (!navigator.onLine) {
+        return { success: true, queued: true };
+    }
+
+    // Fire-and-forget background sync attempt
+    syncSingleMutation(mutation);
+
+    return { success: true, queued: true };
+}
+
+/**
+ * Update a record with offline support.
+ * Enqueues the mutation for instant local response, then attempts background sync.
+ */
+export async function updateWithOfflineSupport(
+    entityType: string,
+    table: string,
+    recordID: string,
+    payload: Record<string, unknown>
+): Promise<{ success: boolean; queued: boolean }> {
+    const mutation: PendingMutation = {
+        id: `${entityType}-update-${recordID}-${Date.now()}`,
+        entityType: entityType as PendingMutation['entityType'],
+        operation: 'update',
+        recordID,
+        payload,
+        _queuedAt: Date.now(),
+    };
+
+    await enqueue(mutation);
+    const count = await pendingCount();
+    useOfflineStore.getState().setPendingCount(count);
+
+    if (!navigator.onLine) {
+        return { success: true, queued: true };
+    }
+
+    syncSingleMutation(mutation);
+
+    return { success: true, queued: true };
+}
+
+/**
+ * Delete a record with offline support.
+ * Enqueues the mutation for instant local response, then attempts background sync.
+ */
+export async function deleteWithOfflineSupport(
+    entityType: string,
+    table: string,
+    recordID: string
+): Promise<{ success: boolean; queued: boolean }> {
+    const mutation: PendingMutation = {
+        id: `${entityType}-delete-${recordID}-${Date.now()}`,
+        entityType: entityType as PendingMutation['entityType'],
+        operation: 'delete',
+        recordID,
+        payload: {},
+        _queuedAt: Date.now(),
+    };
+
+    await enqueue(mutation);
+    const count = await pendingCount();
+    useOfflineStore.getState().setPendingCount(count);
+
+    if (!navigator.onLine) {
+        return { success: true, queued: true };
+    }
+
+    syncSingleMutation(mutation);
+
+    return { success: true, queued: true };
+}
+
+/** Background attempt to sync a single mutation, removing it from the queue on success */
+async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
+    try {
+        const { error } = await executeMutation(mutation);
+
+        if (!error || error.code === '23505') {
+            // Success or duplicate — remove from queue
+            await dequeue(mutation.id);
+            const count = await pendingCount();
+            useOfflineStore.getState().setPendingCount(count);
+
+            if (error?.code === '23505') {
+                console.warn(
+                    `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
+                );
+            }
+        }
+        // If it's some other error, leave it in the queue for the next full sync
+    } catch {
+        // Timeout or network failure — verify connectivity
+        verifyConnectivity();
+    }
+}
+
+/** Initialize online/offline listeners, heartbeat, and kick off initial sync */
+export function initOfflineSync(): () => void {
+    const handleOnline = () => {
+        // Don't immediately trust navigator.onLine — verify with a real request
+        verifyConnectivity().then((reallyOnline) => {
+            if (reallyOnline) {
+                syncPendingMutations();
+            }
+        });
+    };
+
+    const handleOffline = () => {
+        useOfflineStore.getState().setIsOnline(false);
+    };
+
+    // Listen for visibility changes — when the app comes back to foreground,
+    // re-verify connectivity (important for mobile where the OS suspends the app)
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+            verifyConnectivity().then((online) => {
+                if (online) {
+                    syncPendingMutations();
+                }
+            });
+        }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Set initial state with a real connectivity check
+    verifyConnectivity();
+
+    // Start periodic heartbeat
+    startHeartbeat();
+
+    // Check for any pending items on startup
+    pendingCount().then((count) => {
+        useOfflineStore.getState().setPendingCount(count);
+        // If we're online and have pending items, sync them
+        if (navigator.onLine && count > 0) {
+            syncPendingMutations();
+        }
+    });
+
+    // Cleanup function
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        stopHeartbeat();
+    };
+}

@@ -1,0 +1,28 @@
+{
+    "headers": [
+        {
+            "source": "/sw.js",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-cache, no-store, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/workbox-(.*).js",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-cache, no-store, must-revalidate"
+                }
+            ]
+        }
+    ],
+    "rewrites": [
+        {
+            "source": "/((?!assets|sw\\.js|workbox-.*\\.js|manifest\\.webmanifest|favicon\\.ico|android-chrome-.*\\.png|apple-touch-icon\\.png).*)",
+            "destination": "/index.html"
+        }
+    ]
+}

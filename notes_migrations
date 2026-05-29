@@ -1,0 +1,196 @@
+CREATE TABLE IF NOT EXISTS public.notes (
+  "recordID" character varying NOT NULL PRIMARY KEY,
+  "creatorID" uuid NOT NULL,
+  "title" varchar(255) not null default '',
+  "body" text not null default '',
+  "createdAt" bigint not null,
+  "updatedAt" bigint not null,
+  "projectID" varchar references public.task_projects("recordID") on delete set null,
+  "archived" Boolean not null default false
+);
+ 
+ALTER TABLE public.notes ADD CONSTRAINT "notes_createdID_fkey" FOREIGN KEY ("creatorID") REFERENCES public.users("recordID")
+ 
+CREATE TABLE IF NOT EXISTS public.notes_shared (
+  "recordID" character varying NOT NULL PRIMARY KEY,
+  "noteID" character varying NOT NULL,
+  "sharedToID" uuid NOT NULL
+);
+ 
+ALTER TABLE public.notes_shared ADD CONSTRAINT "notes_shared_noteID_fkey" FOREIGN KEY ("noteID") REFERENCES public.notes("recordID")
+ALTER TABLE public.notes_shared ADD CONSTRAINT "notes_shared_sharedToID_fkey" FOREIGN KEY ("sharedToID") REFERENCES public.users("recordID")
+ 
+create policy "notes_select_creator_shared_or_project_shared"
+on public.notes
+for select
+to authenticated
+using (
+  "creatorID" = auth.uid()
+  or exists (
+    select 1
+    from public.notes_shared ns
+    where ns."noteID" = notes."recordID"
+      and ns."sharedToID" = auth.uid()
+  )
+  or exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = notes."projectID"
+      and (
+        p."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = p."recordID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+);
+ 
+create policy "notes_insert_creator_valid_project"
+on public.notes
+for insert
+to authenticated
+with check (
+  "creatorID" = auth.uid()
+  and (
+    "projectID" is null
+    or exists (
+      select 1
+      from public.task_projects p
+      where p."recordID" = notes."projectID"
+        and (
+          p."creatorID" = auth.uid()
+          or exists (
+            select 1
+            from public.task_projects_shared ps
+            where ps."projectID" = p."recordID"
+              and ps."sharedToID" = auth.uid()
+          )
+        )
+    )
+  )
+);
+ 
+create policy "notes_update_creator_shared_or_project_shared"
+on public.notes
+for update
+to authenticated
+using (
+  "creatorID" = auth.uid()
+  or exists (
+    select 1
+    from public.notes_shared ns
+    where ns."noteID" = notes."recordID"
+      and ns."sharedToID" = auth.uid()
+  )
+  or exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = notes."projectID"
+      and (
+        p."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = p."recordID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+)
+with check (
+  "creatorID" = auth.uid()
+  and (
+    "projectID" is null
+    or exists (
+      select 1
+      from public.task_projects p
+      where p."recordID" = notes."projectID"
+        and (
+          p."creatorID" = auth.uid()
+          or exists (
+            select 1
+            from public.task_projects_shared ps
+            where ps."projectID" = p."recordID"
+              and ps."sharedToID" = auth.uid()
+          )
+        )
+    )
+  )
+);
+ 
+-- NOTES: delete creator only
+create policy "notes_delete_creator"
+on public.notes
+for delete
+to authenticated
+using (
+  "creatorID" = auth.uid()
+);
+ 
+-- NOTES_SHARED: creator or recipient can see share rows
+create policy "notes_shared_select_creator_or_recipient"
+on public.notes_shared
+for select
+to authenticated
+using (
+  "sharedToID" = auth.uid()
+  or exists (
+    select 1
+    from public.notes n
+    where n."recordID" = notes_shared."noteID"
+      and n."creatorID" = auth.uid()
+  )
+);
+ 
+-- NOTES_SHARED: only note creator can share
+create policy "notes_shared_insert_creator"
+on public.notes_shared
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.notes n
+    where n."recordID" = notes_shared."noteID"
+      and n."creatorID" = auth.uid()
+  )
+);
+ 
+-- NOTES_SHARED: only note creator can update shares
+create policy "notes_shared_update_creator"
+on public.notes_shared
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.notes n
+    where n."recordID" = notes_shared."noteID"
+      and n."creatorID" = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.notes n
+    where n."recordID" = notes_shared."noteID"
+      and n."creatorID" = auth.uid()
+  )
+);
+ 
+-- NOTES_SHARED: only note creator can remove shares
+create policy "notes_shared_delete_creator"
+on public.notes_shared
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.notes n
+    where n."recordID" = notes_shared."noteID"
+      and n."creatorID" = auth.uid()
+  )
+);

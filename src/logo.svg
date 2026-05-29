@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="127.53568mm"
+   height="127.53568mm"
+   viewBox="0 0 127.53568 127.53567"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="logo.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   inkscape:export-filename="logo.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#505050"
+     bordercolor="#ffffff"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#505050"
+     inkscape:document-units="mm"
+     inkscape:zoom="1.1149729"
+     inkscape:cx="266.37419"
+     inkscape:cy="256.06003"
+     inkscape:window-width="1920"
+     inkscape:window-height="1111"
+     inkscape:window-x="-9"
+     inkscape:window-y="-9"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient8"
+       inkscape:collect="always">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop8" />
+      <stop
+         style="stop-color:#000000;stop-opacity:0;"
+         offset="1"
+         id="stop9" />
+    </linearGradient>
+    <linearGradient
+       id="swatch6">
+      <stop
+         style="stop-color:#000000;stop-opacity:1;"
+         offset="0"
+         id="stop6" />
+    </linearGradient>
+    <rect
+       x="297.76508"
+       y="406.2879"
+       width="215.25188"
+       height="26.906485"
+       id="rect4" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient8"
+       id="linearGradient9"
+       x1="81.787143"
+       y1="114.45953"
+       x2="156.05532"
+       y2="114.45953"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="Layer 2"
+     transform="translate(-70.649595,-47.0334)" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-70.649595,-47.0334)">
+    <circle
+       style="fill:#0e1417;stroke:#4c809e;stroke-width:17.925;stroke-linejoin:round;stroke-miterlimit:12.2;stroke-dasharray:none;paint-order:stroke fill markers"
+       id="path1"
+       cx="134.41743"
+       cy="110.80124"
+       r="54.80534" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer3"
+     inkscape:label="Layer 3"
+     transform="translate(-70.649595,-47.0334)">
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:81.5842px;line-height:1;font-family:'Segoe UI';-inkscape-font-specification:'Segoe UI Bold';text-align:start;letter-spacing:-3.73716px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#4c809e;fill-opacity:1;stroke:none;stroke-width:1.799;stroke-dasharray:none;stroke-opacity:1"
+       x="118.8568"
+       y="145.66771"
+       id="text1"
+       transform="scale(1.012606,0.98755093)"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         style="font-style:italic;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:1;font-family:'Segoe UI';-inkscape-font-specification:'Segoe UI Italic';text-align:center;letter-spacing:-3.73716px;text-anchor:middle;fill:#4c809e;fill-opacity:1;stroke:none;stroke-width:1.799;stroke-dasharray:none;stroke-opacity:1"
+         x="116.98823"
+         y="145.66771"><tspan
+           style="font-style:normal;font-variant:normal;font-weight:300;font-stretch:normal;font-family:'Segoe UI';-inkscape-font-specification:'Segoe UI Light';letter-spacing:-3.73716px;baseline-shift:baseline;stroke:none;stroke-width:1.799;stroke-dasharray:none;stroke-opacity:1"
+           id="tspan6">s</tspan><tspan
+           style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-family:'Segoe UI';-inkscape-font-specification:'Segoe UI Semi-Bold';letter-spacing:-3.73716px;stroke:none;stroke-width:1.799;stroke-dasharray:none;stroke-opacity:1"
+           id="tspan5">B</tspan></tspan></text>
+    <text
+       xml:space="preserve"
+       transform="scale(0.26458333)"
+       id="text4"
+       style="font-style:normal;font-variant:normal;font-weight:600;font-stretch:normal;font-family:'Segoe UI';-inkscape-font-specification:'Segoe UI Semi-Bold';text-align:start;writing-mode:lr-tb;direction:ltr;white-space:pre;shape-inside:url(#rect4);display:inline;fill:#1a242a;fill-opacity:1;fill-rule:nonzero;stroke:#a6d8d8;stroke-width:18.3874;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:12.2;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke fill markers" />
+  </g>
+</svg>

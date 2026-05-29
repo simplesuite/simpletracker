@@ -1,0 +1,339 @@
+create table public.task_projects (
+  "recordID" varchar primary key,
+  "creatorID" uuid not null references public.users("recordID"),
+ 
+  "name" varchar(100) not null,
+  "description" text not null default '',
+ 
+  "createdAt" bigint not null,
+  "updatedAt" bigint not null
+);
+ 
+create table public.tasks (
+  "recordID" varchar primary key,
+  "creatorID" uuid not null references public.users("recordID"),
+  "projectID" varchar references public.task_projects("recordID") on delete set null,
+ 
+  "title" varchar(255) not null,
+  "body" text not null default '',
+ 
+  "status" varchar(30) not null default 'open',
+ 
+  "dueDate" bigint,
+ 
+  "isRecurring" boolean not null default false,
+  "recurrenceInterval" integer,
+  "recurrenceUnit" varchar(20),
+  "recurrenceAnchor" varchar(30) not null default 'due_date',
+ 
+  "completedAt" bigint,
+ 
+  "createdAt" bigint not null,
+  "updatedAt" bigint not null
+);
+ 
+create table public.task_projects_shared (
+  "recordID" varchar primary key,
+  "projectID" varchar not null references public.task_projects("recordID") on delete cascade,
+  "sharedToID" uuid not null references public.users("recordID"),
+ 
+  "createdAt" bigint not null
+);
+ 
+create table public.task_subtasks (
+  "recordID" varchar primary key,
+  "taskID" varchar not null references public.tasks("recordID") on delete cascade,
+ 
+  "title" varchar(255) not null,
+  "isCompleted" boolean not null default false,
+ 
+  "createdAt" bigint not null,
+  "updatedAt" bigint not null
+);
+ 
+alter table public.task_projects enable row level security;
+alter table public.task_projects_shared enable row level security;
+alter table public.tasks enable row level security;
+alter table public.task_subtasks enable row level security;
+ 
+create policy "task_projects_select_creator_or_shared"
+on public.task_projects
+for select
+to authenticated
+using (
+  "creatorID" = auth.uid()
+  or exists (
+    select 1
+    from public.task_projects_shared ps
+    where ps."projectID" = task_projects."recordID"
+      and ps."sharedToID" = auth.uid()
+  )
+);
+ 
+create policy "task_projects_insert_creator"
+on public.task_projects
+for insert
+to authenticated
+with check (
+  "creatorID" = auth.uid()
+);
+ 
+create policy "task_projects_update_creator"
+on public.task_projects
+for update
+to authenticated
+using (
+  "creatorID" = auth.uid()
+)
+with check (
+  "creatorID" = auth.uid()
+);
+ 
+create policy "task_projects_delete_creator"
+on public.task_projects
+for delete
+to authenticated
+using (
+  "creatorID" = auth.uid()
+);
+ 
+create policy "task_projects_shared_select_creator_or_recipient"
+on public.task_projects_shared
+for select
+to authenticated
+using (
+  "sharedToID" = auth.uid()
+  or exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = task_projects_shared."projectID"
+      and p."creatorID" = auth.uid()
+  )
+);
+ 
+create policy "task_projects_shared_insert_creator"
+on public.task_projects_shared
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = task_projects_shared."projectID"
+      and p."creatorID" = auth.uid()
+  )
+);
+ 
+create policy "task_projects_shared_update_creator"
+on public.task_projects_shared
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = task_projects_shared."projectID"
+      and p."creatorID" = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = task_projects_shared."projectID"
+      and p."creatorID" = auth.uid()
+  )
+);
+ 
+create policy "task_projects_shared_delete_creator"
+on public.task_projects_shared
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = task_projects_shared."projectID"
+      and p."creatorID" = auth.uid()
+  )
+);
+ 
+create policy "tasks_select_creator_or_project_shared"
+on public.tasks
+for select
+to authenticated
+using (
+  "creatorID" = auth.uid()
+  or exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = tasks."projectID"
+      and (
+        p."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = p."recordID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+);
+ 
+create policy "tasks_insert_creator_or_project_shared"
+on public.tasks
+for insert
+to authenticated
+with check (
+  "creatorID" = auth.uid()
+  and (
+    "projectID" is null
+    or exists (
+      select 1
+      from public.task_projects p
+      where p."recordID" = tasks."projectID"
+        and (
+          p."creatorID" = auth.uid()
+          or exists (
+            select 1
+            from public.task_projects_shared ps
+            where ps."projectID" = p."recordID"
+              and ps."sharedToID" = auth.uid()
+          )
+        )
+    )
+  )
+);
+ 
+create policy "tasks_update_creator_or_project_shared"
+on public.tasks
+for update
+to authenticated
+using (
+  "creatorID" = auth.uid()
+  or exists (
+    select 1
+    from public.task_projects p
+    where p."recordID" = tasks."projectID"
+      and (
+        p."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = p."recordID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+)
+with check (
+  "creatorID" = auth.uid()
+);
+ 
+create policy "tasks_delete_creator"
+on public.tasks
+for delete
+to authenticated
+using (
+  "creatorID" = auth.uid()
+);
+ 
+create policy "task_subtasks_select_task_access"
+on public.task_subtasks
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.tasks t
+    where t."recordID" = task_subtasks."taskID"
+      and (
+        t."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects p
+          where p."recordID" = t."projectID"
+            and (
+              p."creatorID" = auth.uid()
+              or exists (
+                select 1
+                from public.task_projects_shared ps
+                where ps."projectID" = p."recordID"
+                  and ps."sharedToID" = auth.uid()
+              )
+            )
+        )
+      )
+  )
+);
+ 
+create policy "task_subtasks_insert_task_access"
+on public.task_subtasks
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.tasks t
+    where t."recordID" = task_subtasks."taskID"
+      and (
+        t."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = t."projectID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+);
+ 
+create policy "task_subtasks_update_task_access"
+on public.task_subtasks
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.tasks t
+    where t."recordID" = task_subtasks."taskID"
+      and (
+        t."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = t."projectID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.tasks t
+    where t."recordID" = task_subtasks."taskID"
+      and (
+        t."creatorID" = auth.uid()
+        or exists (
+          select 1
+          from public.task_projects_shared ps
+          where ps."projectID" = t."projectID"
+            and ps."sharedToID" = auth.uid()
+        )
+      )
+  )
+);
+ 
+create policy "task_subtasks_delete_task_creator"
+on public.task_subtasks
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.tasks t
+    where t."recordID" = task_subtasks."taskID"
+      and t."creatorID" = auth.uid()
+  )
+);
