@@ -109,13 +109,35 @@ export default function TasksPage() {
         }
     };
 
-    const formatDueDate = (dueDate: number) => {
+    const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const date = new Date(dueDate);
-        return date.toLocaleDateString(undefined, {
+        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            // Overdue
+            const label = date.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+            });
+            return { label: `Overdue · ${label}`, color: 'error' };
+        }
+        if (diffDays === 0) return { label: 'Today', color: 'warning' };
+        if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
+        if (diffDays <= 7) {
+            const dayName = date.toLocaleDateString(undefined, { weekday: 'short' });
+            return { label: dayName, color: 'default' };
+        }
+
+        const label = date.toLocaleDateString(undefined, {
             month: 'short',
             day: 'numeric',
-            year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined,
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
         });
+        return { label, color: 'default' };
     };
 
     return (
@@ -159,14 +181,6 @@ export default function TasksPage() {
                                     primary={task.title}
                                     secondary={
                                         <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                            {task.dueDate && (
-                                                <Chip
-                                                    label={formatDueDate(task.dueDate)}
-                                                    size="small"
-                                                    variant="outlined"
-                                                    sx={{ height: 20, fontSize: '0.75rem' }}
-                                                />
-                                            )}
                                             {task.projectID && projectNameMap.has(task.projectID) && (
                                                 <Chip
                                                     label={projectNameMap.get(task.projectID)}
@@ -176,6 +190,19 @@ export default function TasksPage() {
                                                     sx={{ height: 20, fontSize: '0.75rem' }}
                                                 />
                                             )}
+                                            {task.dueDate && (() => {
+                                                const { label, color } = formatDueDate(task.dueDate);
+                                                return (
+                                                    <Chip
+                                                        label={label}
+                                                        size="small"
+                                                        variant="outlined"
+                                                        color={color}
+                                                        sx={{ height: 20, fontSize: '0.75rem' }}
+                                                    />
+                                                );
+                                            })()}
+
                                         </Box>
                                     }
                                     primaryTypographyProps={{
