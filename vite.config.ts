@@ -53,7 +53,7 @@ export default defineConfig({
                 ],
                 start_url: '.',
                 display: 'standalone',
-                theme_color: '#4c809e',
+                theme_color: '#d79a00',
                 background_color: '#121212',
             },
         }),
@@ -63,7 +63,7 @@ export default defineConfig({
         open: true,
     },
     build: {
-        outDir: 'build',
+        outDir: 'dist',
     },
     test: {
         globals: true,
