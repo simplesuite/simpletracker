@@ -11,9 +11,16 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Chip from '@mui/material/Chip';
 import PeopleIcon from '@mui/icons-material/People';
+import FolderIcon from '@mui/icons-material/Folder';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import CircularProgress from '@mui/material/CircularProgress';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
 import { useNavigate } from 'react-router-dom';
 import { useNoteStore } from '../store/noteStore';
+import { useProjectStore } from '../store/projectStore';
 import { useGlobalStore } from '../store/globalStore';
 import type { Note } from '../types/index';
 
@@ -47,8 +54,19 @@ export default function NotesPage() {
     const fetchArchivedNotes = useNoteStore((s) => s.fetchArchivedNotes);
     const createNote = useNoteStore((s) => s.createNote);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
+    const projects = useProjectStore((s) => s.projects);
 
     const [tabValue, setTabValue] = React.useState(0);
+    const [searchQuery, setSearchQuery] = React.useState('');
+
+    // Build a map of projectID -> project name for quick lookup
+    const projectNameMap = React.useMemo(() => {
+        const map = new Map<string, string>();
+        for (const p of projects) {
+            map.set(p.recordID, p.name);
+        }
+        return map;
+    }, [projects]);
 
     React.useEffect(() => {
         fetchNotes();
@@ -84,6 +102,15 @@ export default function NotesPage() {
 
     const displayedNotes = tabValue === 0 ? activeNotes : archivedNotes;
 
+    // Filter notes by search query (title and body)
+    const filteredNotes = React.useMemo(() => {
+        if (!searchQuery.trim()) return displayedNotes;
+        const q = searchQuery.toLowerCase();
+        return displayedNotes.filter(
+            (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
+        );
+    }, [displayedNotes, searchQuery]);
+
     const isSharedNote = (note: Note): boolean => {
         return note.creatorID !== currentUserID;
     };
@@ -100,19 +127,46 @@ export default function NotesPage() {
                 <Tab label="Archived" />
             </Tabs>
 
-            {loading && displayedNotes.length === 0 ? (
+            <TextField
+                size="small"
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                fullWidth
+                sx={{ mb: 2 }}
+                slotProps={{
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small" color="action" />
+                            </InputAdornment>
+                        ),
+                        endAdornment: searchQuery ? (
+                            <InputAdornment position="end">
+                                <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                                    <ClearIcon fontSize="small" />
+                                </IconButton>
+                            </InputAdornment>
+                        ) : null,
+                    },
+                }}
+            />
+
+            {loading && filteredNotes.length === 0 ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                     <CircularProgress />
                 </Box>
-            ) : displayedNotes.length === 0 ? (
+            ) : filteredNotes.length === 0 ? (
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
-                    {tabValue === 0
-                        ? 'No notes yet. Tap + to create one.'
-                        : 'No archived notes.'}
+                    {searchQuery.trim()
+                        ? 'No notes match your search.'
+                        : tabValue === 0
+                            ? 'No notes yet. Tap + to create one.'
+                            : 'No archived notes.'}
                 </Typography>
             ) : (
                 <List disablePadding>
-                    {displayedNotes.map((note) => (
+                    {filteredNotes.map((note) => (
                         <ListItem key={note.recordID} disablePadding divider>
                             <ListItemButton
                                 onClick={() => navigate(`/notes/${note.recordID}`)}
@@ -141,7 +195,21 @@ export default function NotesPage() {
                                             )}
                                         </Box>
                                     }
-                                    secondary={formatTimestamp(note.updatedAt)}
+                                    secondary={
+                                        <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {formatTimestamp(note.updatedAt)}
+                                            {note.projectID && projectNameMap.has(note.projectID) && (
+                                                <Chip
+                                                    icon={<FolderIcon />}
+                                                    label={projectNameMap.get(note.projectID)}
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="primary"
+                                                    sx={{ height: 20, fontSize: '0.75rem' }}
+                                                />
+                                            )}
+                                        </Box>
+                                    }
                                 />
                             </ListItemButton>
                         </ListItem>

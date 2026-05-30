@@ -30,10 +30,12 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Backdrop from "@mui/material/Backdrop";
 import AreYouSure from "./components/subcomponents/AreYouSure";
 import UpdatePrompt from "./components/subcomponents/UpdatePrompt";
+import NotificationPrompt from "./components/subcomponents/NotificationPrompt";
 import { usePwaStore } from "./store/pwaStore";
 import { hasSupabaseSession, supabase } from "./lib/supabase";
 import { initOfflineSync } from "./lib/offlineSync";
 import { getCachedNotes, getCachedTasks, getCachedProjects, clearLegacyCache } from "./lib/cache";
+import { checkAndNotify } from "./lib/notifications";
 import { useNoteStore } from "./store/noteStore";
 import { useTaskStore } from "./store/taskStore";
 import { useProjectStore } from "./store/projectStore";
@@ -103,6 +105,24 @@ export default function App() {
     // Initialize the generalized offline sync engine
     const cleanup = initOfflineSync();
     return cleanup;
+  }, []);
+
+  // Check for due/overdue tasks and send a grouped notification (once per day)
+  React.useEffect(() => {
+    const cachedTasks = getCachedTasks();
+    if (cachedTasks.length > 0) {
+      checkAndNotify(cachedTasks);
+    }
+
+    // Also check when the app regains visibility (covers next-day scenario)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const tasks = getCachedTasks();
+        if (tasks.length > 0) checkAndNotify(tasks);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
   // Update tab value when location changes (browser navigation or deep link)
@@ -184,6 +204,7 @@ export default function App() {
           <CircularProgress color="inherit" />
         </Backdrop>
         <AreYouSure />
+        <NotificationPrompt />
         <UpdatePrompt
           open={needRefresh}
           onUpdate={() => { if (pwaUpdateSW) pwaUpdateSW(true); }}

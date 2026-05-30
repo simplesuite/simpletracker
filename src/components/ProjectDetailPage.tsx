@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -13,6 +13,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -30,6 +31,8 @@ import ShareIcon from '@mui/icons-material/Share';
 import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import Chip from '@mui/material/Chip';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
@@ -37,7 +40,7 @@ import { useTaskStore } from '../store/taskStore';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
 import { supabase } from '../lib/supabase';
-import type { ProjectShared } from '../types/index';
+import type { Task, ProjectShared } from '../types/index';
 
 export default function ProjectDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -78,6 +81,7 @@ export default function ProjectDetailPage() {
     const [taskDialogOpen, setTaskDialogOpen] = useState(false);
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [taskTitleError, setTaskTitleError] = useState('');
+    const [completedExpanded, setCompletedExpanded] = useState(false);
 
     // Sync local state when project changes
     useEffect(() => {
@@ -120,6 +124,23 @@ export default function ProjectDetailPage() {
     // Filter notes and tasks belonging to this project
     const projectNotes = [...notes, ...sharedNotes].filter((n) => n.projectID === id);
     const projectTasks = tasks.filter((t) => t.projectID === id);
+
+    // Sort tasks: due date ascending (no due date at end), split open vs completed
+    const sortByDueDate = (a: Task, b: Task): number => {
+        if (a.dueDate != null && b.dueDate != null) return a.dueDate - b.dueDate;
+        if (a.dueDate != null) return -1;
+        if (b.dueDate != null) return 1;
+        return b.createdAt - a.createdAt;
+    };
+
+    const openProjectTasks = useMemo(
+        () => projectTasks.filter((t) => t.status === 'open').sort(sortByDueDate),
+        [projectTasks]
+    );
+    const completedProjectTasks = useMemo(
+        () => projectTasks.filter((t) => t.status === 'completed').sort(sortByDueDate),
+        [projectTasks]
+    );
 
     if (!project) {
         return (
@@ -385,55 +406,116 @@ export default function ProjectDetailPage() {
                     No tasks in this project.
                 </Typography>
             ) : (
-                <List disablePadding sx={{ mb: 2 }}>
-                    {projectTasks.map((task) => (
-                        <ListItem key={task.recordID} disablePadding divider>
-                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                <IconButton
-                                    edge="start"
-                                    size="small"
-                                    onClick={() => task.status === 'completed' ? reopenTask(task.recordID) : completeTask(task.recordID)}
-                                    aria-label={task.status === 'completed' ? 'Reopen task' : 'Complete task'}
-                                >
-                                    {task.status === 'completed' ? (
-                                        <CheckCircleIcon color="success" />
-                                    ) : (
-                                        <RadioButtonUncheckedIcon color="action" />
-                                    )}
-                                </IconButton>
-                            </ListItemIcon>
-                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                <ListItemText
-                                    primary={task.title}
-                                    secondary={
-                                        task.status === 'completed'
-                                            ? 'Completed'
-                                            : task.dueDate
-                                                ? (() => {
-                                                    const { label, color } = formatDueDate(task.dueDate);
-                                                    return (
-                                                        <Chip
-                                                            label={label}
-                                                            size="small"
-                                                            variant="outlined"
-                                                            color={color}
-                                                            sx={{ height: 20, fontSize: '0.75rem' }}
-                                                        />
-                                                    );
-                                                })()
-                                                : 'Open'
-                                    }
-                                    primaryTypographyProps={{
-                                        sx: {
-                                            textDecoration: task.status === 'completed' ? 'line-through' : 'none',
-                                            color: task.status === 'completed' ? 'text.secondary' : 'text.primary',
-                                        },
-                                    }}
-                                />
-                            </ListItemButton>
-                        </ListItem>
-                    ))}
-                </List>
+                <>
+                    {openProjectTasks.length > 0 && (
+                        <List disablePadding sx={{ mb: 1 }}>
+                            {openProjectTasks.map((task) => (
+                                <ListItem key={task.recordID} disablePadding divider>
+                                    <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                        <IconButton
+                                            edge="start"
+                                            size="small"
+                                            onClick={() => completeTask(task.recordID)}
+                                            aria-label="Complete task"
+                                        >
+                                            <RadioButtonUncheckedIcon color="action" />
+                                        </IconButton>
+                                    </ListItemIcon>
+                                    <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                        <ListItemText
+                                            primary={task.title}
+                                            secondary={
+                                                task.dueDate
+                                                    ? (() => {
+                                                        const { label, color } = formatDueDate(task.dueDate);
+                                                        return (
+                                                            <Chip
+                                                                label={label}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                color={color}
+                                                                sx={{ height: 20, fontSize: '0.75rem' }}
+                                                            />
+                                                        );
+                                                    })()
+                                                    : undefined
+                                            }
+                                        />
+                                    </ListItemButton>
+                                </ListItem>
+                            ))}
+                        </List>
+                    )}
+
+                    {completedProjectTasks.length > 0 && (
+                        <>
+                            <Box
+                                onClick={() => setCompletedExpanded(!completedExpanded)}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
+                                    mt: openProjectTasks.length > 0 ? 1 : 0,
+                                    mb: 1,
+                                    px: 1,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                }}
+                            >
+                                {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                                    Completed ({completedProjectTasks.length})
+                                </Typography>
+                            </Box>
+                            <Collapse in={completedExpanded}>
+                                <List disablePadding sx={{ mb: 2 }}>
+                                    {completedProjectTasks.map((task) => (
+                                        <ListItem key={task.recordID} disablePadding divider>
+                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                <IconButton
+                                                    edge="start"
+                                                    size="small"
+                                                    onClick={() => reopenTask(task.recordID)}
+                                                    aria-label="Reopen task"
+                                                >
+                                                    <CheckCircleIcon color="success" />
+                                                </IconButton>
+                                            </ListItemIcon>
+                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                <ListItemText
+                                                    primary={task.title}
+                                                    secondary={
+                                                        task.dueDate
+                                                            ? (() => {
+                                                                const { label, color } = formatDueDate(task.dueDate);
+                                                                return (
+                                                                    <Chip
+                                                                        label={label}
+                                                                        size="small"
+                                                                        variant="outlined"
+                                                                        color={color}
+                                                                        sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                    />
+                                                                );
+                                                            })()
+                                                            : undefined
+                                                    }
+                                                    primaryTypographyProps={{
+                                                        sx: {
+                                                            textDecoration: 'line-through',
+                                                            color: 'text.secondary',
+                                                        },
+                                                    }}
+                                                />
+                                            </ListItemButton>
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            </Collapse>
+                        </>
+                    )}
+                </>
             )}
 
             {/* Share dialog (creator only) */}

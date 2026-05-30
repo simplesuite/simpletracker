@@ -14,6 +14,7 @@ import Stack from '@mui/material/Stack';
 import Divider from "@mui/material/Divider";
 import Typography from '@mui/material/Typography';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
+import NotificationsIcon from '@mui/icons-material/Notifications';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -31,6 +32,8 @@ import { useIsOffline } from "./extras/OfflineAlert";
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
+import { useNotificationStore } from '../store/notificationStore';
+import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
 
 export default function SettingsPage() {
     const offline = useIsOffline();
@@ -45,6 +48,10 @@ export default function SettingsPage() {
     const setSnackOpen = useGlobalStore(s => s.setSnackBarOpen);
     const currentUserDetails = useGlobalStore(s => s.currentUser)
     const [qrOpen, setQrOpen] = React.useState(false)
+    const notificationsEnabled = useNotificationStore(s => s.enabled);
+    const setNotificationsEnabled = useNotificationStore(s => s.setEnabled);
+    const setNotificationsPrompted = useNotificationStore(s => s.setPrompted);
+    const showNotificationsSetting = notificationsSupported();
 
     const handleThemeClick = (event: any) => {
         setSlideCheck(event.target.checked);
@@ -78,6 +85,30 @@ export default function SettingsPage() {
             setSnackOpen(true)
         }
         setSlideCheck(!slideCheck);
+    };
+
+    const handleNotificationsToggle = async () => {
+        if (!notificationsEnabled) {
+            // Turning on — need permission
+            const granted = await requestNotificationPermission();
+            if (granted) {
+                setNotificationsEnabled(true);
+                setNotificationsPrompted(true);
+                setSnackSev('success');
+                setSnackText('Notifications enabled');
+                setSnackOpen(true);
+            } else {
+                setSnackSev('warning');
+                setSnackText('Notification permission denied by browser');
+                setSnackOpen(true);
+            }
+        } else {
+            // Turning off
+            setNotificationsEnabled(false);
+            setSnackSev('success');
+            setSnackText('Notifications disabled');
+            setSnackOpen(true);
+        }
     };
 
     async function supaLogOut() {
@@ -137,6 +168,20 @@ export default function SettingsPage() {
                                     <Switch sx={{ ml: 1 }} size='small' checked={slideCheck} onChange={handleThemeClick} />
                                 </ListItemButton>
                             </ListItem>
+                            {showNotificationsSetting && (
+                                <>
+                                    <Divider />
+                                    <ListItem disablePadding>
+                                        <ListItemButton onClick={handleNotificationsToggle}>
+                                            <ListItemIcon>
+                                                <NotificationsIcon />
+                                            </ListItemIcon>
+                                            <ListItemText primary="Task Notifications" secondary="Daily reminders for due & overdue tasks" />
+                                            <Switch sx={{ ml: 1 }} size='small' checked={notificationsEnabled} onChange={handleNotificationsToggle} />
+                                        </ListItemButton>
+                                    </ListItem>
+                                </>
+                            )}
                         </List>
                     </Paper>
                     <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
