@@ -41,9 +41,8 @@ vi.mock('../../lib/cache', () => ({
     removeCachedItem: vi.fn(),
 }));
 
-// Mock sharing
 vi.mock('../../lib/sharing', () => ({
-    lookupUserByEmail: vi.fn().mockResolvedValue(null),
+    lookupUserByID: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock ensureSession

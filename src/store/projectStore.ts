@@ -8,7 +8,7 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
-import { lookupUserByEmail } from '../lib/sharing';
+import { lookupUserByID } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
 import { ensureSession } from '../components/extras/ensureSession';
 import type { Project, ProjectShared } from '../types/index';
@@ -22,7 +22,7 @@ interface ProjectStore {
     createProject: (name: string, description?: string) => Promise<Project | null>;
     updateProject: (id: string, fields: Partial<Pick<Project, 'name' | 'description'>>) => Promise<boolean>;
     deleteProject: (id: string) => Promise<boolean>;
-    shareProject: (projectID: string, email: string) => Promise<boolean>;
+    shareProject: (projectID: string, userID: string) => Promise<boolean>;
     unshareProject: (projectID: string, sharedToID: string) => Promise<boolean>;
     getSharesForProject: (projectID: string) => Promise<ProjectShared[]>;
 }
@@ -202,12 +202,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return true;
     },
 
-    shareProject: async (projectID: string, email: string) => {
+    shareProject: async (projectID: string, userID: string) => {
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
-        // Look up the user by email
+        // Look up the user by ID
         await ensureSession();
-        const user = await lookupUserByEmail(email);
+        const user = await lookupUserByID(userID);
         if (!user) {
             set({ error: 'User not found' });
             return false;

@@ -64,7 +64,7 @@ vi.mock('../../components/extras/ensureSession', () => ({
 // Mock sharing utility
 vi.mock('../../lib/sharing', () => ({
     isSharedItem: vi.fn().mockReturnValue(false),
-    lookupUserByEmail: vi.fn().mockResolvedValue(null),
+    lookupUserByID: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock validation

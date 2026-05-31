@@ -7,7 +7,7 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
-import { isSharedItem, lookupUserByEmail } from '../lib/sharing';
+import { isSharedItem, lookupUserByID } from '../lib/sharing';
 import { validateNoteTitle } from '../lib/validation';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
@@ -28,7 +28,7 @@ interface NoteStore {
     archiveNote: (id: string) => Promise<boolean>;
     unarchiveNote: (id: string) => Promise<boolean>;
     deleteNote: (id: string) => Promise<boolean>;
-    shareNote: (noteID: string, email: string) => Promise<boolean>;
+    shareNote: (noteID: string, userID: string) => Promise<boolean>;
     unshareNote: (noteID: string, sharedToID: string) => Promise<boolean>;
     getSharesForNote: (noteID: string) => Promise<NoteShared[]>;
 }
@@ -512,13 +512,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
     },
 
-    shareNote: async (noteID, email) => {
+    shareNote: async (noteID, userID) => {
         try {
             await ensureSession();
             const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
-            // Look up user by email
-            const user = await lookupUserByEmail(email);
+            // Look up user by ID
+            const user = await lookupUserByID(userID);
             if (!user) {
                 set({ error: 'User not found' });
                 return false;
