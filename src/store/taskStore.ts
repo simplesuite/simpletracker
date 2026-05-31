@@ -21,6 +21,7 @@ interface TaskStore {
     setStatusFilter: (filter: 'open' | 'completed' | 'all') => void;
     fetchTasks: () => Promise<void>;
     createTask: (title: string, projectID?: string | null) => Promise<Task | null>;
+    createBlankTask: (projectID?: string | null) => Promise<Task>;
     updateTask: (id: string, fields: Partial<Pick<Task, 'title' | 'body' | 'dueDate' | 'projectID' | 'isRecurring' | 'recurrenceInterval' | 'recurrenceUnit' | 'recurrenceAnchor'>>) => Promise<boolean>;
     completeTask: (id: string) => Promise<boolean>;
     reopenTask: (id: string) => Promise<boolean>;
@@ -161,6 +162,41 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             creatorID: currentUser.recordID,
             projectID: projectID || null,
             title: title.trim(),
+            body: '',
+            status: 'open',
+            dueDate: null,
+            isRecurring: false,
+            recurrenceInterval: null,
+            recurrenceUnit: null,
+            recurrenceAnchor: 'due_date',
+            completedAt: null,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // Optimistically update local state
+        set((state) => ({ tasks: [newTask, ...state.tasks], error: null }));
+
+        // Persist to cache
+        const allTasks = get().tasks;
+        setCachedTasks(allTasks);
+
+        // Enqueue for offline sync
+        await insertWithOfflineSupport('task', 'tasks', newTask as unknown as Record<string, unknown>);
+
+        return newTask;
+    },
+
+    createBlankTask: async (projectID?: string | null) => {
+        const currentUser = useGlobalStore.getState().currentUser;
+        const now = Date.now();
+        const recordID = uuidv4();
+
+        const newTask: Task = {
+            recordID,
+            creatorID: currentUser.recordID,
+            projectID: projectID || null,
+            title: '',
             body: '',
             status: 'open',
             dueDate: null,

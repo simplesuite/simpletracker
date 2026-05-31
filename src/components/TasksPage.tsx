@@ -17,23 +17,17 @@ import ClearIcon from '@mui/icons-material/Clear';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
-import Button from '@mui/material/Button';
 import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
-import { dialogPaperStyles } from '../store/globalStore';
 import IconButton from '@mui/material/IconButton';
 import type { Task } from '../types';
 
 export default function TasksPage() {
     const tasks = useTaskStore((s) => s.tasks);
-    const createTask = useTaskStore((s) => s.createTask);
+    const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
     const fetchTasks = useTaskStore((s) => s.fetchTasks);
@@ -45,9 +39,6 @@ export default function TasksPage() {
         fetchTasks();
     }, [fetchTasks]);
 
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [newTitle, setNewTitle] = useState('');
-    const [titleError, setTitleError] = useState('');
     const [completedExpanded, setCompletedExpanded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -90,55 +81,9 @@ export default function TasksPage() {
         return { openTasks: open, completedTasks: completed };
     }, [filteredBySearch]);
 
-    const handleFabClick = () => {
-        setNewTitle('');
-        setTitleError('');
-        setDialogOpen(true);
-    };
-
-    const handleDialogClose = () => {
-        setDialogOpen(false);
-        setNewTitle('');
-        setTitleError('');
-    };
-
-    const handleSaveAndClose = async () => {
-        const trimmed = newTitle.trim();
-        if (trimmed.length === 0) {
-            setTitleError('Title is required');
-            return;
-        }
-        if (trimmed.length > 255) {
-            setTitleError('Title must be 255 characters or less');
-            return;
-        }
-
-        const task = await createTask(trimmed);
-        if (task) {
-            setDialogOpen(false);
-            setNewTitle('');
-            setTitleError('');
-        }
-    };
-
-    const handleAddDetails = async () => {
-        const trimmed = newTitle.trim();
-        if (trimmed.length === 0) {
-            setTitleError('Title is required');
-            return;
-        }
-        if (trimmed.length > 255) {
-            setTitleError('Title must be 255 characters or less');
-            return;
-        }
-
-        const task = await createTask(trimmed);
-        if (task) {
-            setDialogOpen(false);
-            setNewTitle('');
-            setTitleError('');
-            navigate(`/tasks/${task.recordID}`);
-        }
+    const handleFabClick = async () => {
+        const task = await createBlankTask();
+        navigate(`/tasks/${task.recordID}`);
     };
 
     const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
@@ -368,44 +313,6 @@ export default function TasksPage() {
             >
                 <AddIcon />
             </Fab>
-
-            <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
-                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
-                    <DialogTitle>New Task</DialogTitle>
-                    <DialogContent>
-                        <TextField
-                            autoFocus
-                            margin="dense"
-                            label="Task title"
-                            fullWidth
-                            variant="outlined"
-                            value={newTitle}
-                            onChange={(e) => {
-                                setNewTitle(e.target.value);
-                                if (titleError) setTitleError('');
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleSaveAndClose();
-                                }
-                            }}
-                            error={!!titleError}
-                            helperText={titleError}
-                            inputProps={{ maxLength: 255 }}
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleDialogClose}>Cancel</Button>
-                        <Button onClick={handleSaveAndClose} variant="outlined">
-                            Save + Close
-                        </Button>
-                        <Button onClick={handleAddDetails} variant="contained">
-                            Add Details
-                        </Button>
-                    </DialogActions>
-                </Box>
-            </Dialog>
         </Box>
     );
 }

@@ -58,7 +58,7 @@ export default function ProjectDetailPage() {
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const createNote = useNoteStore((s) => s.createNote);
     const tasks = useTaskStore((s) => s.tasks);
-    const createTask = useTaskStore((s) => s.createTask);
+    const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
@@ -78,9 +78,6 @@ export default function ProjectDetailPage() {
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
-    const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-    const [newTaskTitle, setNewTaskTitle] = useState('');
-    const [taskTitleError, setTaskTitleError] = useState('');
     const [completedExpanded, setCompletedExpanded] = useState(false);
 
     // Sync local state when project changes
@@ -220,22 +217,8 @@ export default function ProjectDetailPage() {
     };
 
     const handleAddTask = async () => {
-        const trimmed = newTaskTitle.trim();
-        if (trimmed.length === 0) {
-            setTaskTitleError('Title is required');
-            return;
-        }
-        if (trimmed.length > 255) {
-            setTaskTitleError('Title must be 255 characters or less');
-            return;
-        }
-        const task = await createTask(trimmed, project.recordID);
-        if (task) {
-            setTaskDialogOpen(false);
-            setNewTaskTitle('');
-            setTaskTitleError('');
-            navigate(`/tasks/${task.recordID}`);
-        }
+        const task = await createBlankTask(project.recordID);
+        navigate(`/tasks/${task.recordID}`);
     };
 
     const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
@@ -396,7 +379,7 @@ export default function ProjectDetailPage() {
                 <Button
                     size="small"
                     startIcon={<AddIcon />}
-                    onClick={() => { setNewTaskTitle(''); setTaskTitleError(''); setTaskDialogOpen(true); }}
+                    onClick={handleAddTask}
                 >
                     Add Task
                 </Button>
@@ -599,41 +582,6 @@ export default function ProjectDetailPage() {
                 </Box>
             </Dialog>
 
-            {/* New Task dialog */}
-            <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
-                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
-                    <DialogTitle>New Task</DialogTitle>
-                    <DialogContent>
-                        <TextField
-                            autoFocus
-                            margin="dense"
-                            label="Task title"
-                            fullWidth
-                            variant="outlined"
-                            value={newTaskTitle}
-                            onChange={(e) => {
-                                setNewTaskTitle(e.target.value);
-                                if (taskTitleError) setTaskTitleError('');
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddTask();
-                                }
-                            }}
-                            error={!!taskTitleError}
-                            helperText={taskTitleError}
-                            inputProps={{ maxLength: 255 }}
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setTaskDialogOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddTask} variant="contained">
-                            Create
-                        </Button>
-                    </DialogActions>
-                </Box>
-            </Dialog>
         </Box>
     );
 }
