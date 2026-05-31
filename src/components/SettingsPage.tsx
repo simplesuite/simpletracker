@@ -32,6 +32,7 @@ import { useIsOffline } from "./extras/OfflineAlert";
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
+import Alert from '@mui/material/Alert';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
 
@@ -52,6 +53,47 @@ export default function SettingsPage() {
     const setNotificationsEnabled = useNotificationStore(s => s.setEnabled);
     const setNotificationsPrompted = useNotificationStore(s => s.setPrompted);
     const showNotificationsSetting = notificationsSupported();
+
+    // Detect mismatch: app thinks notifications are enabled but system permission is off
+    const [permissionMismatch, setPermissionMismatch] = React.useState(false);
+    React.useEffect(() => {
+        const check = () => {
+            if (notificationsEnabled && notificationsSupported() && Notification.permission !== 'granted') {
+                setPermissionMismatch(true);
+            } else {
+                setPermissionMismatch(false);
+            }
+        };
+        check();
+        // Re-check when the app regains focus (user may have changed system settings)
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') check();
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, [notificationsEnabled]);
+
+    const handleFixPermission = async () => {
+        if (Notification.permission === 'denied') {
+            // Can't re-request after denial — direct user to system settings
+            setSnackSev('info');
+            setSnackText('Please enable notifications in your device/browser settings');
+            setSnackOpen(true);
+        } else {
+            // Permission is 'default' — we can re-request
+            const granted = await requestNotificationPermission();
+            if (granted) {
+                setPermissionMismatch(false);
+                setSnackSev('success');
+                setSnackText('Notifications re-enabled!');
+                setSnackOpen(true);
+            } else {
+                setSnackSev('warning');
+                setSnackText('Permission denied — enable in device settings');
+                setSnackOpen(true);
+            }
+        }
+    };
 
     const handleThemeClick = (event: any) => {
         setSlideCheck(event.target.checked);
@@ -180,6 +222,21 @@ export default function SettingsPage() {
                                             <Switch sx={{ ml: 1 }} size='small' checked={notificationsEnabled} onChange={handleNotificationsToggle} />
                                         </ListItemButton>
                                     </ListItem>
+                                    {permissionMismatch && (
+                                        <ListItem>
+                                            <Alert
+                                                severity="warning"
+                                                sx={{ width: '100%', borderRadius: 2 }}
+                                                action={
+                                                    <Button color="inherit" size="small" onClick={handleFixPermission}>
+                                                        {Notification.permission === 'denied' ? 'How to fix' : 'Allow'}
+                                                    </Button>
+                                                }
+                                            >
+                                                Notifications are blocked at the system level
+                                            </Alert>
+                                        </ListItem>
+                                    )}
                                 </>
                             )}
                         </List>

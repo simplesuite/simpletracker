@@ -71,7 +71,7 @@ export default function ProjectDetailPage() {
     const [description, setDescription] = useState(project?.description || '');
     const [nameError, setNameError] = useState('');
     const [shareEmail, setShareEmail] = useState('');
-    const [shares, setShares] = useState<(ProjectShared & { email?: string })[]>([]);
+    const [shares, setShares] = useState<(ProjectShared & { fullName?: string })[]>([]);
     const [sharesLoading, setSharesLoading] = useState(false);
     const [error, setError] = useState('');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -96,17 +96,17 @@ export default function ProjectDetailPage() {
         if (!id || !isCreator) return;
         setSharesLoading(true);
         const shareRecords = await getSharesForProject(id);
-        // Fetch emails for each shared user
-        const sharesWithEmails: (ProjectShared & { email?: string })[] = [];
+        // Fetch names for each shared user
+        const sharesWithNames: (ProjectShared & { fullName?: string })[] = [];
         for (const share of shareRecords) {
             const { data } = await supabase
                 .from('users')
-                .select('email')
+                .select('fullName')
                 .eq('recordID', share.sharedToID)
                 .single();
-            sharesWithEmails.push({ ...share, email: data?.email || share.sharedToID });
+            sharesWithNames.push({ ...share, fullName: data?.fullName || share.sharedToID });
         }
-        setShares(sharesWithEmails);
+        setShares(sharesWithNames);
         setSharesLoading(false);
     }, [id, isCreator, getSharesForProject]);
 
@@ -527,7 +527,8 @@ export default function ProjectDetailPage() {
                             <Box sx={{ display: 'flex', gap: 1, mt: 1, mb: 2 }}>
                                 <TextField
                                     size="small"
-                                    label="Email address"
+                                    label="User ID"
+                                    placeholder="Paste User ID to share"
                                     value={shareEmail}
                                     onChange={(e) => setShareEmail(e.target.value)}
                                     onKeyDown={(e) => {
@@ -563,7 +564,7 @@ export default function ProjectDetailPage() {
                                                 </IconButton>
                                             }
                                         >
-                                            <ListItemText primary={share.email} />
+                                            <ListItemText primary={share.fullName} />
                                         </ListItem>
                                     ))}
                                 </List>

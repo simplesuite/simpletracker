@@ -649,7 +649,7 @@ export default function NoteDetailPage() {
                             <Box display="flex" gap={1} sx={{ mt: 1, mb: 2 }}>
                                 <TextField
                                     size="small"
-                                    placeholder="Enter email to share"
+                                    placeholder="Paste User ID to share"
                                     value={shareEmail}
                                     onChange={(e) => setShareEmail(e.target.value)}
                                     onKeyDown={(e) => {

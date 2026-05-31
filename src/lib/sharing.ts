@@ -47,23 +47,26 @@ export function isSharedItem(
 }
 
 /**
- * Looks up a user by email address in the Supabase `users` table.
- * Returns the user's recordID if found, or null if no matching user exists.
+ * Looks up a user by their recordID in the Supabase `users` table.
+ * Returns the user's recordID and fullName if found, or null if no matching user exists.
  *
  * Validates: Requirements 7.1, 14.1
  */
-export async function lookupUserByEmail(
-    email: string
-): Promise<{ recordID: string } | null> {
+export async function lookupUserByID(
+    userID: string
+): Promise<{ recordID: string; fullName: string } | null> {
+    const trimmedID = userID.trim();
+    if (!trimmedID) return null;
+
     const { data, error } = await supabase
         .from('users')
-        .select('recordID')
-        .eq('email', email)
+        .select('recordID, fullName')
+        .eq('recordID', trimmedID)
         .single();
 
     if (error || !data) {
         return null;
     }
 
-    return { recordID: data.recordID };
+    return { recordID: data.recordID, fullName: data.fullName };
 }

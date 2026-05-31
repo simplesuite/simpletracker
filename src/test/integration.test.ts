@@ -382,11 +382,11 @@ describe('Integration: Project Sharing (create → share → verify access)', ()
 
         // Step 2: Share the project with another user
         // Mock the users table lookup to return a user
-        tableChains['users'] = createChainMock({ data: { recordID: 'user-2', email: 'friend@test.com' }, error: null });
+        tableChains['users'] = createChainMock({ data: { recordID: 'user-2', fullName: 'Friend' }, error: null });
         // Mock checking for existing share (none found)
         tableChains['task_projects_shared'] = createChainMock({ data: null, error: null });
 
-        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'friend@test.com');
+        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'user-2');
         expect(shareResult).toBe(true);
         expect(useProjectStore.getState().error).toBeNull();
 
@@ -410,9 +410,9 @@ describe('Integration: Project Sharing (create → share → verify access)', ()
         await useProjectStore.getState().createProject('Self Share Test');
 
         // Try to share with self
-        tableChains['users'] = createChainMock({ data: { recordID: 'user-1', email: 'me@test.com' }, error: null });
+        tableChains['users'] = createChainMock({ data: { recordID: 'user-1', fullName: 'Test User' }, error: null });
 
-        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'me@test.com');
+        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'user-1');
         expect(shareResult).toBe(false);
         expect(useProjectStore.getState().error).toBe('Cannot share with yourself');
     });
@@ -422,14 +422,14 @@ describe('Integration: Project Sharing (create → share → verify access)', ()
         await useProjectStore.getState().createProject('Dup Share Test');
 
         // Mock user lookup
-        tableChains['users'] = createChainMock({ data: { recordID: 'user-2', email: 'friend@test.com' }, error: null });
+        tableChains['users'] = createChainMock({ data: { recordID: 'user-2', fullName: 'Friend' }, error: null });
         // Mock existing share found
         tableChains['task_projects_shared'] = createChainMock({
             data: { recordID: 'existing-share', projectID: 'test-uuid-1', sharedToID: 'user-2' },
             error: null,
         });
 
-        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'friend@test.com');
+        const shareResult = await useProjectStore.getState().shareProject('test-uuid-1', 'user-2');
         expect(shareResult).toBe(false);
         expect(useProjectStore.getState().error).toBe('Already shared with this user');
     });

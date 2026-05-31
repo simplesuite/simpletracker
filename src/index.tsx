@@ -38,8 +38,37 @@ const updateSW = registerSW({
     },
 });
 
-// Store the updateSW function so React components can trigger it
-usePwaStore.getState().setUpdateSW(updateSW);
+// Wrap updateSW so we wait for the new SW to fully activate before reloading.
+// On Android standalone PWAs, an immediate reload can race with SW activation
+// and result in a black screen because the new SW hasn't cached assets yet.
+const safeUpdateSW = async (reloadPage?: boolean) => {
+    if (reloadPage) {
+        // Tell the waiting SW to skipWaiting (activates it)
+        await updateSW(false);
+
+        // Wait for the new service worker to become active
+        const reg = await navigator.serviceWorker?.getRegistration();
+        const newWorker = reg?.waiting || reg?.installing;
+        if (newWorker && newWorker.state !== 'activated') {
+            await new Promise<void>((resolve) => {
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'activated') resolve();
+                });
+                // Safety timeout — don't hang forever
+                setTimeout(resolve, 3000);
+            });
+        }
+
+        // Small extra buffer for cache population
+        await new Promise((r) => setTimeout(r, 300));
+        window.location.reload();
+    } else {
+        await updateSW(false);
+    }
+};
+
+// Store the safe wrapper so React components use it
+usePwaStore.getState().setUpdateSW(safeUpdateSW);
 
 // Force update check when the app regains focus (critical for iOS PWA)
 document.addEventListener('visibilitychange', () => {

@@ -14,6 +14,11 @@ export default defineConfig({
                 // Skip waiting so the new SW activates immediately when user accepts
                 skipWaiting: false, // We control this via the prompt
                 clientsClaim: true,
+                // Ensure navigation requests always get index.html even if the
+                // new SW hasn't fully populated its cache yet (prevents black
+                // screen on Android standalone PWA after update reload).
+                navigateFallback: 'index.html',
+                navigateFallbackDenylist: [/^\/api/, /\.[a-z]+$/i],
             },
             manifest: {
                 short_name: 'simpleTracker',
