@@ -329,6 +329,81 @@ export default function NoteDetailPage() {
         }, 0);
     };
 
+    // Smart line continuation for markdown lists, checkboxes, quotes, etc.
+    const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key !== 'Enter') return;
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const cursorPos = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+
+        // Only act when there's no selection
+        if (cursorPos !== selectionEnd) return;
+
+        // Find the current line
+        const textBefore = body.substring(0, cursorPos);
+        const lastNewline = textBefore.lastIndexOf('\n');
+        const currentLine = textBefore.substring(lastNewline + 1);
+
+        // Match patterns: checkbox, bullet, numbered list, blockquote
+        const patterns: { regex: RegExp; getPrefix: (match: RegExpMatchArray) => string }[] = [
+            // Checked checkbox: - [x] or * [x]
+            { regex: /^(\s*[-*]\s*)\[x\]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
+            // Unchecked checkbox: - [ ] or * [ ]
+            { regex: /^(\s*[-*]\s*)\[ \]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
+            // Numbered list: 1. or 1)
+            { regex: /^(\s*)(\d+)([.)]\s)/, getPrefix: (m) => `${m[1]}${parseInt(m[2]) + 1}${m[3]}` },
+            // Bullet list: - or * or +
+            { regex: /^(\s*[-*+]\s)/, getPrefix: (m) => m[1] },
+            // Blockquote: >
+            { regex: /^(\s*>\s)/, getPrefix: (m) => m[1] },
+        ];
+
+        for (const { regex, getPrefix } of patterns) {
+            const match = currentLine.match(regex);
+            if (match) {
+                const prefix = getPrefix(match);
+                const contentAfterPrefix = currentLine.substring(match[0].length);
+
+                // If the line is empty (just the prefix with no content), clear the prefix instead
+                if (contentAfterPrefix.trim() === '') {
+                    e.preventDefault();
+                    const lineStart = lastNewline + 1;
+                    const newBody = body.substring(0, lineStart) + '\n' + body.substring(cursorPos);
+                    setBody(newBody);
+                    debouncedSave({ body: newBody });
+                    setTimeout(() => {
+                        textarea.focus();
+                        const newCursor = lineStart + 1;
+                        textarea.setSelectionRange(newCursor, newCursor);
+                    }, 0);
+                    return;
+                }
+
+                // Insert newline + prefix
+                e.preventDefault();
+                const insertion = '\n' + prefix;
+                const newBody = body.substring(0, cursorPos) + insertion + body.substring(cursorPos);
+
+                if (newBody.length > 100000) {
+                    setBodyError('Body must not exceed 100,000 characters');
+                    return;
+                }
+
+                setBody(newBody);
+                debouncedSave({ body: newBody });
+                setTimeout(() => {
+                    textarea.focus();
+                    const newCursor = cursorPos + insertion.length;
+                    textarea.setSelectionRange(newCursor, newCursor);
+                }, 0);
+                return;
+            }
+        }
+    };
+
     const insertLinePrefix = (prefix: string) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
@@ -613,6 +688,7 @@ export default function NoteDetailPage() {
                     placeholder="Write your note in markdown..."
                     value={body}
                     onChange={handleBodyChange}
+                    onKeyDown={handleBodyKeyDown}
                     error={!!bodyError}
                     helperText={bodyError || `${body.length}/100,000`}
                     disabled={!!offlineMessage && isShared}

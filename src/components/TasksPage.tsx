@@ -15,8 +15,6 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import RepeatIcon from '@mui/icons-material/Repeat';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import Dialog from '@mui/material/Dialog';
@@ -35,8 +33,6 @@ import type { Task } from '../types';
 
 export default function TasksPage() {
     const tasks = useTaskStore((s) => s.tasks);
-    const statusFilter = useTaskStore((s) => s.statusFilter);
-    const setStatusFilter = useTaskStore((s) => s.setStatusFilter);
     const createTask = useTaskStore((s) => s.createTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
@@ -93,21 +89,6 @@ export default function TasksPage() {
         const completed = filteredBySearch.filter((t) => t.status === 'completed').sort(sortByDueDate);
         return { openTasks: open, completedTasks: completed };
     }, [filteredBySearch]);
-
-    // Determine what to show based on filter
-    const visibleOpenTasks = useMemo(() => {
-        if (statusFilter === 'completed') return [];
-        return openTasks;
-    }, [statusFilter, openTasks]);
-
-    const visibleCompletedTasks = useMemo(() => {
-        if (statusFilter === 'open') return [];
-        return completedTasks;
-    }, [statusFilter, completedTasks]);
-
-    const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
-        setStatusFilter(newValue as 'open' | 'completed' | 'all');
-    };
 
     const handleFabClick = () => {
         setNewTitle('');
@@ -193,16 +174,6 @@ export default function TasksPage() {
 
     return (
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-            <Tabs
-                value={statusFilter}
-                onChange={handleTabChange}
-                sx={{ mb: 2 }}
-            >
-                <Tab label="Open" value="open" />
-                <Tab label="Completed" value="completed" />
-                <Tab label="All" value="all" />
-            </Tabs>
-
             <TextField
                 size="small"
                 placeholder="Search tasks..."
@@ -228,19 +199,17 @@ export default function TasksPage() {
                 }}
             />
 
-            {visibleOpenTasks.length === 0 && visibleCompletedTasks.length === 0 ? (
+            {openTasks.length === 0 && completedTasks.length === 0 ? (
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
                     {searchQuery.trim()
                         ? 'No tasks match your search.'
-                        : statusFilter === 'open' ? 'No open tasks.'
-                            : statusFilter === 'completed' ? 'No completed tasks.'
-                                : 'No tasks yet.'}
+                        : 'No tasks yet.'}
                 </Typography>
             ) : (
                 <>
-                    {visibleOpenTasks.length > 0 && (
+                    {openTasks.length > 0 && (
                         <List disablePadding>
-                            {visibleOpenTasks.map((task) => (
+                            {openTasks.map((task) => (
                                 <ListItem key={task.recordID} disablePadding divider>
                                     <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                         <IconButton
@@ -297,7 +266,7 @@ export default function TasksPage() {
                         </List>
                     )}
 
-                    {visibleCompletedTasks.length > 0 && (
+                    {completedTasks.length > 0 && (
                         <>
                             <Box
                                 onClick={() => setCompletedExpanded(!completedExpanded)}
@@ -305,7 +274,7 @@ export default function TasksPage() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     cursor: 'pointer',
-                                    mt: visibleOpenTasks.length > 0 ? 2 : 0,
+                                    mt: openTasks.length > 0 ? 2 : 0,
                                     mb: 1,
                                     px: 1,
                                     py: 0.5,
@@ -315,12 +284,12 @@ export default function TasksPage() {
                             >
                                 {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                                 <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                                    Completed ({visibleCompletedTasks.length})
+                                    Completed ({completedTasks.length})
                                 </Typography>
                             </Box>
                             <Collapse in={completedExpanded}>
                                 <List disablePadding>
-                                    {visibleCompletedTasks.map((task) => (
+                                    {completedTasks.map((task) => (
                                         <ListItem key={task.recordID} disablePadding divider>
                                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                 <IconButton

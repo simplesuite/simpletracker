@@ -6,15 +6,16 @@ import CardActionArea from '@mui/material/CardActionArea';
 import CardContent from '@mui/material/CardContent';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import Chip from '@mui/material/Chip';
 import PeopleIcon from '@mui/icons-material/People';
 import FolderIcon from '@mui/icons-material/Folder';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import PushPinIcon from '@mui/icons-material/PushPin';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import IconButton from '@mui/material/IconButton';
@@ -56,8 +57,8 @@ export default function NotesPage() {
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
     const projects = useProjectStore((s) => s.projects);
 
-    const [tabValue, setTabValue] = React.useState(0);
     const [searchQuery, setSearchQuery] = React.useState('');
+    const [archivedExpanded, setArchivedExpanded] = React.useState(false);
 
     // Build a map of projectID -> project name for quick lookup
     const projectNameMap = React.useMemo(() => {
@@ -70,23 +71,14 @@ export default function NotesPage() {
 
     React.useEffect(() => {
         fetchNotes();
-    }, [fetchNotes]);
-
-    React.useEffect(() => {
-        if (tabValue === 1) {
-            fetchArchivedNotes();
-        }
-    }, [tabValue, fetchArchivedNotes]);
+        fetchArchivedNotes();
+    }, [fetchNotes, fetchArchivedNotes]);
 
     const handleCreateNote = async () => {
         const newNote = await createNote();
         if (newNote) {
             navigate(`/notes/${newNote.recordID}`);
         }
-    };
-
-    const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-        setTabValue(newValue);
     };
 
     // Combine own notes and shared notes for the active view, sorted by pinned first then updatedAt desc
@@ -106,33 +98,116 @@ export default function NotesPage() {
         });
     }, [notes, sharedNotes]);
 
-    const displayedNotes = tabValue === 0 ? activeNotes : archivedNotes;
-
-    // Filter notes by search query (title and body)
-    const filteredNotes = React.useMemo(() => {
-        if (!searchQuery.trim()) return displayedNotes;
+    // Filter active notes by search query (title and body)
+    const filteredActiveNotes = React.useMemo(() => {
+        if (!searchQuery.trim()) return activeNotes;
         const q = searchQuery.toLowerCase();
-        return displayedNotes.filter(
+        return activeNotes.filter(
             (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
         );
-    }, [displayedNotes, searchQuery]);
+    }, [activeNotes, searchQuery]);
+
+    // Filter archived notes by search query
+    const filteredArchivedNotes = React.useMemo(() => {
+        if (!searchQuery.trim()) return archivedNotes;
+        const q = searchQuery.toLowerCase();
+        return archivedNotes.filter(
+            (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
+        );
+    }, [archivedNotes, searchQuery]);
 
     const isSharedNote = (note: Note): boolean => {
         return note.creatorID !== currentUserID;
     };
 
+    const renderNoteGrid = (noteList: Note[]) => (
+        <Box
+            sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 1.5,
+            }}
+        >
+            {noteList.map((note) => (
+                <Card
+                    key={note.recordID}
+                    variant="outlined"
+                    sx={{
+                        borderColor: note.pinned ? 'primary.main' : 'divider',
+                        borderRadius: 3,
+                    }}
+                >
+                    <CardActionArea
+                        onClick={() => navigate(`/notes/${note.recordID}`)}
+                        sx={{ height: '100%' }}
+                    >
+                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                {note.pinned && (
+                                    <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
+                                )}
+                                <Typography
+                                    variant="subtitle2"
+                                    noWrap
+                                    sx={{
+                                        flex: 1,
+                                        fontStyle: note.title ? 'normal' : 'italic',
+                                        color: note.title ? 'text.primary' : 'text.secondary',
+                                    }}
+                                >
+                                    {note.title || 'Untitled'}
+                                </Typography>
+                            </Box>
+                            {note.body && (
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 1,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        mb: 0.5,
+                                        fontSize: '0.75rem',
+                                    }}
+                                >
+                                    {note.body}
+                                </Typography>
+                            )}
+                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', mt: 'auto' }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    {formatTimestamp(note.updatedAt)}
+                                </Typography>
+                                {isSharedNote(note) && (
+                                    <Chip
+                                        icon={<PeopleIcon />}
+                                        label="Shared"
+                                        size="small"
+                                        variant="outlined"
+                                        color="primary"
+                                        sx={{ height: 18, fontSize: '0.65rem' }}
+                                    />
+                                )}
+                                {note.projectID && projectNameMap.has(note.projectID) && (
+                                    <Chip
+                                        icon={<FolderIcon />}
+                                        label={projectNameMap.get(note.projectID)}
+                                        size="small"
+                                        variant="outlined"
+                                        color="primary"
+                                        sx={{ height: 18, fontSize: '0.65rem' }}
+                                    />
+                                )}
+                            </Box>
+                        </CardContent>
+                    </CardActionArea>
+                </Card>
+            ))}
+        </Box>
+    );
+
     return (
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-            <Tabs
-                value={tabValue}
-                onChange={handleTabChange}
-                sx={{ mb: 2 }}
-                aria-label="Notes view toggle"
-            >
-                <Tab label="Active" />
-                <Tab label="Archived" />
-            </Tabs>
-
             <TextField
                 size="small"
                 placeholder="Search notes..."
@@ -158,118 +233,61 @@ export default function NotesPage() {
                 }}
             />
 
-            {loading && filteredNotes.length === 0 ? (
+            {loading && filteredActiveNotes.length === 0 ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                     <CircularProgress />
                 </Box>
-            ) : filteredNotes.length === 0 ? (
+            ) : filteredActiveNotes.length === 0 && filteredArchivedNotes.length === 0 ? (
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
                     {searchQuery.trim()
                         ? 'No notes match your search.'
-                        : tabValue === 0
-                            ? 'No notes yet. Tap + to create one.'
-                            : 'No archived notes.'}
+                        : 'No notes yet. Tap + to create one.'}
                 </Typography>
             ) : (
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: 1.5,
-                    }}
-                >
-                    {filteredNotes.map((note) => (
-                        <Card
-                            key={note.recordID}
-                            variant="outlined"
-                            sx={{
-                                borderColor: note.pinned ? 'primary.main' : 'divider',
-                                borderRadius: 3,
-                            }}
-                        >
-                            <CardActionArea
-                                onClick={() => navigate(`/notes/${note.recordID}`)}
-                                sx={{ height: '100%' }}
+                <>
+                    {filteredActiveNotes.length > 0 && renderNoteGrid(filteredActiveNotes)}
+
+                    {filteredArchivedNotes.length > 0 && (
+                        <>
+                            <Box
+                                onClick={() => setArchivedExpanded(!archivedExpanded)}
+                                sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    cursor: 'pointer',
+                                    mt: filteredActiveNotes.length > 0 ? 2 : 0,
+                                    mb: 1,
+                                    px: 1,
+                                    py: 0.5,
+                                    borderRadius: 1,
+                                    '&:hover': { bgcolor: 'action.hover' },
+                                }}
                             >
-                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                                        {note.pinned && (
-                                            <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
-                                        )}
-                                        <Typography
-                                            variant="subtitle2"
-                                            noWrap
-                                            sx={{
-                                                flex: 1,
-                                                fontStyle: note.title ? 'normal' : 'italic',
-                                                color: note.title ? 'text.primary' : 'text.secondary',
-                                            }}
-                                        >
-                                            {note.title || 'Untitled'}
-                                        </Typography>
-                                    </Box>
-                                    {note.body && (
-                                        <Typography
-                                            variant="body2"
-                                            color="text.secondary"
-                                            sx={{
-                                                display: '-webkit-box',
-                                                WebkitLineClamp: 1,
-                                                WebkitBoxOrient: 'vertical',
-                                                overflow: 'hidden',
-                                                mb: 0.5,
-                                                fontSize: '0.75rem',
-                                            }}
-                                        >
-                                            {note.body}
-                                        </Typography>
-                                    )}
-                                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', mt: 'auto' }}>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {formatTimestamp(note.updatedAt)}
-                                        </Typography>
-                                        {isSharedNote(note) && (
-                                            <Chip
-                                                icon={<PeopleIcon />}
-                                                label="Shared"
-                                                size="small"
-                                                variant="outlined"
-                                                color="primary"
-                                                sx={{ height: 18, fontSize: '0.65rem' }}
-                                            />
-                                        )}
-                                        {note.projectID && projectNameMap.has(note.projectID) && (
-                                            <Chip
-                                                icon={<FolderIcon />}
-                                                label={projectNameMap.get(note.projectID)}
-                                                size="small"
-                                                variant="outlined"
-                                                color="primary"
-                                                sx={{ height: 18, fontSize: '0.65rem' }}
-                                            />
-                                        )}
-                                    </Box>
-                                </CardContent>
-                            </CardActionArea>
-                        </Card>
-                    ))}
-                </Box>
+                                {archivedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                                    Archived ({filteredArchivedNotes.length})
+                                </Typography>
+                            </Box>
+                            <Collapse in={archivedExpanded}>
+                                {renderNoteGrid(filteredArchivedNotes)}
+                            </Collapse>
+                        </>
+                    )}
+                </>
             )}
 
-            {tabValue === 0 && (
-                <Fab
-                    color="primary"
-                    aria-label="Create new note"
-                    onClick={handleCreateNote}
-                    sx={{
-                        position: 'fixed',
-                        bottom: 72,
-                        right: 16,
-                    }}
-                >
-                    <AddIcon />
-                </Fab>
-            )}
+            <Fab
+                color="primary"
+                aria-label="Create new note"
+                onClick={handleCreateNote}
+                sx={{
+                    position: 'fixed',
+                    bottom: 72,
+                    right: 16,
+                }}
+            >
+                <AddIcon />
+            </Fab>
         </Box>
     );
 }
