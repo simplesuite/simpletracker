@@ -171,15 +171,6 @@ export default function TasksPage() {
                                             primary={task.title}
                                             secondary={
                                                 <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                                    {task.projectID && projectNameMap.has(task.projectID) && (
-                                                        <Chip
-                                                            label={projectNameMap.get(task.projectID)}
-                                                            size="small"
-                                                            color="primary"
-                                                            variant="outlined"
-                                                            sx={{ height: 20, fontSize: '0.75rem' }}
-                                                        />
-                                                    )}
                                                     {task.dueDate && (() => {
                                                         const { label, color } = formatDueDate(task.dueDate);
                                                         return (
@@ -192,6 +183,15 @@ export default function TasksPage() {
                                                             />
                                                         );
                                                     })()}
+                                                    {task.projectID && projectNameMap.has(task.projectID) && (
+                                                        <Chip
+                                                            label={projectNameMap.get(task.projectID)}
+                                                            size="small"
+                                                            color="primary"
+                                                            variant="outlined"
+                                                            sx={{ height: 20, fontSize: '0.75rem' }}
+                                                        />
+                                                    )}
                                                     {task.isRecurring && (
                                                         <Chip
                                                             icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
