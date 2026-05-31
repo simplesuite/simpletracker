@@ -25,6 +25,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
         updatedAt: 2000,
         projectID: null,
         archived: false,
+        pinned: false,
         ...overrides,
     };
 }

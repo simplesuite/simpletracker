@@ -31,6 +31,8 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
 import ShareIcon from '@mui/icons-material/Share';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
@@ -58,6 +60,7 @@ export default function NoteDetailPage() {
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const updateNote = useNoteStore((s) => s.updateNote);
+    const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
     const unarchiveNote = useNoteStore((s) => s.unarchiveNote);
     const deleteNote = useNoteStore((s) => s.deleteNote);
@@ -74,6 +77,7 @@ export default function NoteDetailPage() {
     const [body, setBody] = useState('');
     const [projectID, setProjectID] = useState<string | null>(null);
     const [archived, setArchived] = useState(false);
+    const [pinned, setPinned] = useState(false);
     const [creatorID, setCreatorID] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -141,6 +145,7 @@ export default function NoteDetailPage() {
                         setBody(localNote.body);
                         setProjectID(localNote.projectID);
                         setArchived(localNote.archived);
+                        setPinned(localNote.pinned);
                         setCreatorID(localNote.creatorID);
                         setLoading(false);
                         return;
@@ -164,6 +169,7 @@ export default function NoteDetailPage() {
                         setBody(data.body);
                         setProjectID(data.projectID);
                         setArchived(data.archived);
+                        setPinned(data.pinned);
                         setCreatorID(data.creatorID);
                     } catch {
                         setError('Failed to load note from server.');
@@ -173,6 +179,7 @@ export default function NoteDetailPage() {
                     setBody(localNote.body);
                     setProjectID(localNote.projectID);
                     setArchived(localNote.archived);
+                    setPinned(localNote.pinned);
                     setCreatorID(localNote.creatorID);
                 }
             } else {
@@ -203,6 +210,7 @@ export default function NoteDetailPage() {
                     setBody(data.body);
                     setProjectID(data.projectID);
                     setArchived(data.archived);
+                    setPinned(data.pinned);
                     setCreatorID(data.creatorID);
                 } catch {
                     setError('Failed to load note.');
@@ -321,6 +329,81 @@ export default function NoteDetailPage() {
         }, 0);
     };
 
+    // Smart line continuation for markdown lists, checkboxes, quotes, etc.
+    const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key !== 'Enter') return;
+
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const cursorPos = textarea.selectionStart;
+        const selectionEnd = textarea.selectionEnd;
+
+        // Only act when there's no selection
+        if (cursorPos !== selectionEnd) return;
+
+        // Find the current line
+        const textBefore = body.substring(0, cursorPos);
+        const lastNewline = textBefore.lastIndexOf('\n');
+        const currentLine = textBefore.substring(lastNewline + 1);
+
+        // Match patterns: checkbox, bullet, numbered list, blockquote
+        const patterns: { regex: RegExp; getPrefix: (match: RegExpMatchArray) => string }[] = [
+            // Checked checkbox: - [x] or * [x]
+            { regex: /^(\s*[-*]\s*)\[x\]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
+            // Unchecked checkbox: - [ ] or * [ ]
+            { regex: /^(\s*[-*]\s*)\[ \]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
+            // Numbered list: 1. or 1)
+            { regex: /^(\s*)(\d+)([.)]\s)/, getPrefix: (m) => `${m[1]}${parseInt(m[2]) + 1}${m[3]}` },
+            // Bullet list: - or * or +
+            { regex: /^(\s*[-*+]\s)/, getPrefix: (m) => m[1] },
+            // Blockquote: >
+            { regex: /^(\s*>\s)/, getPrefix: (m) => m[1] },
+        ];
+
+        for (const { regex, getPrefix } of patterns) {
+            const match = currentLine.match(regex);
+            if (match) {
+                const prefix = getPrefix(match);
+                const contentAfterPrefix = currentLine.substring(match[0].length);
+
+                // If the line is empty (just the prefix with no content), clear the prefix instead
+                if (contentAfterPrefix.trim() === '') {
+                    e.preventDefault();
+                    const lineStart = lastNewline + 1;
+                    const newBody = body.substring(0, lineStart) + '\n' + body.substring(cursorPos);
+                    setBody(newBody);
+                    debouncedSave({ body: newBody });
+                    setTimeout(() => {
+                        textarea.focus();
+                        const newCursor = lineStart + 1;
+                        textarea.setSelectionRange(newCursor, newCursor);
+                    }, 0);
+                    return;
+                }
+
+                // Insert newline + prefix
+                e.preventDefault();
+                const insertion = '\n' + prefix;
+                const newBody = body.substring(0, cursorPos) + insertion + body.substring(cursorPos);
+
+                if (newBody.length > 100000) {
+                    setBodyError('Body must not exceed 100,000 characters');
+                    return;
+                }
+
+                setBody(newBody);
+                debouncedSave({ body: newBody });
+                setTimeout(() => {
+                    textarea.focus();
+                    const newCursor = cursorPos + insertion.length;
+                    textarea.setSelectionRange(newCursor, newCursor);
+                }, 0);
+                return;
+            }
+        }
+    };
+
     const insertLinePrefix = (prefix: string) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
@@ -360,6 +443,16 @@ export default function NoteDetailPage() {
             setArchived(!archived);
         } else {
             setError(useNoteStore.getState().error || 'Failed to update archive status.');
+        }
+    };
+
+    const handleTogglePin = async () => {
+        if (!id) return;
+        const success = await togglePinNote(id);
+        if (success) {
+            setPinned(!pinned);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to update pin status.');
         }
     };
 
@@ -492,6 +585,14 @@ export default function NoteDetailPage() {
                             <ListItemText>Share</ListItemText>
                         </MenuItem>
                     )}
+                    {!archived && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); handleTogglePin(); }}>
+                            <ListItemIcon>
+                                {pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+                            </ListItemIcon>
+                            <ListItemText>{pinned ? 'Unpin' : 'Pin to top'}</ListItemText>
+                        </MenuItem>
+                    )}
                     <MenuItem onClick={() => { setMenuAnchorEl(null); handleArchive(); }}>
                         <ListItemIcon>
                             {archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
@@ -587,6 +688,7 @@ export default function NoteDetailPage() {
                     placeholder="Write your note in markdown..."
                     value={body}
                     onChange={handleBodyChange}
+                    onKeyDown={handleBodyKeyDown}
                     error={!!bodyError}
                     helperText={bodyError || `${body.length}/100,000`}
                     disabled={!!offlineMessage && isShared}

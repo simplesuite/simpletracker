@@ -40,6 +40,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
             updatedAt: fc.integer({ min: 1_000_000_000_000, max: 2_000_000_000_000 }),
             projectID: fc.option(fc.uuid(), { nil: null }),
             archived: fc.boolean(),
+            pinned: fc.boolean(),
         });
 
     const taskArb = (creatorID: string): fc.Arbitrary<Task> =>
@@ -73,6 +74,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
         fc.record({
             recordID: fc.uuid(),
             noteID: fc.constant(noteID),
+            creatorID: fc.uuid(),
             sharedToID: fc.uuid(),
         });
 
@@ -80,6 +82,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
         fc.record({
             recordID: fc.uuid(),
             projectID: fc.constant(projectID),
+            creatorID: fc.uuid(),
             sharedToID: fc.uuid(),
             createdAt: fc.integer({ min: 1_000_000_000_000, max: 2_000_000_000_000 }),
         });
@@ -106,6 +109,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             updatedAt: 1_000_000_000_000 + i,
                             projectID: null,
                             archived: false,
+                            pinned: false,
                         });
                     }
 
@@ -118,6 +122,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                     const noteShares: NoteShared[] = [{
                         recordID: `share-${sharedNote.recordID}`,
                         noteID: sharedNote.recordID,
+                        creatorID: currentUserID,
                         sharedToID: 'other-user-id',
                     }];
                     const projectShares: ProjectShared[] = [];
@@ -178,6 +183,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                     const projectShares: ProjectShared[] = [{
                         recordID: `pshare-${sharedTask.projectID}`,
                         projectID: sharedTask.projectID!,
+                        creatorID: currentUserID,
                         sharedToID: 'other-user-id',
                         createdAt: 1_000_000_000_000,
                     }];
@@ -220,6 +226,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             updatedAt: 1_000_000_000_000 + i,
                             projectID: null,
                             archived: false,
+                            pinned: false,
                         });
                     }
 
@@ -238,6 +245,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                     const noteShares: NoteShared[] = [{
                         recordID: `share-${noteToShare.recordID}`,
                         noteID: noteToShare.recordID,
+                        creatorID: currentUserID,
                         sharedToID: 'recipient-user-id',
                     }];
 
@@ -285,6 +293,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             updatedAt: 1_000_000_000_000 + i,
                             projectID: null,
                             archived: false,
+                            pinned: false,
                         });
                     }
 
@@ -352,6 +361,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                     const projectShares: ProjectShared[] = [{
                         recordID: `pshare-${projectID}`,
                         projectID: projectID,
+                        creatorID: currentUserID,
                         sharedToID: 'collaborator-id',
                         createdAt: 1_000_000_000_000,
                     }];

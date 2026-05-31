@@ -81,6 +81,7 @@ export default function TaskDetailPage() {
     const [subtaskError, setSubtaskError] = useState<string | null>(null);
     const [networkError, setNetworkError] = useState<string | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [abandonDialogOpen, setAbandonDialogOpen] = useState(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
     const [loading, setLoading] = useState(false);
@@ -183,6 +184,11 @@ export default function TaskDetailPage() {
     // Debounced save for title
     const saveTitle = useCallback(async (newTitle: string) => {
         if (!id) return;
+        // Allow empty title (for new blank tasks) — just skip validation
+        if (newTitle.trim().length === 0) {
+            setTitleError(null);
+            return;
+        }
         const validation = validateTaskTitle(newTitle);
         if (!validation.valid) {
             setTitleError(validation.error || 'Invalid title');
@@ -353,6 +359,30 @@ export default function TaskDetailPage() {
         }
     };
 
+    const isTaskBlank = () => {
+        return title.trim().length === 0 && body.trim().length === 0;
+    };
+
+    const handleBack = () => {
+        if (isTaskBlank()) {
+            setAbandonDialogOpen(true);
+        } else {
+            navigate(-1);
+        }
+    };
+
+    const handleAbandonDelete = async () => {
+        if (!id) return;
+        setAbandonDialogOpen(false);
+        await deleteTask(id);
+        navigate(-1);
+    };
+
+    const handleAbandonKeep = () => {
+        setAbandonDialogOpen(false);
+        navigate(-1);
+    };
+
     // Show loading state
     if (loading) {
         return (
@@ -398,7 +428,7 @@ export default function TaskDetailPage() {
             <Box sx={{ pb: 10, maxWidth: 600, mx: 'auto' }}>
                 {/* Header with back button and menu */}
                 <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
-                    <IconButton onClick={() => navigate(-1)} aria-label="Back">
+                    <IconButton onClick={handleBack} aria-label="Back">
                         <ArrowBackIcon />
                     </IconButton>
                     {/* Project assignment */}
@@ -676,6 +706,28 @@ export default function TaskDetailPage() {
                         <DialogActions>
                             <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                             <Button onClick={handleDelete} color="error" variant="contained">
+                                Delete
+                            </Button>
+                        </DialogActions>
+                    </Box>
+                </Dialog>
+
+                {/* Abandon blank task dialog */}
+                <Dialog
+                    open={abandonDialogOpen}
+                    onClose={() => setAbandonDialogOpen(false)}
+                    slotProps={{ paper: dialogPaperStyles }}
+                >
+                    <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                        <DialogTitle>Empty Task</DialogTitle>
+                        <DialogContent>
+                            <DialogContentText>
+                                This task is blank. Would you like to delete it?
+                            </DialogContentText>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={handleAbandonKeep}>Keep</Button>
+                            <Button onClick={handleAbandonDelete} color="error" variant="contained">
                                 Delete
                             </Button>
                         </DialogActions>

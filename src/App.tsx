@@ -109,16 +109,24 @@ export default function App() {
 
   // Check for due/overdue tasks and send a grouped notification (once per day)
   React.useEffect(() => {
-    const cachedTasks = getCachedTasks();
-    if (cachedTasks.length > 0) {
-      checkAndNotify(cachedTasks);
+    try {
+      const cachedTasks = getCachedTasks();
+      if (cachedTasks.length > 0) {
+        checkAndNotify(cachedTasks);
+      }
+    } catch (err) {
+      console.warn('Notification check failed on mount:', err);
     }
 
     // Also check when the app regains visibility (covers next-day scenario)
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        const tasks = getCachedTasks();
-        if (tasks.length > 0) checkAndNotify(tasks);
+        try {
+          const tasks = getCachedTasks();
+          if (tasks.length > 0) checkAndNotify(tasks);
+        } catch (err) {
+          console.warn('Notification check failed on visibility change:', err);
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
