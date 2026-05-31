@@ -1,10 +1,9 @@
 import React from 'react';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
+import Card from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import CardContent from '@mui/material/CardContent';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
 import Tabs from '@mui/material/Tabs';
@@ -14,6 +13,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import FolderIcon from '@mui/icons-material/Folder';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
+import PushPinIcon from '@mui/icons-material/PushPin';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -89,7 +89,7 @@ export default function NotesPage() {
         setTabValue(newValue);
     };
 
-    // Combine own notes and shared notes for the active view, sorted by updatedAt desc
+    // Combine own notes and shared notes for the active view, sorted by pinned first then updatedAt desc
     const activeNotes: Note[] = React.useMemo(() => {
         const combined = [...notes, ...sharedNotes];
         // Deduplicate by recordID (in case of overlap)
@@ -97,7 +97,13 @@ export default function NotesPage() {
         for (const note of combined) {
             map.set(note.recordID, note);
         }
-        return Array.from(map.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+        return Array.from(map.values()).sort((a, b) => {
+            // Pinned notes come first
+            if (a.pinned && !b.pinned) return -1;
+            if (!a.pinned && b.pinned) return 1;
+            // Then sort by updatedAt desc
+            return b.updatedAt - a.updatedAt;
+        });
     }, [notes, sharedNotes]);
 
     const displayedNotes = tabValue === 0 ? activeNotes : archivedNotes;
@@ -165,56 +171,89 @@ export default function NotesPage() {
                             : 'No archived notes.'}
                 </Typography>
             ) : (
-                <List disablePadding>
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 1.5,
+                    }}
+                >
                     {filteredNotes.map((note) => (
-                        <ListItem key={note.recordID} disablePadding divider>
-                            <ListItemButton
+                        <Card
+                            key={note.recordID}
+                            variant="outlined"
+                            sx={{
+                                borderColor: note.pinned ? 'primary.main' : 'divider',
+                                borderRadius: 3,
+                            }}
+                        >
+                            <CardActionArea
                                 onClick={() => navigate(`/notes/${note.recordID}`)}
+                                sx={{ height: '100%' }}
                             >
-                                <ListItemText
-                                    primary={
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Typography
-                                                variant="body1"
-                                                noWrap
-                                                sx={{
-                                                    fontStyle: note.title ? 'normal' : 'italic',
-                                                    color: note.title ? 'text.primary' : 'text.secondary',
-                                                }}
-                                            >
-                                                {note.title || 'Untitled'}
-                                            </Typography>
-                                            {isSharedNote(note) && (
-                                                <Chip
-                                                    icon={<PeopleIcon />}
-                                                    label="Shared"
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="primary"
-                                                />
-                                            )}
-                                        </Box>
-                                    }
-                                    secondary={
-                                        <Box component="span" sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                        {note.pinned && (
+                                            <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
+                                        )}
+                                        <Typography
+                                            variant="subtitle2"
+                                            noWrap
+                                            sx={{
+                                                flex: 1,
+                                                fontStyle: note.title ? 'normal' : 'italic',
+                                                color: note.title ? 'text.primary' : 'text.secondary',
+                                            }}
+                                        >
+                                            {note.title || 'Untitled'}
+                                        </Typography>
+                                    </Box>
+                                    {note.body && (
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 1,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                mb: 0.5,
+                                                fontSize: '0.75rem',
+                                            }}
+                                        >
+                                            {note.body}
+                                        </Typography>
+                                    )}
+                                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', mt: 'auto' }}>
+                                        <Typography variant="caption" color="text.secondary">
                                             {formatTimestamp(note.updatedAt)}
-                                            {note.projectID && projectNameMap.has(note.projectID) && (
-                                                <Chip
-                                                    icon={<FolderIcon />}
-                                                    label={projectNameMap.get(note.projectID)}
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="primary"
-                                                    sx={{ height: 20, fontSize: '0.75rem' }}
-                                                />
-                                            )}
-                                        </Box>
-                                    }
-                                />
-                            </ListItemButton>
-                        </ListItem>
+                                        </Typography>
+                                        {isSharedNote(note) && (
+                                            <Chip
+                                                icon={<PeopleIcon />}
+                                                label="Shared"
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                sx={{ height: 18, fontSize: '0.65rem' }}
+                                            />
+                                        )}
+                                        {note.projectID && projectNameMap.has(note.projectID) && (
+                                            <Chip
+                                                icon={<FolderIcon />}
+                                                label={projectNameMap.get(note.projectID)}
+                                                size="small"
+                                                variant="outlined"
+                                                color="primary"
+                                                sx={{ height: 18, fontSize: '0.65rem' }}
+                                            />
+                                        )}
+                                    </Box>
+                                </CardContent>
+                            </CardActionArea>
+                        </Card>
                     ))}
-                </List>
+                </Box>
             )}
 
             {tabValue === 0 && (

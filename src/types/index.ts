@@ -7,6 +7,7 @@ export interface Note {
     updatedAt: number;
     projectID: string | null;
     archived: boolean;
+    pinned: boolean;
 }
 
 export interface NoteShared {

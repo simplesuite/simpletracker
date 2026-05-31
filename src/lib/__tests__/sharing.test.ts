@@ -14,6 +14,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
         updatedAt: now,
         projectID: null,
         archived: false,
+        pinned: false,
         ...overrides,
     };
 }
@@ -52,7 +53,7 @@ describe('isSharedItem', () => {
     it('returns true when a note has a direct share record', () => {
         const note = makeNote();
         const noteShares: NoteShared[] = [
-            { recordID: 'share-1', noteID: 'note-1', sharedToID: 'user-2' },
+            { recordID: 'share-1', noteID: 'note-1', creatorID: 'user-1', sharedToID: 'user-2' },
         ];
         expect(isSharedItem(note, 'user-1', noteShares, [])).toBe(true);
     });
@@ -60,7 +61,7 @@ describe('isSharedItem', () => {
     it('returns false when noteShares exist but for a different note', () => {
         const note = makeNote();
         const noteShares: NoteShared[] = [
-            { recordID: 'share-1', noteID: 'note-other', sharedToID: 'user-2' },
+            { recordID: 'share-1', noteID: 'note-other', creatorID: 'user-1', sharedToID: 'user-2' },
         ];
         expect(isSharedItem(note, 'user-1', noteShares, [])).toBe(false);
     });
@@ -68,7 +69,7 @@ describe('isSharedItem', () => {
     it('returns true when item belongs to a project with shares', () => {
         const note = makeNote({ projectID: 'proj-1' });
         const projectShares: ProjectShared[] = [
-            { recordID: 'ps-1', projectID: 'proj-1', sharedToID: 'user-2', createdAt: now },
+            { recordID: 'ps-1', projectID: 'proj-1', creatorID: 'user-1', sharedToID: 'user-2', createdAt: now },
         ];
         expect(isSharedItem(note, 'user-1', [], projectShares)).toBe(true);
     });
@@ -76,7 +77,7 @@ describe('isSharedItem', () => {
     it('returns false when item belongs to a project without shares', () => {
         const note = makeNote({ projectID: 'proj-1' });
         const projectShares: ProjectShared[] = [
-            { recordID: 'ps-1', projectID: 'proj-other', sharedToID: 'user-2', createdAt: now },
+            { recordID: 'ps-1', projectID: 'proj-other', creatorID: 'user-1', sharedToID: 'user-2', createdAt: now },
         ];
         expect(isSharedItem(note, 'user-1', [], projectShares)).toBe(false);
     });
@@ -84,7 +85,7 @@ describe('isSharedItem', () => {
     it('returns true for a task in a shared project', () => {
         const task = makeTask({ projectID: 'proj-1' });
         const projectShares: ProjectShared[] = [
-            { recordID: 'ps-1', projectID: 'proj-1', sharedToID: 'user-2', createdAt: now },
+            { recordID: 'ps-1', projectID: 'proj-1', creatorID: 'user-1', sharedToID: 'user-2', createdAt: now },
         ];
         expect(isSharedItem(task, 'user-1', [], projectShares)).toBe(true);
     });
@@ -97,7 +98,7 @@ describe('isSharedItem', () => {
     it('does not check noteShares for tasks (tasks use project shares)', () => {
         const task = makeTask();
         const noteShares: NoteShared[] = [
-            { recordID: 'share-1', noteID: 'task-1', sharedToID: 'user-2' },
+            { recordID: 'share-1', noteID: 'task-1', creatorID: 'user-1', sharedToID: 'user-2' },
         ];
         // A task with the same recordID as a noteShare's noteID should not match
         expect(isSharedItem(task, 'user-1', noteShares, [])).toBe(false);

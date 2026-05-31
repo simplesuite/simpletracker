@@ -31,6 +31,8 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
 import ShareIcon from '@mui/icons-material/Share';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
@@ -58,6 +60,7 @@ export default function NoteDetailPage() {
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const updateNote = useNoteStore((s) => s.updateNote);
+    const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
     const unarchiveNote = useNoteStore((s) => s.unarchiveNote);
     const deleteNote = useNoteStore((s) => s.deleteNote);
@@ -74,6 +77,7 @@ export default function NoteDetailPage() {
     const [body, setBody] = useState('');
     const [projectID, setProjectID] = useState<string | null>(null);
     const [archived, setArchived] = useState(false);
+    const [pinned, setPinned] = useState(false);
     const [creatorID, setCreatorID] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -141,6 +145,7 @@ export default function NoteDetailPage() {
                         setBody(localNote.body);
                         setProjectID(localNote.projectID);
                         setArchived(localNote.archived);
+                        setPinned(localNote.pinned);
                         setCreatorID(localNote.creatorID);
                         setLoading(false);
                         return;
@@ -164,6 +169,7 @@ export default function NoteDetailPage() {
                         setBody(data.body);
                         setProjectID(data.projectID);
                         setArchived(data.archived);
+                        setPinned(data.pinned);
                         setCreatorID(data.creatorID);
                     } catch {
                         setError('Failed to load note from server.');
@@ -173,6 +179,7 @@ export default function NoteDetailPage() {
                     setBody(localNote.body);
                     setProjectID(localNote.projectID);
                     setArchived(localNote.archived);
+                    setPinned(localNote.pinned);
                     setCreatorID(localNote.creatorID);
                 }
             } else {
@@ -203,6 +210,7 @@ export default function NoteDetailPage() {
                     setBody(data.body);
                     setProjectID(data.projectID);
                     setArchived(data.archived);
+                    setPinned(data.pinned);
                     setCreatorID(data.creatorID);
                 } catch {
                     setError('Failed to load note.');
@@ -363,6 +371,16 @@ export default function NoteDetailPage() {
         }
     };
 
+    const handleTogglePin = async () => {
+        if (!id) return;
+        const success = await togglePinNote(id);
+        if (success) {
+            setPinned(!pinned);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to update pin status.');
+        }
+    };
+
     const handleDelete = async () => {
         if (!id) return;
         setDeleteDialogOpen(false);
@@ -490,6 +508,14 @@ export default function NoteDetailPage() {
                         <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }}>
                             <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
                             <ListItemText>Share</ListItemText>
+                        </MenuItem>
+                    )}
+                    {!archived && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); handleTogglePin(); }}>
+                            <ListItemIcon>
+                                {pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+                            </ListItemIcon>
+                            <ListItemText>{pinned ? 'Unpin' : 'Pin to top'}</ListItemText>
                         </MenuItem>
                     )}
                     <MenuItem onClick={() => { setMenuAnchorEl(null); handleArchive(); }}>

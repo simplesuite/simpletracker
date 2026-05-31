@@ -96,11 +96,19 @@ export function checkAndNotify(tasks: Task[]): void {
     const total = dueToday.length + overdue.length;
     const title = total === 1 ? 'Task Reminder' : `${total} Task Reminders`;
 
-    new Notification(title, {
-        body,
-        icon: '/android-chrome-192x192.png',
-        tag: 'task-due-reminder', // Replaces previous notification with same tag
-    });
+    try {
+        new Notification(title, {
+            body,
+            icon: '/android-chrome-192x192.png',
+            tag: 'task-due-reminder', // Replaces previous notification with same tag
+        });
+    } catch (err) {
+        // Some environments (e.g. iOS PWA, certain Android WebViews) report
+        // permission as 'granted' but throw when constructing a Notification.
+        // Swallow the error so the app doesn't crash on load.
+        console.warn('Failed to show notification:', err);
+        return;
+    }
 
     store.setLastNotifiedDate(today);
 }

@@ -25,6 +25,7 @@ interface NoteStore {
     fetchArchivedNotes: () => Promise<void>;
     createNote: (projectID?: string | null) => Promise<Note | null>;
     updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => Promise<boolean>;
+    togglePinNote: (id: string) => Promise<boolean>;
     archiveNote: (id: string) => Promise<boolean>;
     unarchiveNote: (id: string) => Promise<boolean>;
     deleteNote: (id: string) => Promise<boolean>;
@@ -191,6 +192,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             updatedAt: now,
             projectID: projectID || null,
             archived: false,
+            pinned: false,
         };
 
         // Optimistically add to local state
@@ -208,6 +210,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             updatedAt: newNote.updatedAt,
             projectID: newNote.projectID,
             archived: newNote.archived,
+            pinned: newNote.pinned,
         });
 
         // Update cache
@@ -293,6 +296,85 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             notes: updateInList(state.notes),
             sharedNotes: updateInList(state.sharedNotes),
             archivedNotes: updateInList(state.archivedNotes),
+            error: null,
+        }));
+
+        // Update cache for non-shared items
+        if (!shared) {
+            const cached = getCachedNotes();
+            const updatedCache = cached.map((n) =>
+                n.recordID === id ? { ...n, ...updatePayload } : n
+            );
+            setCachedNotes(updatedCache);
+        }
+
+        return true;
+    },
+
+    togglePinNote: async (id) => {
+        const currentNotes = [...get().notes, ...get().sharedNotes];
+        const note = currentNotes.find((n) => n.recordID === id);
+
+        if (!note) {
+            set({ error: 'Note not found' });
+            return false;
+        }
+
+        const newPinned = !note.pinned;
+        const now = Date.now();
+        const updatePayload = { pinned: newPinned, updatedAt: now };
+
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+
+        // Check if this is a shared item
+        const { data: noteShares } = await supabase
+            .from('notes_shared')
+            .select('*')
+            .eq('noteID', id);
+
+        const { data: projectShares } = await supabase
+            .from('task_projects_shared')
+            .select('*');
+
+        const shared = isSharedItem(
+            note,
+            currentUserID,
+            (noteShares || []) as NoteShared[],
+            (projectShares || []) as ProjectShared[]
+        );
+
+        if (shared) {
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                return false;
+            }
+
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes')
+                    .update(updatePayload)
+                    .eq('recordID', id);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to pin note' });
+                return false;
+            }
+        } else {
+            await updateWithOfflineSupport('note', 'notes', id, updatePayload);
+        }
+
+        // Optimistically update local state
+        const updateInList = (notes: Note[]) =>
+            notes.map((n) => (n.recordID === id ? { ...n, ...updatePayload } : n));
+
+        set((state) => ({
+            notes: updateInList(state.notes),
+            sharedNotes: updateInList(state.sharedNotes),
             error: null,
         }));
 
