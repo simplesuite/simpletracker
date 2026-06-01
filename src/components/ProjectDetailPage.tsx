@@ -26,6 +26,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import NotesIcon from '@mui/icons-material/Notes';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import PushPinIcon from '@mui/icons-material/PushPin';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import ShareIcon from '@mui/icons-material/Share';
 import AddIcon from '@mui/icons-material/Add';
@@ -33,6 +35,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import RepeatIcon from '@mui/icons-material/Repeat';
 import Chip from '@mui/material/Chip';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
@@ -47,6 +50,8 @@ export default function ProjectDetailPage() {
     const navigate = useNavigate();
 
     const projects = useProjectStore((s) => s.projects);
+    const loading = useProjectStore((s) => s.loading);
+    const fetchProjects = useProjectStore((s) => s.fetchProjects);
     const updateProject = useProjectStore((s) => s.updateProject);
     const deleteProject = useProjectStore((s) => s.deleteProject);
     const shareProject = useProjectStore((s) => s.shareProject);
@@ -65,6 +70,16 @@ export default function ProjectDetailPage() {
 
     const project = projects.find((p) => p.recordID === id);
     const isCreator = project?.creatorID === currentUserID;
+
+    // Track whether we've attempted to fetch projects
+    const [hasFetched, setHasFetched] = useState(false);
+
+    // Fetch projects if the project isn't found in the store (e.g. page refresh)
+    useEffect(() => {
+        if (!project && !hasFetched) {
+            fetchProjects().then(() => setHasFetched(true));
+        }
+    }, [project, hasFetched, fetchProjects]);
 
     // Local state
     const [name, setName] = useState(project?.name || '');
@@ -118,8 +133,10 @@ export default function ProjectDetailPage() {
         }
     }, [storeError]);
 
-    // Filter notes and tasks belonging to this project
-    const projectNotes = [...notes, ...sharedNotes].filter((n) => n.projectID === id);
+    // Filter notes and tasks belonging to this project, pinned notes first
+    const projectNotes = [...notes, ...sharedNotes]
+        .filter((n) => n.projectID === id)
+        .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
     const projectTasks = tasks.filter((t) => t.projectID === id);
 
     // Sort tasks: due date ascending (no due date at end), split open vs completed
@@ -140,6 +157,13 @@ export default function ProjectDetailPage() {
     );
 
     if (!project) {
+        if (loading || !hasFetched) {
+            return (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', mt: 4 }}>
+                    <CircularProgress />
+                </Box>
+            );
+        }
         return (
             <Box sx={{ p: 2 }}>
                 <IconButton onClick={() => navigate('/projects')} aria-label="Back to projects" sx={{ mb: 1 }}>
@@ -358,10 +382,15 @@ export default function ProjectDetailPage() {
                             sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1 }}
                         >
                             <ListItemIcon>
-                                <NotesIcon fontSize="small" />
+                                {note.noteType === 'list' ? <ChecklistIcon fontSize="small" /> : <NotesIcon fontSize="small" />}
                             </ListItemIcon>
                             <ListItemText
-                                primary={note.title || 'Untitled'}
+                                primary={
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
+                                        {note.title || 'Untitled'}
+                                    </Box>
+                                }
                                 secondary={new Date(note.updatedAt).toLocaleDateString()}
                             />
                         </ListItem>
@@ -408,21 +437,36 @@ export default function ProjectDetailPage() {
                                         <ListItemText
                                             primary={task.title}
                                             secondary={
-                                                task.dueDate
-                                                    ? (() => {
-                                                        const { label, color } = formatDueDate(task.dueDate);
-                                                        return (
-                                                            <Chip
-                                                                label={label}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                color={color}
-                                                                sx={{ height: 20, fontSize: '0.75rem' }}
-                                                            />
-                                                        );
-                                                    })()
+                                                (task.dueDate || task.isRecurring)
+                                                    ? (
+                                                        <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                                                            {task.dueDate && (() => {
+                                                                const { label, color } = formatDueDate(task.dueDate);
+                                                                return (
+                                                                    <Chip
+                                                                        label={label}
+                                                                        size="small"
+                                                                        variant="outlined"
+                                                                        color={color}
+                                                                        sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                    />
+                                                                );
+                                                            })()}
+                                                            {task.isRecurring && (
+                                                                <Chip
+                                                                    icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
+                                                                    label="Recurring"
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    color="secondary"
+                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                />
+                                                            )}
+                                                        </Box>
+                                                    )
                                                     : undefined
                                             }
+                                            secondaryTypographyProps={{ component: 'div' }}
                                         />
                                     </ListItemButton>
                                 </ListItem>
@@ -469,21 +513,36 @@ export default function ProjectDetailPage() {
                                                 <ListItemText
                                                     primary={task.title}
                                                     secondary={
-                                                        task.dueDate
-                                                            ? (() => {
-                                                                const { label, color } = formatDueDate(task.dueDate);
-                                                                return (
-                                                                    <Chip
-                                                                        label={label}
-                                                                        size="small"
-                                                                        variant="outlined"
-                                                                        color={color}
-                                                                        sx={{ height: 20, fontSize: '0.75rem' }}
-                                                                    />
-                                                                );
-                                                            })()
+                                                        (task.dueDate || task.isRecurring)
+                                                            ? (
+                                                                <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
+                                                                    {task.dueDate && (() => {
+                                                                        const { label, color } = formatDueDate(task.dueDate);
+                                                                        return (
+                                                                            <Chip
+                                                                                label={label}
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                color={color}
+                                                                                sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                            />
+                                                                        );
+                                                                    })()}
+                                                                    {task.isRecurring && (
+                                                                        <Chip
+                                                                            icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
+                                                                            label="Recurring"
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            color="secondary"
+                                                                            sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                        />
+                                                                    )}
+                                                                </Box>
+                                                            )
                                                             : undefined
                                                     }
+                                                    secondaryTypographyProps={{ component: 'div' }}
                                                     primaryTypographyProps={{
                                                         sx: {
                                                             textDecoration: 'line-through',

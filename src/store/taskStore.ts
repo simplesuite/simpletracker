@@ -80,16 +80,25 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             await ensureSession();
             const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
-            // Fetch tasks created by the user
-            const { data: ownTasks, error: ownError } = await supabase
-                .from('tasks')
-                .select('*')
-                .eq('creatorID', currentUserID)
-                .order('updatedAt', { ascending: false });
+            // Fetch tasks created by the user (paginate to avoid Supabase default 1000-row limit)
+            let ownTasks: Task[] = [];
+            let ownOffset = 0;
+            const PAGE_SIZE = 1000;
+            while (true) {
+                const { data: page, error: pageError } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .eq('creatorID', currentUserID)
+                    .order('updatedAt', { ascending: false })
+                    .range(ownOffset, ownOffset + PAGE_SIZE - 1);
 
-            if (ownError) {
-                set({ error: ownError.message, loading: false });
-                return;
+                if (pageError) {
+                    set({ error: pageError.message, loading: false });
+                    return;
+                }
+                ownTasks = ownTasks.concat((page || []) as Task[]);
+                if (!page || page.length < PAGE_SIZE) break;
+                ownOffset += PAGE_SIZE;
             }
 
             // Fetch tasks from shared projects
@@ -106,18 +115,24 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             let sharedProjectTasks: Task[] = [];
             if (projectShares && projectShares.length > 0) {
                 const projectIDs = projectShares.map((p) => p.projectID);
-                const { data: projTasksData, error: projTasksError } = await supabase
-                    .from('tasks')
-                    .select('*')
-                    .in('projectID', projectIDs)
-                    .neq('creatorID', currentUserID)
-                    .order('updatedAt', { ascending: false });
+                let sharedOffset = 0;
+                while (true) {
+                    const { data: page, error: pageError } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .in('projectID', projectIDs)
+                        .neq('creatorID', currentUserID)
+                        .order('updatedAt', { ascending: false })
+                        .range(sharedOffset, sharedOffset + PAGE_SIZE - 1);
 
-                if (projTasksError) {
-                    set({ error: projTasksError.message, loading: false });
-                    return;
+                    if (pageError) {
+                        set({ error: pageError.message, loading: false });
+                        return;
+                    }
+                    sharedProjectTasks = sharedProjectTasks.concat((page || []) as Task[]);
+                    if (!page || page.length < PAGE_SIZE) break;
+                    sharedOffset += PAGE_SIZE;
                 }
-                sharedProjectTasks = (projTasksData || []) as Task[];
             }
 
             // Combine all tasks, deduplicate

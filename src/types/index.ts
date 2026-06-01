@@ -8,6 +8,16 @@ export interface Note {
     projectID: string | null;
     archived: boolean;
     pinned: boolean;
+    noteType: 'text' | 'list';
+}
+
+export interface NoteListItem {
+    recordID: string;
+    noteID: string;
+    title: string;
+    isCompleted: boolean;
+    createdAt: number;
+    updatedAt: number;
 }
 
 export interface NoteShared {
@@ -62,7 +72,7 @@ export interface ProjectShared {
 
 export interface PendingMutation {
     id: string;
-    entityType: 'note' | 'task' | 'subtask' | 'project';
+    entityType: 'note' | 'task' | 'subtask' | 'project' | 'noteListItem';
     operation: 'insert' | 'update' | 'delete';
     recordID: string;
     payload: Record<string, unknown>;

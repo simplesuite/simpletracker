@@ -12,19 +12,20 @@ import { validateNoteTitle } from '../lib/validation';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
 import { ensureSession } from '../components/extras/ensureSession';
-import type { Note, NoteShared, ProjectShared } from '../types/index';
+import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
 interface NoteStore {
     notes: Note[];
     archivedNotes: Note[];
     sharedNotes: Note[];
+    listItems: Record<string, NoteListItem[]>; // keyed by noteID
     loading: boolean;
     error: string | null;
 
     fetchNotes: () => Promise<void>;
     fetchArchivedNotes: () => Promise<void>;
-    createNote: (projectID?: string | null) => Promise<Note | null>;
-    updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => Promise<boolean>;
+    createNote: (projectID?: string | null, noteType?: 'text' | 'list') => Promise<Note | null>;
+    updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID' | 'noteType'>>) => Promise<boolean>;
     togglePinNote: (id: string) => Promise<boolean>;
     archiveNote: (id: string) => Promise<boolean>;
     unarchiveNote: (id: string) => Promise<boolean>;
@@ -32,12 +33,20 @@ interface NoteStore {
     shareNote: (noteID: string, userID: string) => Promise<boolean>;
     unshareNote: (noteID: string, sharedToID: string) => Promise<boolean>;
     getSharesForNote: (noteID: string) => Promise<NoteShared[]>;
+
+    // List item operations
+    fetchListItems: (noteID: string) => Promise<void>;
+    addListItem: (noteID: string, title: string) => Promise<NoteListItem | null>;
+    toggleListItem: (itemID: string) => Promise<boolean>;
+    updateListItemTitle: (itemID: string, title: string) => Promise<boolean>;
+    deleteListItem: (itemID: string) => Promise<boolean>;
 }
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
     notes: [],
     archivedNotes: [],
     sharedNotes: [],
+    listItems: {},
     loading: false,
     error: null,
 
@@ -180,7 +189,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
     },
 
-    createNote: async (projectID?: string | null) => {
+    createNote: async (projectID?: string | null, noteType?: 'text' | 'list') => {
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const now = Date.now();
         const newNote: Note = {
@@ -193,6 +202,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             projectID: projectID || null,
             archived: false,
             pinned: false,
+            noteType: noteType || 'text',
         };
 
         // Optimistically add to local state
@@ -211,6 +221,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             projectID: newNote.projectID,
             archived: newNote.archived,
             pinned: newNote.pinned,
+            noteType: newNote.noteType,
         });
 
         // Update cache
@@ -565,6 +576,12 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 return false;
             }
 
+            // Delete associated list items (cascade handles DB side, but be explicit)
+            await supabase
+                .from('notes_listitems')
+                .delete()
+                .eq('noteID', id);
+
             // Delete the note itself
             const { error } = await supabase
                 .from('notes')
@@ -577,12 +594,16 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             }
 
             // Remove from local state
-            set((state) => ({
-                notes: state.notes.filter((n) => n.recordID !== id),
-                archivedNotes: state.archivedNotes.filter((n) => n.recordID !== id),
-                sharedNotes: state.sharedNotes.filter((n) => n.recordID !== id),
-                error: null,
-            }));
+            set((state) => {
+                const { [id]: _, ...remainingListItems } = state.listItems;
+                return {
+                    notes: state.notes.filter((n) => n.recordID !== id),
+                    archivedNotes: state.archivedNotes.filter((n) => n.recordID !== id),
+                    sharedNotes: state.sharedNotes.filter((n) => n.recordID !== id),
+                    listItems: remainingListItems,
+                    error: null,
+                };
+            });
 
             // Remove from cache
             removeCachedItem('cachedNotes', id);
@@ -694,5 +715,194 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             set({ error: err.message || 'Failed to get shares' });
             return [];
         }
+    },
+
+    // ─── List Item Operations ───────────────────────────────────────────
+
+    fetchListItems: async (noteID) => {
+        try {
+            await ensureSession();
+            const { data, error } = await supabase
+                .from('notes_listitems')
+                .select('*')
+                .eq('noteID', noteID)
+                .order('createdAt', { ascending: true });
+
+            if (error) {
+                set({ error: error.message });
+                return;
+            }
+
+            const items = (data || []) as NoteListItem[];
+            set((state) => ({
+                listItems: { ...state.listItems, [noteID]: items },
+            }));
+        } catch (err: any) {
+            set({ error: err.message || 'Failed to fetch list items' });
+        }
+    },
+
+    addListItem: async (noteID, title) => {
+        if (title.trim().length === 0) {
+            return null;
+        }
+        if (title.length > 255) {
+            set({ error: 'List item must not exceed 255 characters' });
+            return null;
+        }
+
+        const existing = get().listItems[noteID] || [];
+        if (existing.length >= 100) {
+            set({ error: 'Maximum of 100 items per list reached' });
+            return null;
+        }
+
+        const now = Date.now();
+        const recordID = uuidv4();
+
+        const newItem: NoteListItem = {
+            recordID,
+            noteID,
+            title: title.trim(),
+            isCompleted: false,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [noteID]: [...(state.listItems[noteID] || []), newItem],
+            },
+            error: null,
+        }));
+
+        await insertWithOfflineSupport('noteListItem', 'notes_listitems', newItem as unknown as Record<string, unknown>);
+
+        // Also update the parent note's updatedAt
+        await updateWithOfflineSupport('note', 'notes', noteID, { updatedAt: now });
+        const updateInList = (notes: Note[]) =>
+            notes.map((n) => (n.recordID === noteID ? { ...n, updatedAt: now } : n));
+        set((state) => ({
+            notes: updateInList(state.notes),
+            sharedNotes: updateInList(state.sharedNotes),
+        }));
+
+        return newItem;
+    },
+
+    toggleListItem: async (itemID) => {
+        // Find the item
+        let foundNoteID: string | null = null;
+        let foundItem: NoteListItem | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                foundItem = item;
+                break;
+            }
+        }
+
+        if (!foundItem || !foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        const now = Date.now();
+        const newCompleted = !foundItem.isCompleted;
+        const updatePayload = { isCompleted: newCompleted, updatedAt: now };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).map((i) =>
+                    i.recordID === itemID ? { ...i, ...updatePayload } : i
+                ),
+            },
+            error: null,
+        }));
+
+        await updateWithOfflineSupport('noteListItem', 'notes_listitems', itemID, updatePayload);
+
+        return true;
+    },
+
+    updateListItemTitle: async (itemID, title) => {
+        if (title.length > 255) {
+            set({ error: 'List item must not exceed 255 characters' });
+            return false;
+        }
+
+        // Find the item
+        let foundNoteID: string | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                break;
+            }
+        }
+
+        if (!foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        const now = Date.now();
+        const updatePayload = { title, updatedAt: now };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).map((i) =>
+                    i.recordID === itemID ? { ...i, ...updatePayload } : i
+                ),
+            },
+            error: null,
+        }));
+
+        await updateWithOfflineSupport('noteListItem', 'notes_listitems', itemID, updatePayload);
+
+        return true;
+    },
+
+    deleteListItem: async (itemID) => {
+        // Find the item
+        let foundNoteID: string | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                break;
+            }
+        }
+
+        if (!foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).filter((i) => i.recordID !== itemID),
+            },
+            error: null,
+        }));
+
+        await deleteWithOfflineSupport('noteListItem', 'notes_listitems', itemID);
+
+        return true;
     },
 }));
