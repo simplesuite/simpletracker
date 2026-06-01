@@ -84,7 +84,7 @@ export default function TaskDetailPage() {
     const [abandonDialogOpen, setAbandonDialogOpen] = useState(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
     const menuOpen = Boolean(menuAnchorEl);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [isShared, setIsShared] = useState(false);
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
@@ -98,11 +98,13 @@ export default function TaskDetailPage() {
         const foundTask = tasks.find((t) => t.recordID === id);
         if (foundTask) {
             loadTaskData(foundTask);
+            setLoading(false);
         } else {
             // Task not in local state, try fetching from server
             fetchTaskFromServer(id);
         }
-    }, [id, tasks]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     // Fetch subtasks when task is loaded
     useEffect(() => {
@@ -217,14 +219,14 @@ export default function TaskDetailPage() {
     // Use debounce effect for title
     useEffect(() => {
         if (!task || title === task.title) return;
-        const timer = setTimeout(() => saveTitle(title), 800);
+        const timer = setTimeout(() => saveTitle(title), 1200);
         return () => clearTimeout(timer);
     }, [title, task?.title]);
 
     // Use debounce effect for body
     useEffect(() => {
         if (!task || body === task.body) return;
-        const timer = setTimeout(() => saveBody(body), 800);
+        const timer = setTimeout(() => saveBody(body), 1200);
         return () => clearTimeout(timer);
     }, [body, task?.body]);
 
@@ -264,6 +266,7 @@ export default function TaskDetailPage() {
             setNetworkError('Failed to update task status');
         } else {
             setNetworkError(null);
+            setTask({ ...task, status: task.status === 'open' ? 'completed' : 'open' });
         }
     };
 
@@ -383,18 +386,10 @@ export default function TaskDetailPage() {
         navigate(-1);
     };
 
-    // Show loading state
+    // Show loading state — return null to avoid flashing UI for the common case
+    // where the task is found in the local store within a single frame.
     if (loading) {
-        return (
-            <Box sx={{ p: 2 }}>
-                <IconButton onClick={() => navigate(-1)} aria-label="Back" sx={{ mb: 1 }}>
-                    <ArrowBackIcon />
-                </IconButton>
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight="30vh">
-                    <CircularProgress />
-                </Box>
-            </Box>
-        );
+        return null;
     }
 
     // Show offline message for shared items
@@ -502,6 +497,7 @@ export default function TaskDetailPage() {
                             setTitleError(validation.valid ? null : validation.error || null);
                         }
                     }}
+                    autoFocus={task.title.trim().length === 0}
                     error={!!titleError}
                     helperText={titleError || `${title.trim().length}/255`}
                     sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}

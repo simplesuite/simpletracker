@@ -25,7 +25,7 @@ export function OfflineBanner() {
     if (isOnline) return null;
     return (
         <Alert severity="warning" variant="filled" sx={{ borderRadius: 0, py: 0 }}>
-            You're offline — viewing cached data. Only "Add Transaction" is available.
+            You're offline — changes to your own items will sync when you're back online. Shared items are unavailable.
             {pendingCount > 0 && ` (${pendingCount} pending sync)`}
         </Alert>
     );

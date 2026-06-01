@@ -22,6 +22,9 @@ import Stack from '@mui/material/Stack';
 import Menu from '@mui/material/Menu';
 import Tooltip from '@mui/material/Tooltip';
 import Switch from '@mui/material/Switch';
+import Checkbox from '@mui/material/Checkbox';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -36,11 +39,13 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import FormatBoldIcon from '@mui/icons-material/FormatBold';
 import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import CheckBoxIcon from '@mui/icons-material/CheckBox';
 import TitleIcon from '@mui/icons-material/Title';
 import CodeIcon from '@mui/icons-material/Code';
 import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
 import LinkIcon from '@mui/icons-material/Link';
+import AddIcon from '@mui/icons-material/Add';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import NotesIcon from '@mui/icons-material/Notes';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNoteStore } from '../store/noteStore';
@@ -50,7 +55,7 @@ import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
 import { isSharedItem } from '../lib/sharing';
-import type { Note, NoteShared, ProjectShared } from '../types/index';
+import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
 export default function NoteDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -69,12 +74,21 @@ export default function NoteDetailPage() {
     const getSharesForNote = useNoteStore((s) => s.getSharesForNote);
     const storeError = useNoteStore((s) => s.error);
 
+    // List item store selectors
+    const listItems = useNoteStore((s) => s.listItems);
+    const fetchListItems = useNoteStore((s) => s.fetchListItems);
+    const addListItem = useNoteStore((s) => s.addListItem);
+    const toggleListItem = useNoteStore((s) => s.toggleListItem);
+    const updateListItemTitle = useNoteStore((s) => s.updateListItemTitle);
+    const deleteListItem = useNoteStore((s) => s.deleteListItem);
+
     const projects = useProjectStore((s) => s.projects);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
     const isOnline = useOfflineStore((s) => s.isOnline);
 
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
+    const [noteType, setNoteType] = useState<'text' | 'list'>('text');
     const [projectID, setProjectID] = useState<string | null>(null);
     const [archived, setArchived] = useState(false);
     const [pinned, setPinned] = useState(false);
@@ -83,6 +97,7 @@ export default function NoteDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
     const [bodyError, setBodyError] = useState<string | null>(null);
+    const [newItemText, setNewItemText] = useState('');
     const [showPreview, setShowPreview] = useState(() => {
         const stored = localStorage.getItem('notePreviewEnabled');
         return stored === null ? true : stored === 'true';
@@ -147,6 +162,7 @@ export default function NoteDetailPage() {
                         setArchived(localNote.archived);
                         setPinned(localNote.pinned);
                         setCreatorID(localNote.creatorID);
+                        setNoteType(localNote.noteType || 'text');
                         setLoading(false);
                         return;
                     }
@@ -171,6 +187,7 @@ export default function NoteDetailPage() {
                         setArchived(data.archived);
                         setPinned(data.pinned);
                         setCreatorID(data.creatorID);
+                        setNoteType(data.noteType || 'text');
                     } catch {
                         setError('Failed to load note from server.');
                     }
@@ -181,6 +198,7 @@ export default function NoteDetailPage() {
                     setArchived(localNote.archived);
                     setPinned(localNote.pinned);
                     setCreatorID(localNote.creatorID);
+                    setNoteType(localNote.noteType || 'text');
                 }
             } else {
                 // Not in local state — try fetching from server
@@ -212,6 +230,7 @@ export default function NoteDetailPage() {
                     setArchived(data.archived);
                     setPinned(data.pinned);
                     setCreatorID(data.creatorID);
+                    setNoteType(data.noteType || 'text');
                 } catch {
                     setError('Failed to load note.');
                 }
@@ -235,6 +254,14 @@ export default function NoteDetailPage() {
         loadShares();
     }, [id, isCreator, getSharesForNote]);
 
+    // Load list items for list-type notes
+    useEffect(() => {
+        if (!id || noteType !== 'list') return;
+        fetchListItems(id);
+    }, [id, noteType, fetchListItems]);
+
+    const currentListItems: NoteListItem[] = id ? (listItems[id] || []) : [];
+
     // Auto-save with debounce
     const debouncedSave = useCallback(
         (fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => {
@@ -256,7 +283,7 @@ export default function NoteDetailPage() {
                 } else {
                     setError(null);
                 }
-            }, 800);
+            }, 1200);
         },
         [id, updateNote, isShared, isOnline]
     );
@@ -456,6 +483,24 @@ export default function NoteDetailPage() {
         }
     };
 
+    const handleToggleNoteType = async () => {
+        if (!id) return;
+        const newType: 'text' | 'list' = noteType === 'text' ? 'list' : 'text';
+
+        // Use the store's updateNote which handles offline sync properly
+        const success = await updateNote(id, { noteType: newType });
+        if (!success) {
+            setError('Failed to change note type.');
+            return;
+        }
+
+        setNoteType(newType);
+
+        if (newType === 'list') {
+            fetchListItems(id);
+        }
+    };
+
     const handleDelete = async () => {
         if (!id) return;
         setDeleteDialogOpen(false);
@@ -468,7 +513,7 @@ export default function NoteDetailPage() {
     };
 
     const handleBack = () => {
-        if (!title.trim() && !body.trim()) {
+        if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
             setEmptyNoteDialogOpen(true);
         } else {
             navigate(-1);
@@ -516,6 +561,30 @@ export default function NoteDetailPage() {
         } else {
             setShareError(useNoteStore.getState().error || 'Failed to remove share.');
         }
+    };
+
+    // ─── List Item Handlers ─────────────────────────────────────────────
+
+    const handleAddListItem = async () => {
+        if (!id || !newItemText.trim()) return;
+        const item = await addListItem(id, newItemText.trim());
+        if (item) {
+            setNewItemText('');
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to add item.');
+        }
+    };
+
+    const handleToggleListItem = async (itemID: string) => {
+        await toggleListItem(itemID);
+    };
+
+    const handleDeleteListItem = async (itemID: string) => {
+        await deleteListItem(itemID);
+    };
+
+    const handleListItemTitleChange = (itemID: string, newTitle: string) => {
+        updateListItemTitle(itemID, newTitle);
     };
 
     if (loading) {
@@ -593,6 +662,12 @@ export default function NoteDetailPage() {
                             <ListItemText>{pinned ? 'Unpin' : 'Pin to top'}</ListItemText>
                         </MenuItem>
                     )}
+                    <MenuItem onClick={() => { setMenuAnchorEl(null); handleToggleNoteType(); }}>
+                        <ListItemIcon>
+                            {noteType === 'text' ? <ChecklistIcon fontSize="small" /> : <NotesIcon fontSize="small" />}
+                        </ListItemIcon>
+                        <ListItemText>{noteType === 'text' ? 'Convert to checklist' : 'Convert to text note'}</ListItemText>
+                    </MenuItem>
                     <MenuItem onClick={() => { setMenuAnchorEl(null); handleArchive(); }}>
                         <ListItemIcon>
                             {archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
@@ -626,118 +701,227 @@ export default function NoteDetailPage() {
                 sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
             />
 
-            {/* Markdown toolbar + editor + live preview */}
-            <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
-                {/* Toolbar */}
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, p: 0.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover', alignItems: 'center' }}>
-                    <Tooltip title="Heading">
-                        <IconButton size="small" onClick={() => insertLinePrefix('## ')} disabled={!!offlineMessage && isShared}>
-                            <TitleIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Bold">
-                        <IconButton size="small" onClick={() => insertMarkdown('**', '**', 'bold')} disabled={!!offlineMessage && isShared}>
-                            <FormatBoldIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Italic">
-                        <IconButton size="small" onClick={() => insertMarkdown('*', '*', 'italic')} disabled={!!offlineMessage && isShared}>
-                            <FormatItalicIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Bullet list">
-                        <IconButton size="small" onClick={() => insertLinePrefix('- ')} disabled={!!offlineMessage && isShared}>
-                            <FormatListBulletedIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Checkbox">
-                        <IconButton size="small" onClick={() => insertLinePrefix('- [ ] ')} disabled={!!offlineMessage && isShared}>
-                            <CheckBoxIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-                    <Tooltip title="Code">
-                        <IconButton size="small" onClick={() => insertMarkdown('`', '`', 'code')} disabled={!!offlineMessage && isShared}>
-                            <CodeIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Quote">
-                        <IconButton size="small" onClick={() => insertLinePrefix('> ')} disabled={!!offlineMessage && isShared}>
-                            <FormatQuoteIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Link">
-                        <IconButton size="small" onClick={() => insertMarkdown('[', '](url)', 'link text')} disabled={!!offlineMessage && isShared}>
-                            <LinkIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                    <Box sx={{ flex: 1 }} />
-                    <Tooltip title={showPreview ? 'Hide preview' : 'Show preview'}>
-                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 0.5 }}>
-                            <Typography variant="caption" color="text.secondary">Preview</Typography>
-                            <Switch size="small" checked={showPreview} onChange={(e) => handlePreviewToggle(e.target.checked)} />
-                        </Stack>
-                    </Tooltip>
-                </Box>
+            {/* Markdown toolbar + editor + live preview (text notes only) */}
+            {noteType !== 'list' && (
+                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
+                    {/* Toolbar */}
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, p: 0.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover', alignItems: 'center' }}>
+                        <Tooltip title="Heading">
+                            <IconButton size="small" onClick={() => insertLinePrefix('## ')} disabled={!!offlineMessage && isShared}>
+                                <TitleIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Bold">
+                            <IconButton size="small" onClick={() => insertMarkdown('**', '**', 'bold')} disabled={!!offlineMessage && isShared}>
+                                <FormatBoldIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Italic">
+                            <IconButton size="small" onClick={() => insertMarkdown('*', '*', 'italic')} disabled={!!offlineMessage && isShared}>
+                                <FormatItalicIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Bullet list">
+                            <IconButton size="small" onClick={() => insertLinePrefix('- ')} disabled={!!offlineMessage && isShared}>
+                                <FormatListBulletedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                        <Tooltip title="Code">
+                            <IconButton size="small" onClick={() => insertMarkdown('`', '`', 'code')} disabled={!!offlineMessage && isShared}>
+                                <CodeIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Quote">
+                            <IconButton size="small" onClick={() => insertLinePrefix('> ')} disabled={!!offlineMessage && isShared}>
+                                <FormatQuoteIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Link">
+                            <IconButton size="small" onClick={() => insertMarkdown('[', '](url)', 'link text')} disabled={!!offlineMessage && isShared}>
+                                <LinkIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                        <Box sx={{ flex: 1 }} />
+                        <Tooltip title={showPreview ? 'Hide preview' : 'Show preview'}>
+                            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary">Preview</Typography>
+                                <Switch size="small" checked={showPreview} onChange={(e) => handlePreviewToggle(e.target.checked)} />
+                            </Stack>
+                        </Tooltip>
+                    </Box>
 
-                {/* Textarea */}
-                <TextField
-                    fullWidth
-                    multiline
-                    minRows={12}
-                    placeholder="Write your note in markdown..."
-                    value={body}
-                    onChange={handleBodyChange}
-                    onKeyDown={handleBodyKeyDown}
-                    error={!!bodyError}
-                    helperText={bodyError || `${body.length}/100,000`}
-                    disabled={!!offlineMessage && isShared}
-                    inputRef={textareaRef}
-                    sx={{
-                        '& .MuiOutlinedInput-root': { borderRadius: 0 },
-                        '& fieldset': { border: 'none' },
-                    }}
-                />
+                    {/* Textarea */}
+                    <TextField
+                        fullWidth
+                        multiline
+                        minRows={12}
+                        placeholder="Write your note in markdown..."
+                        value={body}
+                        onChange={handleBodyChange}
+                        onKeyDown={handleBodyKeyDown}
+                        error={!!bodyError}
+                        helperText={bodyError || `${body.length}/100,000`}
+                        disabled={!!offlineMessage && isShared}
+                        inputRef={textareaRef}
+                        sx={{
+                            '& .MuiOutlinedInput-root': { borderRadius: 0 },
+                            '& fieldset': { border: 'none' },
+                        }}
+                    />
 
-                {/* Live preview */}
-                {showPreview && body && (
-                    <>
-                        <Divider />
-                        <Box
-                            sx={{
-                                p: 2,
-                                minHeight: 100,
-                                '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 2, mb: 1 },
-                                '& p': { mb: 1 },
-                                '& ul, & ol': { pl: 3 },
-                                '& blockquote': {
-                                    borderLeft: '4px solid',
-                                    borderColor: 'divider',
-                                    pl: 2,
-                                    ml: 0,
-                                    color: 'text.secondary',
-                                },
-                                '& code': {
-                                    bgcolor: 'action.hover',
-                                    px: 0.5,
-                                    borderRadius: 0.5,
-                                    fontFamily: 'monospace',
-                                },
-                                '& pre': {
-                                    bgcolor: 'action.hover',
+                    {showPreview && body && (
+                        <>
+                            <Divider />
+                            <Box
+                                sx={{
                                     p: 2,
-                                    borderRadius: 1,
-                                    overflow: 'auto',
-                                },
-                                '& a': { color: 'primary.main' },
-                                '& input[type="checkbox"]': { mr: 1 },
+                                    minHeight: 100,
+                                    '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 2, mb: 1 },
+                                    '& p': { mb: 1 },
+                                    '& ul, & ol': { pl: 3 },
+                                    '& blockquote': {
+                                        borderLeft: '4px solid',
+                                        borderColor: 'divider',
+                                        pl: 2,
+                                        ml: 0,
+                                        color: 'text.secondary',
+                                    },
+                                    '& code': {
+                                        bgcolor: 'action.hover',
+                                        px: 0.5,
+                                        borderRadius: 0.5,
+                                        fontFamily: 'monospace',
+                                    },
+                                    '& pre': {
+                                        bgcolor: 'action.hover',
+                                        p: 2,
+                                        borderRadius: 1,
+                                        overflow: 'auto',
+                                    },
+                                    '& a': { color: 'primary.main' },
+                                    '& input[type="checkbox"]': { mr: 1 },
+                                }}
+                            >
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                            </Box>
+                        </>
+                    )}
+                </Box>
+            )}
+
+            {/* Checklist editor (list notes only) */}
+            {noteType === 'list' && (
+                <Box sx={{ mb: 2 }}>
+                    <List dense disablePadding>
+                        {currentListItems.filter((i) => !i.isCompleted).map((item) => (
+                            <ListItem
+                                key={item.recordID}
+                                disablePadding
+                                secondaryAction={
+                                    <IconButton
+                                        edge="end"
+                                        size="small"
+                                        onClick={() => handleDeleteListItem(item.recordID)}
+                                        aria-label="Delete item"
+                                    >
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                }
+                                sx={{ pr: 5 }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                    <Checkbox
+                                        edge="start"
+                                        checked={false}
+                                        onChange={() => handleToggleListItem(item.recordID)}
+                                        size="small"
+                                    />
+                                </ListItemIcon>
+                                <TextField
+                                    variant="standard"
+                                    fullWidth
+                                    value={item.title}
+                                    onChange={(e) => handleListItemTitleChange(item.recordID, e.target.value)}
+                                    inputProps={{ maxLength: 255 }}
+                                    sx={{ '& .MuiInput-input': { py: 0.5 } }}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+
+                    {/* Add new item input */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, pl: 1 }}>
+                        <IconButton size="small" color="primary" onClick={handleAddListItem} aria-label="Add item">
+                            <AddIcon fontSize="small" />
+                        </IconButton>
+                        <TextField
+                            variant="standard"
+                            fullWidth
+                            placeholder="Add item..."
+                            value={newItemText}
+                            onChange={(e) => setNewItemText(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddListItem();
+                                }
                             }}
-                        >
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                        </Box>
-                    </>
-                )}
-            </Box>
+                            inputProps={{ maxLength: 255 }}
+                            sx={{ '& .MuiInput-input': { py: 0.5 } }}
+                        />
+                    </Box>
+
+                    {/* Completed items */}
+                    {currentListItems.filter((i) => i.isCompleted).length > 0 && (
+                        <>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
+                                Completed ({currentListItems.filter((i) => i.isCompleted).length})
+                            </Typography>
+                            <List dense disablePadding>
+                                {currentListItems.filter((i) => i.isCompleted).map((item) => (
+                                    <ListItem
+                                        key={item.recordID}
+                                        disablePadding
+                                        secondaryAction={
+                                            <IconButton
+                                                edge="end"
+                                                size="small"
+                                                onClick={() => handleDeleteListItem(item.recordID)}
+                                                aria-label="Delete item"
+                                            >
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        }
+                                        sx={{ pr: 5 }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 36 }}>
+                                            <Checkbox
+                                                edge="start"
+                                                checked={true}
+                                                onChange={() => handleToggleListItem(item.recordID)}
+                                                size="small"
+                                            />
+                                        </ListItemIcon>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                textDecoration: 'line-through',
+                                                color: 'text.secondary',
+                                                flex: 1,
+                                                py: 0.5,
+                                            }}
+                                        >
+                                            {item.title}
+                                        </Typography>
+                                    </ListItem>
+                                ))}
+                            </List>
+                        </>
+                    )}
+                </Box>
+            )}
 
 
             {/* Share dialog — creator only */}

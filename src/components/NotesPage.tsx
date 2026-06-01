@@ -14,6 +14,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ChecklistIcon from '@mui/icons-material/Checklist';
 import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import TextField from '@mui/material/TextField';
@@ -145,6 +146,9 @@ export default function NotesPage() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                 {note.pinned && (
                                     <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
+                                )}
+                                {note.noteType === 'list' && (
+                                    <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
                                 )}
                                 <Typography
                                     variant="subtitle2"

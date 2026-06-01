@@ -5,11 +5,12 @@ import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
 import { getCachedTasks, setCachedTasks, getCachedSubtasks, setCachedSubtasks } from '../lib/cache';
 import { insertWithOfflineSupport, updateWithOfflineSupport, deleteWithOfflineSupport } from '../lib/offlineSync';
 import { spawnRecurringTask } from '../lib/recurrence';
-import { isSharedItem } from '../lib/sharing';
+import { isTaskSharedLocally } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
+import { useProjectStore } from './projectStore';
 import { ensureSession } from '../components/extras/ensureSession';
-import type { Task, Subtask, ProjectShared } from '../types';
+import type { Task, Subtask } from '../types';
 
 interface TaskStore {
     tasks: Task[];
@@ -34,26 +35,12 @@ interface TaskStore {
 }
 
 /**
- * Helper to determine if a task is shared.
- * Fetches project shares from the server and checks sharing conditions.
+ * Helper to determine if a task is shared using LOCAL state only (no network calls).
+ * Uses the project store's sharedProjectIDs set to check project-based sharing.
  */
-async function checkTaskIsShared(task: Task, currentUserID: string): Promise<boolean> {
-    // Quick check: if creatorID differs, it's shared
-    if (task.creatorID !== currentUserID) {
-        return true;
-    }
-
-    // Check if the task belongs to a shared project
-    const { data: projectShares } = await supabase
-        .from('task_projects_shared')
-        .select('*');
-
-    return isSharedItem(
-        task,
-        currentUserID,
-        [], // noteShares not relevant for tasks
-        (projectShares || []) as ProjectShared[]
-    );
+function checkTaskIsShared(task: Task, currentUserID: string): boolean {
+    const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+    return isTaskSharedLocally(task.creatorID, task.projectID, currentUserID, sharedProjectIDs);
 }
 
 export const useTaskStore = create<TaskStore>((set, get) => ({
@@ -80,16 +67,25 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             await ensureSession();
             const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
-            // Fetch tasks created by the user
-            const { data: ownTasks, error: ownError } = await supabase
-                .from('tasks')
-                .select('*')
-                .eq('creatorID', currentUserID)
-                .order('updatedAt', { ascending: false });
+            // Fetch tasks created by the user (paginate to avoid Supabase default 1000-row limit)
+            let ownTasks: Task[] = [];
+            let ownOffset = 0;
+            const PAGE_SIZE = 1000;
+            while (true) {
+                const { data: page, error: pageError } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .eq('creatorID', currentUserID)
+                    .order('updatedAt', { ascending: false })
+                    .range(ownOffset, ownOffset + PAGE_SIZE - 1);
 
-            if (ownError) {
-                set({ error: ownError.message, loading: false });
-                return;
+                if (pageError) {
+                    set({ error: pageError.message, loading: false });
+                    return;
+                }
+                ownTasks = ownTasks.concat((page || []) as Task[]);
+                if (!page || page.length < PAGE_SIZE) break;
+                ownOffset += PAGE_SIZE;
             }
 
             // Fetch tasks from shared projects
@@ -106,18 +102,24 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             let sharedProjectTasks: Task[] = [];
             if (projectShares && projectShares.length > 0) {
                 const projectIDs = projectShares.map((p) => p.projectID);
-                const { data: projTasksData, error: projTasksError } = await supabase
-                    .from('tasks')
-                    .select('*')
-                    .in('projectID', projectIDs)
-                    .neq('creatorID', currentUserID)
-                    .order('updatedAt', { ascending: false });
+                let sharedOffset = 0;
+                while (true) {
+                    const { data: page, error: pageError } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .in('projectID', projectIDs)
+                        .neq('creatorID', currentUserID)
+                        .order('updatedAt', { ascending: false })
+                        .range(sharedOffset, sharedOffset + PAGE_SIZE - 1);
 
-                if (projTasksError) {
-                    set({ error: projTasksError.message, loading: false });
-                    return;
+                    if (pageError) {
+                        set({ error: pageError.message, loading: false });
+                        return;
+                    }
+                    sharedProjectTasks = sharedProjectTasks.concat((page || []) as Task[]);
+                    if (!page || page.length < PAGE_SIZE) break;
+                    sharedOffset += PAGE_SIZE;
                 }
-                sharedProjectTasks = (projTasksData || []) as Task[];
             }
 
             // Combine all tasks, deduplicate
@@ -174,15 +176,47 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             updatedAt: now,
         };
 
+        // Check if this task is in a shared project
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = isTaskSharedLocally(currentUser.recordID, newTask.projectID, currentUser.recordID, sharedProjectIDs);
+
         // Optimistically update local state
         set((state) => ({ tasks: [newTask, ...state.tasks], error: null }));
 
-        // Persist to cache
-        const allTasks = get().tasks;
-        setCachedTasks(allTasks);
+        if (shared) {
+            // Shared project: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                // Remove the optimistic task
+                set((state) => ({ tasks: state.tasks.filter((t) => t.recordID !== recordID) }));
+                return null;
+            }
 
-        // Enqueue for offline sync
-        await insertWithOfflineSupport('task', 'tasks', newTask as unknown as Record<string, unknown>);
+            // Write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('tasks')
+                    .insert(newTask);
+
+                if (error) {
+                    set({ error: error.message });
+                    set((state) => ({ tasks: state.tasks.filter((t) => t.recordID !== recordID) }));
+                    return null;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to create task' });
+                set((state) => ({ tasks: state.tasks.filter((t) => t.recordID !== recordID) }));
+                return null;
+            }
+        } else {
+            // Non-shared: cache and use offline support
+            const nonSharedTasks = get().tasks.filter((t) => {
+                return !isTaskSharedLocally(t.creatorID, t.projectID, currentUser.recordID, sharedProjectIDs);
+            });
+            setCachedTasks(nonSharedTasks);
+            await insertWithOfflineSupport('task', 'tasks', newTask as unknown as Record<string, unknown>);
+        }
 
         return newTask;
     },
@@ -209,15 +243,42 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             updatedAt: now,
         };
 
+        // Check if this task is in a shared project
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = isTaskSharedLocally(currentUser.recordID, newTask.projectID, currentUser.recordID, sharedProjectIDs);
+
         // Optimistically update local state
         set((state) => ({ tasks: [newTask, ...state.tasks], error: null }));
 
-        // Persist to cache
-        const allTasks = get().tasks;
-        setCachedTasks(allTasks);
+        if (shared) {
+            // Shared project: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                set((state) => ({ tasks: state.tasks.filter((t) => t.recordID !== recordID) }));
+                return newTask; // createBlankTask always returns a task
+            }
 
-        // Enqueue for offline sync
-        await insertWithOfflineSupport('task', 'tasks', newTask as unknown as Record<string, unknown>);
+            // Write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('tasks')
+                    .insert(newTask);
+
+                if (error) {
+                    console.error('Failed to insert blank task to server:', error.message);
+                }
+            } catch (err: any) {
+                console.error('Failed to insert blank task:', err.message);
+            }
+        } else {
+            // Non-shared: cache and use offline support
+            const nonSharedTasks = get().tasks.filter((t) => {
+                return !isTaskSharedLocally(t.creatorID, t.projectID, currentUser.recordID, sharedProjectIDs);
+            });
+            setCachedTasks(nonSharedTasks);
+            await insertWithOfflineSupport('task', 'tasks', newTask as unknown as Record<string, unknown>);
+        }
 
         return newTask;
     },
@@ -244,7 +305,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             return false;
         }
 
-        const shared = await checkTaskIsShared(task, currentUserID);
+        const shared = checkTaskIsShared(task, currentUserID);
 
         if (shared) {
             // Shared items: check connectivity first
@@ -305,7 +366,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             updatedAt: now,
         };
 
-        const shared = await checkTaskIsShared(task, currentUserID);
+        const shared = checkTaskIsShared(task, currentUserID);
 
         if (shared) {
             // Shared items: check connectivity first
@@ -448,7 +509,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             updatedAt: now,
         };
 
-        const shared = await checkTaskIsShared(task, currentUserID);
+        const shared = checkTaskIsShared(task, currentUserID);
 
         if (shared) {
             // Shared items: check connectivity first
@@ -502,7 +563,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         }
 
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
-        const shared = await checkTaskIsShared(task, currentUserID);
+        const shared = checkTaskIsShared(task, currentUserID);
 
         if (shared) {
             // Shared items: check connectivity first
@@ -567,7 +628,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     fetchSubtasks: async (taskID) => {
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const task = get().tasks.find((t) => t.recordID === taskID);
-        const shared = task ? await checkTaskIsShared(task, currentUserID) : false;
+        const shared = task ? checkTaskIsShared(task, currentUserID) : false;
 
         // Load from cache first for non-shared items
         if (!shared) {
@@ -623,7 +684,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const task = get().tasks.find((t) => t.recordID === taskID);
-        const shared = task ? await checkTaskIsShared(task, currentUserID) : false;
+        const shared = task ? checkTaskIsShared(task, currentUserID) : false;
 
         if (shared && !useOfflineStore.getState().isOnline) {
             set({ error: 'Shared items require an internet connection' });
@@ -707,7 +768,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const task = get().tasks.find((t) => t.recordID === foundTaskID);
-        const shared = task ? await checkTaskIsShared(task, currentUserID) : false;
+        const shared = task ? checkTaskIsShared(task, currentUserID) : false;
 
         if (shared && !useOfflineStore.getState().isOnline) {
             set({ error: 'Shared items require an internet connection' });
@@ -770,7 +831,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const task = foundTaskID ? get().tasks.find((t) => t.recordID === foundTaskID) : null;
-        const shared = task ? await checkTaskIsShared(task, currentUserID) : false;
+        const shared = task ? checkTaskIsShared(task, currentUserID) : false;
 
         if (shared && !useOfflineStore.getState().isOnline) {
             set({ error: 'Shared items require an internet connection' });

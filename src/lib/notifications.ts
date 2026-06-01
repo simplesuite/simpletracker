@@ -97,14 +97,27 @@ export function checkAndNotify(tasks: Task[]): void {
     const title = total === 1 ? 'Task Reminder' : `${total} Task Reminders`;
 
     try {
-        new Notification(title, {
-            body,
-            icon: '/android-chrome-192x192.png',
-            tag: 'task-due-reminder', // Replaces previous notification with same tag
-        });
+        // Use the Service Worker to show notifications — the `new Notification()`
+        // constructor is blocked on Android and most mobile browsers. The SW
+        // approach works universally (desktop + mobile).
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then((reg) => {
+                if (reg) {
+                    reg.showNotification(title, {
+                        body,
+                        icon: '/android-chrome-192x192.png',
+                        tag: 'task-due-reminder',
+                    });
+                } else {
+                    // Fallback for desktop if SW isn't registered yet
+                    new Notification(title, { body, icon: '/android-chrome-192x192.png', tag: 'task-due-reminder' });
+                }
+            });
+        } else {
+            // No SW support at all — use the constructor (desktop only)
+            new Notification(title, { body, icon: '/android-chrome-192x192.png', tag: 'task-due-reminder' });
+        }
     } catch (err) {
-        // Some environments (e.g. iOS PWA, certain Android WebViews) report
-        // permission as 'granted' but throw when constructing a Notification.
         // Swallow the error so the app doesn't crash on load.
         console.warn('Failed to show notification:', err);
         return;

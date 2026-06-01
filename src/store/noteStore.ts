@@ -7,24 +7,26 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
-import { isSharedItem, lookupUserByID } from '../lib/sharing';
+import { isNoteSharedLocally, lookupUserByID } from '../lib/sharing';
 import { validateNoteTitle } from '../lib/validation';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
+import { useProjectStore } from './projectStore';
 import { ensureSession } from '../components/extras/ensureSession';
-import type { Note, NoteShared, ProjectShared } from '../types/index';
+import type { Note, NoteShared, NoteListItem } from '../types/index';
 
 interface NoteStore {
     notes: Note[];
     archivedNotes: Note[];
     sharedNotes: Note[];
+    listItems: Record<string, NoteListItem[]>; // keyed by noteID
     loading: boolean;
     error: string | null;
 
     fetchNotes: () => Promise<void>;
     fetchArchivedNotes: () => Promise<void>;
-    createNote: (projectID?: string | null) => Promise<Note | null>;
-    updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => Promise<boolean>;
+    createNote: (projectID?: string | null, noteType?: 'text' | 'list') => Promise<Note | null>;
+    updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID' | 'noteType'>>) => Promise<boolean>;
     togglePinNote: (id: string) => Promise<boolean>;
     archiveNote: (id: string) => Promise<boolean>;
     unarchiveNote: (id: string) => Promise<boolean>;
@@ -32,12 +34,20 @@ interface NoteStore {
     shareNote: (noteID: string, userID: string) => Promise<boolean>;
     unshareNote: (noteID: string, sharedToID: string) => Promise<boolean>;
     getSharesForNote: (noteID: string) => Promise<NoteShared[]>;
+
+    // List item operations
+    fetchListItems: (noteID: string) => Promise<void>;
+    addListItem: (noteID: string, title: string) => Promise<NoteListItem | null>;
+    toggleListItem: (itemID: string) => Promise<boolean>;
+    updateListItemTitle: (itemID: string, title: string) => Promise<boolean>;
+    deleteListItem: (itemID: string) => Promise<boolean>;
 }
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
     notes: [],
     archivedNotes: [],
     sharedNotes: [],
+    listItems: {},
     loading: false,
     error: null,
 
@@ -180,7 +190,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
     },
 
-    createNote: async (projectID?: string | null) => {
+    createNote: async (projectID?: string | null, noteType?: 'text' | 'list') => {
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const now = Date.now();
         const newNote: Note = {
@@ -193,29 +203,74 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             projectID: projectID || null,
             archived: false,
             pinned: false,
+            noteType: noteType || 'text',
         };
+
+        // Check if this note is being created in a shared project
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = projectID ? sharedProjectIDs.has(projectID) : false;
 
         // Optimistically add to local state
         set((state) => ({
             notes: [newNote, ...state.notes],
         }));
 
-        // Use offline support for insert
-        await insertWithOfflineSupport('note', 'notes', {
-            recordID: newNote.recordID,
-            creatorID: newNote.creatorID,
-            title: newNote.title,
-            body: newNote.body,
-            createdAt: newNote.createdAt,
-            updatedAt: newNote.updatedAt,
-            projectID: newNote.projectID,
-            archived: newNote.archived,
-            pinned: newNote.pinned,
-        });
+        if (shared) {
+            // Shared project: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                // Remove the optimistic note
+                set((state) => ({ notes: state.notes.filter((n) => n.recordID !== newNote.recordID) }));
+                return null;
+            }
 
-        // Update cache
-        const cached = getCachedNotes();
-        setCachedNotes([newNote, ...cached]);
+            // Write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes')
+                    .insert({
+                        recordID: newNote.recordID,
+                        creatorID: newNote.creatorID,
+                        title: newNote.title,
+                        body: newNote.body,
+                        createdAt: newNote.createdAt,
+                        updatedAt: newNote.updatedAt,
+                        projectID: newNote.projectID,
+                        archived: newNote.archived,
+                        pinned: newNote.pinned,
+                        noteType: newNote.noteType,
+                    });
+
+                if (error) {
+                    set({ error: error.message });
+                    set((state) => ({ notes: state.notes.filter((n) => n.recordID !== newNote.recordID) }));
+                    return null;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to create note' });
+                set((state) => ({ notes: state.notes.filter((n) => n.recordID !== newNote.recordID) }));
+                return null;
+            }
+        } else {
+            // Non-shared: use offline support for insert
+            await insertWithOfflineSupport('note', 'notes', {
+                recordID: newNote.recordID,
+                creatorID: newNote.creatorID,
+                title: newNote.title,
+                body: newNote.body,
+                createdAt: newNote.createdAt,
+                updatedAt: newNote.updatedAt,
+                projectID: newNote.projectID,
+                archived: newNote.archived,
+                pinned: newNote.pinned,
+                noteType: newNote.noteType,
+            });
+
+            // Update cache
+            const cached = getCachedNotes();
+            setCachedNotes([newNote, ...cached]);
+        }
 
         return newNote;
     },
@@ -243,21 +298,16 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
-        // Determine if shared — fetch share records for this check
-        const { data: noteShares } = await supabase
-            .from('notes_shared')
-            .select('*')
-            .eq('noteID', id);
-
-        const { data: projectShares } = await supabase
-            .from('task_projects_shared')
-            .select('*');
-
-        const shared = isSharedItem(
-            note,
+        // Determine if shared using LOCAL state (no network calls)
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = isNoteSharedLocally(
+            note.recordID,
+            note.creatorID,
+            note.projectID,
             currentUserID,
-            (noteShares || []) as NoteShared[],
-            (projectShares || []) as ProjectShared[]
+            sharedNoteIDs,
+            sharedProjectIDs
         );
 
         if (shared) {
@@ -326,21 +376,16 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
         const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
-        // Check if this is a shared item
-        const { data: noteShares } = await supabase
-            .from('notes_shared')
-            .select('*')
-            .eq('noteID', id);
-
-        const { data: projectShares } = await supabase
-            .from('task_projects_shared')
-            .select('*');
-
-        const shared = isSharedItem(
-            note,
+        // Check if this is a shared item using LOCAL state
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = isNoteSharedLocally(
+            note.recordID,
+            note.creatorID,
+            note.projectID,
             currentUserID,
-            (noteShares || []) as NoteShared[],
-            (projectShares || []) as ProjectShared[]
+            sharedNoteIDs,
+            sharedProjectIDs
         );
 
         if (shared) {
@@ -401,20 +446,15 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
         let shared = false;
         if (note) {
-            const { data: noteShares } = await supabase
-                .from('notes_shared')
-                .select('*')
-                .eq('noteID', id);
-
-            const { data: projectShares } = await supabase
-                .from('task_projects_shared')
-                .select('*');
-
-            shared = isSharedItem(
-                note,
+            const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+            const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+            shared = isNoteSharedLocally(
+                note.recordID,
+                note.creatorID,
+                note.projectID,
                 currentUserID,
-                (noteShares || []) as NoteShared[],
-                (projectShares || []) as ProjectShared[]
+                sharedNoteIDs,
+                sharedProjectIDs
             );
         }
 
@@ -480,20 +520,15 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
         let shared = false;
         if (note) {
-            const { data: noteShares } = await supabase
-                .from('notes_shared')
-                .select('*')
-                .eq('noteID', id);
-
-            const { data: projectShares } = await supabase
-                .from('task_projects_shared')
-                .select('*');
-
-            shared = isSharedItem(
-                note,
+            const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+            const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+            shared = isNoteSharedLocally(
+                note.recordID,
+                note.creatorID,
+                note.projectID,
                 currentUserID,
-                (noteShares || []) as NoteShared[],
-                (projectShares || []) as ProjectShared[]
+                sharedNoteIDs,
+                sharedProjectIDs
             );
         }
 
@@ -551,47 +586,87 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     },
 
     deleteNote: async (id) => {
-        try {
-            await ensureSession();
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const currentNotes = [...get().notes, ...get().sharedNotes, ...get().archivedNotes];
+        const note = currentNotes.find((n) => n.recordID === id);
 
-            // Delete associated notes_shared records first
-            const { error: shareError } = await supabase
-                .from('notes_shared')
-                .delete()
-                .eq('noteID', id);
+        // Determine if shared using LOCAL state
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = note
+            ? isNoteSharedLocally(note.recordID, note.creatorID, note.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
 
-            if (shareError) {
-                set({ error: shareError.message });
+        if (shared) {
+            // Shared items: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
                 return false;
             }
 
-            // Delete the note itself
-            const { error } = await supabase
-                .from('notes')
-                .delete()
-                .eq('recordID', id);
+            // Delete directly from server
+            try {
+                await ensureSession();
 
-            if (error) {
-                set({ error: error.message });
+                // Delete associated notes_shared records first
+                const { error: shareError } = await supabase
+                    .from('notes_shared')
+                    .delete()
+                    .eq('noteID', id);
+
+                if (shareError) {
+                    set({ error: shareError.message });
+                    return false;
+                }
+
+                // Delete associated list items
+                await supabase
+                    .from('notes_listitems')
+                    .delete()
+                    .eq('noteID', id);
+
+                // Delete the note itself
+                const { error } = await supabase
+                    .from('notes')
+                    .delete()
+                    .eq('recordID', id);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to delete note' });
                 return false;
             }
+        } else {
+            // Non-shared: use offline support
+            // Delete list items first, then the note
+            const listItems = get().listItems[id] || [];
+            for (const item of listItems) {
+                await deleteWithOfflineSupport('noteListItem', 'notes_listitems', item.recordID);
+            }
+            await deleteWithOfflineSupport('note', 'notes', id);
+        }
 
-            // Remove from local state
-            set((state) => ({
+        // Remove from local state
+        set((state) => {
+            const { [id]: _, ...remainingListItems } = state.listItems;
+            return {
                 notes: state.notes.filter((n) => n.recordID !== id),
                 archivedNotes: state.archivedNotes.filter((n) => n.recordID !== id),
                 sharedNotes: state.sharedNotes.filter((n) => n.recordID !== id),
+                listItems: remainingListItems,
                 error: null,
-            }));
+            };
+        });
 
-            // Remove from cache
+        // Remove from cache for non-shared items
+        if (!shared) {
             removeCachedItem('cachedNotes', id);
-
-            return true;
-        } catch (err: any) {
-            set({ error: err.message || 'Failed to delete note' });
-            return false;
         }
+
+        return true;
     },
 
     shareNote: async (noteID, userID) => {
@@ -694,5 +769,346 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             set({ error: err.message || 'Failed to get shares' });
             return [];
         }
+    },
+
+    // ─── List Item Operations ───────────────────────────────────────────
+
+    fetchListItems: async (noteID) => {
+        try {
+            await ensureSession();
+            const { data, error } = await supabase
+                .from('notes_listitems')
+                .select('*')
+                .eq('noteID', noteID)
+                .order('createdAt', { ascending: true });
+
+            if (error) {
+                set({ error: error.message });
+                return;
+            }
+
+            const items = (data || []) as NoteListItem[];
+            set((state) => ({
+                listItems: { ...state.listItems, [noteID]: items },
+            }));
+        } catch (err: any) {
+            set({ error: err.message || 'Failed to fetch list items' });
+        }
+    },
+
+    addListItem: async (noteID, title) => {
+        if (title.trim().length === 0) {
+            return null;
+        }
+        if (title.length > 255) {
+            set({ error: 'List item must not exceed 255 characters' });
+            return null;
+        }
+
+        const existing = get().listItems[noteID] || [];
+        if (existing.length >= 100) {
+            set({ error: 'Maximum of 100 items per list reached' });
+            return null;
+        }
+
+        // Check if the parent note is shared
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const allNotes = [...get().notes, ...get().sharedNotes];
+        const parentNote = allNotes.find((n) => n.recordID === noteID);
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = parentNote
+            ? isNoteSharedLocally(parentNote.recordID, parentNote.creatorID, parentNote.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return null;
+        }
+
+        const now = Date.now();
+        const recordID = uuidv4();
+
+        const newItem: NoteListItem = {
+            recordID,
+            noteID,
+            title: title.trim(),
+            isCompleted: false,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [noteID]: [...(state.listItems[noteID] || []), newItem],
+            },
+            error: null,
+        }));
+
+        if (shared) {
+            // Shared: insert directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes_listitems')
+                    .insert(newItem);
+
+                if (error) {
+                    // Rollback optimistic update
+                    set((state) => ({
+                        listItems: {
+                            ...state.listItems,
+                            [noteID]: (state.listItems[noteID] || []).filter((i) => i.recordID !== recordID),
+                        },
+                        error: error.message,
+                    }));
+                    return null;
+                }
+
+                // Update parent note's updatedAt on server
+                await supabase
+                    .from('notes')
+                    .update({ updatedAt: now })
+                    .eq('recordID', noteID);
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to add list item' });
+                return null;
+            }
+        } else {
+            // Non-shared: use offline support
+            await insertWithOfflineSupport('noteListItem', 'notes_listitems', newItem as unknown as Record<string, unknown>);
+            await updateWithOfflineSupport('note', 'notes', noteID, { updatedAt: now });
+        }
+
+        // Update parent note's updatedAt in local state
+        const updateInList = (notes: Note[]) =>
+            notes.map((n) => (n.recordID === noteID ? { ...n, updatedAt: now } : n));
+        set((state) => ({
+            notes: updateInList(state.notes),
+            sharedNotes: updateInList(state.sharedNotes),
+        }));
+
+        return newItem;
+    },
+
+    toggleListItem: async (itemID) => {
+        // Find the item
+        let foundNoteID: string | null = null;
+        let foundItem: NoteListItem | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                foundItem = item;
+                break;
+            }
+        }
+
+        if (!foundItem || !foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        // Check if the parent note is shared
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const allNotes = [...get().notes, ...get().sharedNotes];
+        const parentNote = allNotes.find((n) => n.recordID === foundNoteID);
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = parentNote
+            ? isNoteSharedLocally(parentNote.recordID, parentNote.creatorID, parentNote.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
+        }
+
+        const now = Date.now();
+        const newCompleted = !foundItem.isCompleted;
+        const updatePayload = { isCompleted: newCompleted, updatedAt: now };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).map((i) =>
+                    i.recordID === itemID ? { ...i, ...updatePayload } : i
+                ),
+            },
+            error: null,
+        }));
+
+        if (shared) {
+            // Shared: write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes_listitems')
+                    .update(updatePayload)
+                    .eq('recordID', itemID);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to toggle list item' });
+                return false;
+            }
+        } else {
+            // Non-shared: use offline support
+            await updateWithOfflineSupport('noteListItem', 'notes_listitems', itemID, updatePayload);
+        }
+
+        return true;
+    },
+
+    updateListItemTitle: async (itemID, title) => {
+        if (title.length > 255) {
+            set({ error: 'List item must not exceed 255 characters' });
+            return false;
+        }
+
+        // Find the item
+        let foundNoteID: string | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                break;
+            }
+        }
+
+        if (!foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        // Check if the parent note is shared
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const allNotes = [...get().notes, ...get().sharedNotes];
+        const parentNote = allNotes.find((n) => n.recordID === foundNoteID);
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = parentNote
+            ? isNoteSharedLocally(parentNote.recordID, parentNote.creatorID, parentNote.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
+        }
+
+        const now = Date.now();
+        const updatePayload = { title, updatedAt: now };
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).map((i) =>
+                    i.recordID === itemID ? { ...i, ...updatePayload } : i
+                ),
+            },
+            error: null,
+        }));
+
+        if (shared) {
+            // Shared: write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes_listitems')
+                    .update(updatePayload)
+                    .eq('recordID', itemID);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to update list item' });
+                return false;
+            }
+        } else {
+            // Non-shared: use offline support
+            await updateWithOfflineSupport('noteListItem', 'notes_listitems', itemID, updatePayload);
+        }
+
+        return true;
+    },
+
+    deleteListItem: async (itemID) => {
+        // Find the item
+        let foundNoteID: string | null = null;
+        const allListItems = get().listItems;
+
+        for (const [noteID, items] of Object.entries(allListItems)) {
+            const item = items.find((i) => i.recordID === itemID);
+            if (item) {
+                foundNoteID = noteID;
+                break;
+            }
+        }
+
+        if (!foundNoteID) {
+            set({ error: 'List item not found' });
+            return false;
+        }
+
+        // Check if the parent note is shared
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const allNotes = [...get().notes, ...get().sharedNotes];
+        const parentNote = allNotes.find((n) => n.recordID === foundNoteID);
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = parentNote
+            ? isNoteSharedLocally(parentNote.recordID, parentNote.creatorID, parentNote.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
+        }
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [foundNoteID!]: (state.listItems[foundNoteID!] || []).filter((i) => i.recordID !== itemID),
+            },
+            error: null,
+        }));
+
+        if (shared) {
+            // Shared: delete directly from server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('notes_listitems')
+                    .delete()
+                    .eq('recordID', itemID);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to delete list item' });
+                return false;
+            }
+        } else {
+            // Non-shared: use offline support
+            await deleteWithOfflineSupport('noteListItem', 'notes_listitems', itemID);
+        }
+
+        return true;
     },
 }));

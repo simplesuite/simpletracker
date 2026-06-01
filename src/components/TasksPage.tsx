@@ -39,6 +39,17 @@ export default function TasksPage() {
         fetchTasks();
     }, [fetchTasks]);
 
+    // Re-fetch tasks when the app returns to the foreground (e.g., switching back on mobile)
+    React.useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') {
+                fetchTasks();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+        return () => document.removeEventListener('visibilitychange', handleVisibility);
+    }, [fetchTasks]);
+
     const [completedExpanded, setCompletedExpanded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -204,6 +215,7 @@ export default function TasksPage() {
                                                     )}
                                                 </Box>
                                             }
+                                            secondaryTypographyProps={{ component: 'div' }}
                                         />
                                     </ListItemButton>
                                 </ListItem>
@@ -284,6 +296,7 @@ export default function TasksPage() {
                                                             )}
                                                         </Box>
                                                     }
+                                                    secondaryTypographyProps={{ component: 'div' }}
                                                     primaryTypographyProps={{
                                                         sx: {
                                                             textDecoration: 'line-through',

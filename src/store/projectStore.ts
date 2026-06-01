@@ -8,13 +8,16 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
-import { lookupUserByID } from '../lib/sharing';
+import { lookupUserByID, isProjectSharedLocally } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
+import { useOfflineStore } from './offlineStore';
 import { ensureSession } from '../components/extras/ensureSession';
 import type { Project, ProjectShared } from '../types/index';
 
 interface ProjectStore {
     projects: Project[];
+    /** Set of project IDs that are shared (either shared by the user or shared to the user) */
+    sharedProjectIDs: Set<string>;
     loading: boolean;
     error: string | null;
 
@@ -29,6 +32,7 @@ interface ProjectStore {
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
     projects: [],
+    sharedProjectIDs: new Set<string>(),
     loading: false,
     error: null,
 
@@ -68,6 +72,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
                 return;
             }
 
+            // Also fetch projects the user has shared with others
+            const { data: sharedByUser, error: sharedByUserError } = await supabase
+                .from('task_projects_shared')
+                .select('projectID')
+                .eq('creatorID', currentUserID);
+
+            if (sharedByUserError) {
+                set({ error: sharedByUserError.message, loading: false });
+                return;
+            }
+
             let sharedProjects: Project[] = [];
             if (sharedRecords && sharedRecords.length > 0) {
                 const sharedProjectIDs = sharedRecords.map((r) => r.projectID);
@@ -84,6 +99,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
                 sharedProjects = (sharedData || []) as Project[];
             }
 
+            // Build the set of all shared project IDs (shared to user + shared by user)
+            const allSharedProjectIDs = new Set<string>();
+            for (const r of (sharedRecords || [])) {
+                allSharedProjectIDs.add(r.projectID);
+            }
+            for (const r of (sharedByUser || [])) {
+                allSharedProjectIDs.add(r.projectID);
+            }
+
             // Combine and deduplicate, ordered by updatedAt desc
             const projectMap = new Map<string, Project>();
             for (const p of [...(ownProjects || []), ...sharedProjects]) {
@@ -92,11 +116,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             const allProjects = Array.from(projectMap.values())
                 .sort((a, b) => b.updatedAt - a.updatedAt);
 
-            set({ projects: allProjects, loading: false, error: null });
+            set({ projects: allProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
 
-            // Cache only non-shared projects (projects the user created)
-            const ownedProjects = allProjects.filter((p) => p.creatorID === currentUserID);
-            setCachedProjects(ownedProjects);
+            // Cache only non-shared projects (projects the user created that aren't shared)
+            const ownedNonSharedProjects = allProjects.filter(
+                (p) => p.creatorID === currentUserID && !allSharedProjectIDs.has(p.recordID)
+            );
+            setCachedProjects(ownedNonSharedProjects);
         } catch (err: any) {
             set({ error: err.message || 'Failed to fetch projects', loading: false });
         }
@@ -158,6 +184,41 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             payload.description = fields.description.trim();
         }
 
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const project = get().projects.find((p) => p.recordID === id);
+        const sharedProjectIDs = get().sharedProjectIDs;
+        const shared = project
+            ? isProjectSharedLocally(project.creatorID, project.recordID, currentUserID, sharedProjectIDs)
+            : false;
+
+        if (shared) {
+            // Shared projects: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                return false;
+            }
+
+            // Write directly to server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('task_projects')
+                    .update(payload)
+                    .eq('recordID', id);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to update project' });
+                return false;
+            }
+        } else {
+            // Non-shared: use offline support
+            await updateWithOfflineSupport('project', 'task_projects', id, payload);
+        }
+
         // Optimistically update local state
         set((state) => ({
             projects: state.projects.map((p) =>
@@ -168,35 +229,62 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             error: null,
         }));
 
-        // Update cache
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
-        const currentUserProjects = get().projects.filter((p) => p.creatorID === currentUserID);
-        setCachedProjects(currentUserProjects);
-
-        // Persist via offline support
-        await updateWithOfflineSupport('project', 'task_projects', id, payload);
+        // Update cache only for non-shared projects
+        if (!shared) {
+            const currentUserProjects = get().projects.filter(
+                (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
+            );
+            setCachedProjects(currentUserProjects);
+        }
 
         return true;
     },
 
     deleteProject: async (id: string) => {
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const project = get().projects.find((p) => p.recordID === id);
+        const sharedProjectIDs = get().sharedProjectIDs;
+        const shared = project
+            ? isProjectSharedLocally(project.creatorID, project.recordID, currentUserID, sharedProjectIDs)
+            : false;
+
+        if (shared) {
+            // Shared projects: check connectivity first
+            if (!useOfflineStore.getState().isOnline) {
+                set({ error: 'Shared items require an internet connection' });
+                return false;
+            }
+
+            // Delete directly from server
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('task_projects')
+                    .delete()
+                    .eq('recordID', id);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to delete project' });
+                return false;
+            }
+        } else {
+            // Non-shared: use offline support
+            await deleteWithOfflineSupport('project', 'task_projects', id);
+        }
+
         // Optimistically remove from local state
-        const previousProjects = get().projects;
         set((state) => ({
             projects: state.projects.filter((p) => p.recordID !== id),
             error: null,
         }));
 
-        // Remove from cache
-        removeCachedItem('cachedProjects', id);
-
-        // Persist via offline support
-        const result = await deleteWithOfflineSupport('project', 'task_projects', id);
-
-        if (!result.success) {
-            // Revert optimistic update on failure
-            set({ projects: previousProjects, error: 'Failed to delete project' });
-            return false;
+        // Remove from cache for non-shared items
+        if (!shared) {
+            removeCachedItem('cachedProjects', id);
         }
 
         return true;
@@ -252,7 +340,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         // Remove project from local cache since it's now shared
         removeCachedItem('cachedProjects', projectID);
 
-        set({ error: null });
+        // Add to local shared project IDs set
+        set((state) => ({
+            sharedProjectIDs: new Set([...state.sharedProjectIDs, projectID]),
+            error: null,
+        }));
+
         return true;
     },
 

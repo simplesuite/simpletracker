@@ -27,6 +27,7 @@ const ENTITY_TABLE_MAP: Record<string, string> = {
     task: 'tasks',
     subtask: 'task_subtasks',
     project: 'task_projects',
+    noteListItem: 'notes_listitems',
 };
 
 /**
@@ -153,8 +154,17 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
                         console.warn(
                             `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
                         );
+                    } else if (error.code === '42501' || error.code === '23503' || error.code === '23502') {
+                        // RLS violation (42501), foreign key violation (23503), or NOT NULL violation (23502):
+                        // These are permanent failures — retrying won't help. Remove from queue.
+                        await dequeue(mutation.id);
+                        synced++; // Count as processed so we don't falsely mark offline
+                        console.error(
+                            `Permanent sync failure for ${mutation.entityType} ${mutation.recordID} (${error.code}):`,
+                            error.message
+                        );
                     } else {
-                        // Non-conflict error: retain in queue for retry on next cycle
+                        // Other error (possibly transient): retain in queue for retry
                         failed++;
                         console.error(
                             'Offline sync failed for',
@@ -291,6 +301,12 @@ export async function deleteWithOfflineSupport(
 /** Background attempt to sync a single mutation, removing it from the queue on success */
 async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
     try {
+        const sessionValid = await ensureSession();
+        if (!sessionValid) {
+            // No valid session — can't sync, leave in queue
+            return;
+        }
+
         const { error } = await executeMutation(mutation);
 
         if (!error || error.code === '23505') {
@@ -304,8 +320,22 @@ async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
                     `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
                 );
             }
+        } else if (error.code === '42501' || error.code === '23503' || error.code === '23502') {
+            // Permanent failure (RLS, FK, NOT NULL) — remove from queue, retrying won't help
+            await dequeue(mutation.id);
+            const count = await pendingCount();
+            useOfflineStore.getState().setPendingCount(count);
+            console.error(
+                `Permanent sync failure for ${mutation.entityType} ${mutation.recordID} (${error.code}):`,
+                error.message
+            );
+        } else {
+            // Other error — leave in queue for batch retry
+            console.error(
+                `Sync error for ${mutation.entityType} ${mutation.operation} ${mutation.recordID}:`,
+                error.message || error
+            );
         }
-        // If it's some other error, leave it in the queue for the next full sync
     } catch {
         // Timeout or network failure — verify connectivity
         verifyConnectivity();
