@@ -47,6 +47,90 @@ export function isSharedItem(
 }
 
 /**
+ * Determines whether a note is shared using LOCAL state only (no network calls).
+ *
+ * Uses the sharedNotes list from the note store to check if the note appears there,
+ * and checks the project store for shared project membership.
+ *
+ * This allows the shared/non-shared decision to work offline.
+ */
+export function isNoteSharedLocally(
+    noteID: string,
+    noteCreatorID: string,
+    noteProjectID: string | null,
+    currentUserID: string,
+    sharedNoteIDs: Set<string>,
+    sharedProjectIDs: Set<string>
+): boolean {
+    // If the creator is someone else, it's shared
+    if (noteCreatorID !== currentUserID) {
+        return true;
+    }
+
+    // If the note appears in the shared notes list
+    if (sharedNoteIDs.has(noteID)) {
+        return true;
+    }
+
+    // If the note belongs to a shared project
+    if (noteProjectID && sharedProjectIDs.has(noteProjectID)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Determines whether a task is shared using LOCAL state only (no network calls).
+ *
+ * Checks creator ownership and shared project membership from local state.
+ */
+export function isTaskSharedLocally(
+    taskCreatorID: string,
+    taskProjectID: string | null,
+    currentUserID: string,
+    sharedProjectIDs: Set<string>
+): boolean {
+    // If the creator is someone else, it's shared
+    if (taskCreatorID !== currentUserID) {
+        return true;
+    }
+
+    // If the task belongs to a shared project
+    if (taskProjectID && sharedProjectIDs.has(taskProjectID)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Determines whether a project is shared using LOCAL state only (no network calls).
+ *
+ * A project is shared if:
+ * - Its creator is someone else (the user sees it via sharing)
+ * - It appears in the set of known shared project IDs
+ */
+export function isProjectSharedLocally(
+    projectCreatorID: string,
+    projectID: string,
+    currentUserID: string,
+    sharedProjectIDs: Set<string>
+): boolean {
+    // If the creator is someone else, it's shared
+    if (projectCreatorID !== currentUserID) {
+        return true;
+    }
+
+    // If the project is in the shared set
+    if (sharedProjectIDs.has(projectID)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Looks up a user by their recordID in the Supabase `users` table.
  * Returns the user's recordID and fullName if found, or null if no matching user exists.
  *
