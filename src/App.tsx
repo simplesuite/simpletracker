@@ -109,6 +109,8 @@ export default function App() {
 
   // Check for due/overdue tasks and send a grouped notification (once per day)
   React.useEffect(() => {
+    if (!isAuthenticated) return;
+
     try {
       const cachedTasks = getCachedTasks();
       if (cachedTasks.length > 0) {
@@ -131,7 +133,7 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
+  }, [isAuthenticated]);
 
   // Update tab value when location changes (browser navigation or deep link)
   React.useEffect(() => {
