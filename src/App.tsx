@@ -78,6 +78,16 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Eagerly fetch all data once authenticated so every tab is populated immediately
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+
+    useNoteStore.getState().fetchNotes();
+    useNoteStore.getState().fetchArchivedNotes();
+    useTaskStore.getState().fetchTasks();
+    useProjectStore.getState().fetchProjects();
+  }, [isAuthenticated]);
+
   // Initialize offline sync listeners and load cached data on startup
   React.useEffect(() => {
     // Clear legacy budget cache keys
@@ -109,8 +119,6 @@ export default function App() {
 
   // Check for due/overdue tasks and send a grouped notification (once per day)
   React.useEffect(() => {
-    if (!isAuthenticated) return;
-
     try {
       const cachedTasks = getCachedTasks();
       if (cachedTasks.length > 0) {
@@ -133,7 +141,7 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isAuthenticated]);
+  }, []);
 
   // Update tab value when location changes (browser navigation or deep link)
   React.useEffect(() => {

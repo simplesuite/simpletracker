@@ -96,3 +96,20 @@ export async function removeByRecordID(recordID: string): Promise<void> {
         tx.onerror = () => reject(tx.error);
     });
 }
+
+/** Check if a pending insert mutation exists for a given recordID */
+export async function hasPendingInsert(recordID: string): Promise<boolean> {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const index = store.index('by_recordID');
+        const request = index.getAll(IDBKeyRange.only(recordID));
+
+        request.onsuccess = () => {
+            const mutations: PendingMutation[] = request.result;
+            resolve(mutations.some((m) => m.operation === 'insert'));
+        };
+        request.onerror = () => reject(request.error);
+    });
+}

@@ -1,11 +1,9 @@
 import React from 'react';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Paper from '@mui/material/Paper';
+import Card from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import CardContent from '@mui/material/CardContent';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
 import Dialog from '@mui/material/Dialog';
@@ -21,6 +19,7 @@ import Tooltip from '@mui/material/Tooltip';
 import PeopleIcon from '@mui/icons-material/People';
 import NotesIcon from '@mui/icons-material/Notes';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import FolderIcon from '@mui/icons-material/Folder';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
@@ -133,93 +132,114 @@ export default function ProjectsPage() {
     };
 
     return (
-        <Box display="flex" flexDirection="column" alignItems="center">
-            <Box sx={{ maxWidth: 600, width: '100%' }}>
-                {loading && projects.length === 0 && (
-                    <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
-                        <CircularProgress />
-                    </Box>
-                )}
+        <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+            {loading && projects.length === 0 && (
+                <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
+                    <CircularProgress />
+                </Box>
+            )}
 
-                {error && (
-                    <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-                        {error}
-                    </Typography>
-                )}
+            {error && (
+                <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                    {error}
+                </Typography>
+            )}
 
-                {!loading && sortedProjects.length === 0 && (
-                    <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
-                        No projects yet. Create one to get started.
-                    </Typography>
-                )}
+            {!loading && sortedProjects.length === 0 && (
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+                    No projects yet. Create one to get started.
+                </Typography>
+            )}
 
-                {sortedProjects.length > 0 && (
-                    <Paper elevation={4} sx={{ width: '100%', borderRadius: 3, mt: 2 }}>
-                        <List disablePadding>
-                            {sortedProjects.map((project) => {
-                                const noteCount = [...notes, ...sharedNotes].filter(n => n.projectID === project.recordID).length;
-                                const taskCount = tasks.filter(t => t.projectID === project.recordID).length;
-                                const isSharedToMe = project.creatorID !== currentUserID;
-                                const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
+            {sortedProjects.length > 0 && (
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 1.5,
+                    }}
+                >
+                    {sortedProjects.map((project) => {
+                        const allNotes = [...notes, ...sharedNotes];
+                        const noteCount = allNotes.filter(n => n.projectID === project.recordID).length;
+                        const taskCount = tasks.filter(t => t.projectID === project.recordID).length;
+                        const isSharedToMe = project.creatorID !== currentUserID;
+                        const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
 
-                                return (
-                                    <React.Fragment key={project.recordID}>
-                                        <ListItem disablePadding divider>
-                                            <ListItemButton onClick={() => navigate(`/projects/${project.recordID}`)}>
-                                                <ListItemText
-                                                    primary={
-                                                        <Box display="flex" alignItems="center" gap={1}>
-                                                            <Typography variant="body1" noWrap sx={{ flex: 1 }}>
-                                                                {project.name}
-                                                            </Typography>
-                                                            {isSharedToMe && (
-                                                                <Tooltip title="Shared with you">
-                                                                    <PeopleIcon fontSize="small" color="info" />
-                                                                </Tooltip>
-                                                            )}
-                                                            {isSharedByMe && (
-                                                                <Tooltip title="Shared with others">
-                                                                    <PeopleIcon fontSize="small" color="action" />
-                                                                </Tooltip>
-                                                            )}
-                                                        </Box>
-                                                    }
-                                                    secondary={
-                                                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                                                            <Chip
-                                                                icon={<NotesIcon sx={{ fontSize: 16 }} />}
-                                                                label={noteCount}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                sx={{ height: 22, '& .MuiChip-label': { px: 0.5 } }}
-                                                            />
-                                                            <Chip
-                                                                icon={<TaskAltIcon sx={{ fontSize: 16 }} />}
-                                                                label={taskCount}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                sx={{ height: 22, '& .MuiChip-label': { px: 0.5 } }}
-                                                            />
-                                                            {project.description && (
-                                                                <Typography variant="caption" color="text.secondary" noWrap sx={{ ml: 1 }}>
-                                                                    {project.description.length > 60
-                                                                        ? project.description.substring(0, 60) + '…'
-                                                                        : project.description}
-                                                                </Typography>
-                                                            )}
-                                                        </Stack>
-                                                    }
-                                                    disableTypography
-                                                />
-                                            </ListItemButton>
-                                        </ListItem>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </List>
-                    </Paper>
-                )}
-            </Box>
+                        return (
+                            <Card
+                                key={project.recordID}
+                                variant="outlined"
+                                sx={{
+                                    borderRadius: 3,
+                                    borderColor: (isSharedToMe || isSharedByMe) ? 'info.main' : 'divider',
+                                }}
+                            >
+                                <CardActionArea
+                                    onClick={() => navigate(`/projects/${project.recordID}`)}
+                                    sx={{ height: '100%' }}
+                                >
+                                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                            <Typography
+                                                variant="subtitle2"
+                                                noWrap
+                                                sx={{ flex: 1 }}
+                                            >
+                                                {project.name}
+                                            </Typography>
+                                            {isSharedToMe && (
+                                                <Tooltip title="Shared with you">
+                                                    <PeopleIcon sx={{ fontSize: 16 }} color="info" />
+                                                </Tooltip>
+                                            )}
+                                            {isSharedByMe && (
+                                                <Tooltip title="Shared with others">
+                                                    <PeopleIcon sx={{ fontSize: 16 }} color="action" />
+                                                </Tooltip>
+                                            )}
+                                        </Box>
+
+                                        {project.description && (
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                                sx={{
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                    mb: 0.75,
+                                                    fontSize: '0.75rem',
+                                                }}
+                                            >
+                                                {project.description}
+                                            </Typography>
+                                        )}
+
+                                        <Stack direction="row" spacing={0.75} sx={{ mt: 'auto' }}>
+                                            <Chip
+                                                icon={<NotesIcon sx={{ fontSize: 14 }} />}
+                                                label={noteCount}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
+                                            />
+                                            <Chip
+                                                icon={<TaskAltIcon sx={{ fontSize: 14 }} />}
+                                                label={taskCount}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
+                                            />
+                                        </Stack>
+                                    </CardContent>
+                                </CardActionArea>
+                            </Card>
+                        );
+                    })}
+                </Box>
+            )}
 
             <Fab
                 color="primary"

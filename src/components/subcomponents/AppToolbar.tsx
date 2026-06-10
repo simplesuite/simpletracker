@@ -11,6 +11,9 @@ import Badge from '@mui/material/Badge';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
 import { useOfflineStore } from "../../store/offlineStore";
+import { useNoteStore } from "../../store/noteStore";
+import { useTaskStore } from "../../store/taskStore";
+import { useProjectStore } from "../../store/projectStore";
 import { keyframes } from '@mui/system';
 
 const spin = keyframes`
@@ -23,9 +26,21 @@ export default function AppToolbar() {
     const isOnline = useOfflineStore(s => s.isOnline);
     const pendingCount = useOfflineStore(s => s.pendingCount);
     const isSyncing = useOfflineStore(s => s.isSyncing);
+    const [refreshing, setRefreshing] = React.useState(false);
 
     async function handleRefresh() {
-        window.location.reload();
+        setRefreshing(true);
+        try {
+            await Promise.all([
+                useNoteStore.getState().fetchNotes(),
+                useNoteStore.getState().fetchArchivedNotes(),
+                useTaskStore.getState().fetchTasks(),
+                useProjectStore.getState().fetchProjects(),
+            ]);
+        } catch (err) {
+            console.warn('Refresh failed:', err);
+        }
+        setRefreshing(false);
     }
 
     const renderConnectivityIndicator = () => {
@@ -102,8 +117,10 @@ export default function AppToolbar() {
                     <IconButton
                         size='small'
                         onClick={handleRefresh}
+                        disabled={refreshing}
+                        aria-label="Refresh data"
                     >
-                        <RefreshIcon />
+                        <RefreshIcon sx={refreshing ? { animation: `${spin} 1s linear infinite` } : undefined} />
                     </IconButton>
                 </Toolbar>
             </AppBar>

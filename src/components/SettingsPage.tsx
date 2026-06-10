@@ -18,6 +18,7 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import LogoutIcon from '@mui/icons-material/Logout';
+import DownloadIcon from '@mui/icons-material/Download';
 import { supabase } from "../lib/supabase";
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import QrCodeIcon from '@mui/icons-material/QrCode';
@@ -35,6 +36,10 @@ import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
+import { useNoteStore } from '../store/noteStore';
+import { useTaskStore } from '../store/taskStore';
+import { useProjectStore } from '../store/projectStore';
+import { CSVLink } from 'react-csv';
 
 export default function SettingsPage() {
     const offline = useIsOffline();
@@ -53,6 +58,52 @@ export default function SettingsPage() {
     const setNotificationsEnabled = useNotificationStore(s => s.setEnabled);
     const setNotificationsPrompted = useNotificationStore(s => s.setPrompted);
     const showNotificationsSetting = notificationsSupported();
+
+    const notes = useNoteStore(s => s.notes);
+    const archivedNotes = useNoteStore(s => s.archivedNotes);
+    const tasks = useTaskStore(s => s.tasks);
+    const projects = useProjectStore(s => s.projects);
+
+    const formatDate = (ts: number) => new Date(ts).toISOString();
+
+    const notesCSVData = React.useMemo(() => {
+        const allNotes = [...notes, ...archivedNotes];
+        return allNotes.map(n => ({
+            title: n.title,
+            body: n.body,
+            type: n.noteType,
+            project: projects.find(p => p.recordID === n.projectID)?.name || '',
+            archived: n.archived ? 'Yes' : 'No',
+            pinned: n.pinned ? 'Yes' : 'No',
+            createdAt: formatDate(n.createdAt),
+            updatedAt: formatDate(n.updatedAt),
+        }));
+    }, [notes, archivedNotes, projects]);
+
+    const tasksCSVData = React.useMemo(() => {
+        return tasks.map(t => ({
+            title: t.title,
+            body: t.body,
+            status: t.status,
+            project: projects.find(p => p.recordID === t.projectID)?.name || '',
+            dueDate: t.dueDate ? formatDate(t.dueDate) : '',
+            isRecurring: t.isRecurring ? 'Yes' : 'No',
+            recurrenceInterval: t.recurrenceInterval ?? '',
+            recurrenceUnit: t.recurrenceUnit ?? '',
+            completedAt: t.completedAt ? formatDate(t.completedAt) : '',
+            createdAt: formatDate(t.createdAt),
+            updatedAt: formatDate(t.updatedAt),
+        }));
+    }, [tasks, projects]);
+
+    const projectsCSVData = React.useMemo(() => {
+        return projects.map(p => ({
+            name: p.name,
+            description: p.description,
+            createdAt: formatDate(p.createdAt),
+            updatedAt: formatDate(p.updatedAt),
+        }));
+    }, [projects]);
 
     // Detect mismatch: app thinks notifications are enabled but system permission is off
     const [permissionMismatch, setPermissionMismatch] = React.useState(false);
@@ -271,6 +322,40 @@ export default function SettingsPage() {
                                         <LogoutIcon />
                                     </ListItemIcon>
                                     <ListItemText primary="Logout" />
+                                </ListItemButton>
+                            </ListItem>
+                        </List>
+                    </Paper>
+                    <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                        <List>
+                            <ListItem disablePadding>
+                                <Typography color='text.secondary' variant='h6' sx={{ fontWeight: '600', ml: 1 }}>Export Data</Typography>
+                            </ListItem>
+                            <Divider />
+                            <ListItem disablePadding>
+                                <ListItemButton component={CSVLink} data={notesCSVData} filename="simpletracker-notes.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <ListItemIcon>
+                                        <DownloadIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Export Notes" secondary={`${notesCSVData.length} notes`} />
+                                </ListItemButton>
+                            </ListItem>
+                            <Divider />
+                            <ListItem disablePadding>
+                                <ListItemButton component={CSVLink} data={tasksCSVData} filename="simpletracker-tasks.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <ListItemIcon>
+                                        <DownloadIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Export Tasks" secondary={`${tasksCSVData.length} tasks`} />
+                                </ListItemButton>
+                            </ListItem>
+                            <Divider />
+                            <ListItem disablePadding>
+                                <ListItemButton component={CSVLink} data={projectsCSVData} filename="simpletracker-projects.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
+                                    <ListItemIcon>
+                                        <DownloadIcon />
+                                    </ListItemIcon>
+                                    <ListItemText primary="Export Projects" secondary={`${projectsCSVData.length} projects`} />
                                 </ListItemButton>
                             </ListItem>
                         </List>
