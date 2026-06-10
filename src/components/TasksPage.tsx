@@ -197,8 +197,7 @@ export default function TasksPage() {
                                                     {task.projectID && projectNameMap.has(task.projectID) && (
                                                         <Chip
                                                             label={projectNameMap.get(task.projectID)}
-                                                            size="small"
-                                                            color="primary"
+                                                            size="small"                                                 
                                                             variant="outlined"
                                                             sx={{ height: 20, fontSize: '0.75rem' }}
                                                         />

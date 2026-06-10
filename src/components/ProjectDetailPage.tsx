@@ -322,6 +322,7 @@ export default function ProjectDetailPage() {
             {/* Project Name */}
             <TextField
                 fullWidth
+                variant="standard"
                 label="Project Name"
                 value={name}
                 onChange={(e) => {
@@ -336,7 +337,7 @@ export default function ProjectDetailPage() {
                 error={!!nameError}
                 helperText={nameError}
                 inputProps={{ maxLength: 100 }}
-                sx={{ mb: 2 }}
+                sx={{ mb: 3 }}
             />
 
             {/* Project Description */}
@@ -376,6 +377,7 @@ export default function ProjectDetailPage() {
                 <List dense sx={{ mb: 2 }}>
                     {projectNotes.map((note) => (
                         <ListItem
+                            divider
                             key={note.recordID}
                             component="div"
                             onClick={() => navigate(`/notes/${note.recordID}`)}

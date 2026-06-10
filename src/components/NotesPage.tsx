@@ -194,11 +194,9 @@ export default function NotesPage() {
                                 )}
                                 {note.projectID && projectNameMap.has(note.projectID) && (
                                     <Chip
-                                        icon={<FolderIcon />}
                                         label={projectNameMap.get(note.projectID)}
                                         size="small"
                                         variant="outlined"
-                                        color="primary"
                                         sx={{ height: 18, fontSize: '0.65rem' }}
                                     />
                                 )}
