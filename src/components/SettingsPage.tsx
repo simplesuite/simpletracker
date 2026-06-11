@@ -39,6 +39,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
 import { useNoteStore } from '../store/noteStore';
@@ -270,6 +271,14 @@ export default function SettingsPage() {
         window.scrollTo(0, 0);
     }, []);
 
+    if (entitlementLoading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" sx={{ mt: 8 }}>
+                <CircularProgress />
+            </Box>
+        );
+    }
+
     return (
         <>
             <Box display='flex' flexDirection='column' alignItems='center'>
@@ -295,52 +304,44 @@ export default function SettingsPage() {
                         </Box>
                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
                             <List>
-                                {entitlementLoading ? (
-                                    <ListItem sx={{ justifyContent: 'center', py: 2 }}>
-                                        <Typography variant="body2" color="text.secondary">Loading...</Typography>
-                                    </ListItem>
-                                ) : (
+                                {subscriptionState === 'free' && (
                                     <>
-                                        {subscriptionState === 'free' && (
-                                            <>
-                                                <ListItem disablePadding>
-                                                    <ListItemButton onClick={handleUpgrade} disabled={offline || checkoutLoading}>
-                                                        <ListItemIcon><StarIcon /></ListItemIcon>
-                                                        <ListItemText
-                                                            primary="Upgrade to Pro"
-                                                            secondary={checkoutLoading ? "Redirecting to checkout..." : "Unlock premium features"}
-                                                        />
-                                                    </ListItemButton>
-                                                </ListItem>
-                                                <Divider />
-                                            </>
-                                        )}
-                                        {subscriptionState === 'canceling' && (
-                                            <>
-                                                <ListItem sx={{ px: 2, py: 1 }}>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Your plan is active until {entitlement?.current_period_end
-                                                            ? new Date(entitlement.current_period_end).toLocaleDateString()
-                                                            : 'end of billing period'}
-                                                    </Typography>
-                                                </ListItem>
-                                                <Divider />
-                                            </>
-                                        )}
-                                        {subscriptionState !== 'free' && (
-                                            <>
-                                                <ListItem disablePadding>
-                                                    <ListItemButton onClick={handleManageBilling} disabled={offline || billingLoading}>
-                                                        <ListItemIcon><ManageAccountsIcon /></ListItemIcon>
-                                                        <ListItemText
-                                                            primary="Manage Subscription"
-                                                            secondary={billingLoading ? "Redirecting to billing portal..." : "Update payment, cancel, or view invoices"}
-                                                        />
-                                                    </ListItemButton>
-                                                </ListItem>
-                                                <Divider />
-                                            </>
-                                        )}
+                                        <ListItem disablePadding>
+                                            <ListItemButton onClick={handleUpgrade} disabled={offline || checkoutLoading}>
+                                                <ListItemIcon><StarIcon /></ListItemIcon>
+                                                <ListItemText
+                                                    primary="Upgrade to Pro"
+                                                    secondary={checkoutLoading ? "Redirecting to checkout..." : "Unlock premium features"}
+                                                />
+                                            </ListItemButton>
+                                        </ListItem>
+                                        <Divider />
+                                    </>
+                                )}
+                                {subscriptionState === 'canceling' && (
+                                    <>
+                                        <ListItem sx={{ px: 2, py: 1 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                Your plan is active until {entitlement?.current_period_end
+                                                    ? new Date(entitlement.current_period_end).toLocaleDateString()
+                                                    : 'end of billing period'}
+                                            </Typography>
+                                        </ListItem>
+                                        <Divider />
+                                    </>
+                                )}
+                                {subscriptionState !== 'free' && (
+                                    <>
+                                        <ListItem disablePadding>
+                                            <ListItemButton onClick={handleManageBilling} disabled={offline || billingLoading}>
+                                                <ListItemIcon><ManageAccountsIcon /></ListItemIcon>
+                                                <ListItemText
+                                                    primary="Manage Subscription"
+                                                    secondary={billingLoading ? "Redirecting to billing portal..." : "Update payment, cancel, or view invoices"}
+                                                />
+                                            </ListItemButton>
+                                        </ListItem>
+                                        <Divider />
                                     </>
                                 )}
                                 <ListItem disablePadding>

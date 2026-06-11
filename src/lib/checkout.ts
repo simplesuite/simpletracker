@@ -51,7 +51,7 @@ export function useEntitlement() {
             const { data, error } = await supabase
                 .from("user_entitlements")
                 .select("plan, status, current_period_end, cancel_at_period_end")
-                .eq("app_key", "simpletracker_test")
+                .eq("app_key", "simpletracker")
                 .maybeSingle();
 
             if (!cancelled) {
@@ -77,7 +77,7 @@ export async function redirectToCheckout(): Promise<void> {
         "create-checkout-session",
         {
             body: {
-                appKey: "simpletracker_test",
+                appKey: "simpletracker",
                 plan: "pro",
             },
         }
@@ -103,7 +103,7 @@ export async function redirectToBillingPortal(): Promise<void> {
         "create-billing-portal-session",
         {
             body: {
-                appKey: "simpletracker_test",
+                appKey: "simpletracker",
                 plan: "pro"
             },
         }
