@@ -30,6 +30,7 @@ import ListItemText from '@mui/material/ListItemText';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
 import ShareIcon from '@mui/icons-material/Share';
@@ -127,6 +128,11 @@ export default function NoteDetailPage() {
 
     // Share dialog state
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+    // Delete completed list items state
+    const [completedItemsMenuAnchor, setCompletedItemsMenuAnchor] = useState<null | HTMLElement>(null);
+    const [deleteCompletedItemsDialogOpen, setDeleteCompletedItemsDialogOpen] = useState(false);
+    const [deletingCompletedItems, setDeletingCompletedItems] = useState(false);
 
     // Debounce timer ref
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -262,6 +268,9 @@ export default function NoteDetailPage() {
 
     const currentListItems: NoteListItem[] = id ? (listItems[id] || []) : [];
 
+    // Track pending fields so we can flush on unmount
+    const pendingFieldsRef = useRef<Partial<Pick<Note, 'title' | 'body' | 'projectID'>> | null>(null);
+
     // Auto-save with debounce
     const debouncedSave = useCallback(
         (fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => {
@@ -272,12 +281,19 @@ export default function NoteDetailPage() {
                 return;
             }
 
+            // Merge with any existing pending fields so we don't lose earlier changes
+            pendingFieldsRef.current = { ...pendingFieldsRef.current, ...fields };
+
             if (saveTimerRef.current) {
                 clearTimeout(saveTimerRef.current);
             }
 
             saveTimerRef.current = setTimeout(async () => {
-                const success = await updateNote(id, fields);
+                const fieldsToSave = pendingFieldsRef.current;
+                pendingFieldsRef.current = null;
+                if (!fieldsToSave) return;
+
+                const success = await updateNote(id, fieldsToSave);
                 if (!success) {
                     setError(useNoteStore.getState().error || 'Failed to save note.');
                 } else {
@@ -288,14 +304,26 @@ export default function NoteDetailPage() {
         [id, updateNote, isShared, isOnline]
     );
 
-    // Cleanup debounce timer on unmount
+    // Flush any pending save immediately (used on unmount and back-navigation)
+    const flushPendingSave = useCallback(() => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        const fieldsToSave = pendingFieldsRef.current;
+        pendingFieldsRef.current = null;
+        if (fieldsToSave && id) {
+            // Fire the save — don't await since we may be unmounting
+            updateNote(id, fieldsToSave);
+        }
+    }, [id, updateNote]);
+
+    // Flush pending save on unmount so data is never lost
     useEffect(() => {
         return () => {
-            if (saveTimerRef.current) {
-                clearTimeout(saveTimerRef.current);
-            }
+            flushPendingSave();
         };
-    }, []);
+    }, [flushPendingSave]);
 
     const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newTitle = e.target.value;
@@ -513,6 +541,9 @@ export default function NoteDetailPage() {
     };
 
     const handleBack = () => {
+        // Flush any pending debounced save so data isn't lost
+        flushPendingSave();
+
         if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
             setEmptyNoteDialogOpen(true);
         } else {
@@ -581,6 +612,16 @@ export default function NoteDetailPage() {
 
     const handleDeleteListItem = async (itemID: string) => {
         await deleteListItem(itemID);
+    };
+
+    const handleDeleteAllCompletedItems = async () => {
+        setDeleteCompletedItemsDialogOpen(false);
+        setDeletingCompletedItems(true);
+        const completedItems = currentListItems.filter((i) => i.isCompleted);
+        for (const item of completedItems) {
+            await deleteListItem(item.recordID);
+        }
+        setDeletingCompletedItems(false);
     };
 
     const handleListItemTitleChange = (itemID: string, newTitle: string) => {
@@ -876,9 +917,33 @@ export default function NoteDetailPage() {
                     {currentListItems.filter((i) => i.isCompleted).length > 0 && (
                         <>
                             <Divider sx={{ my: 1.5 }} />
-                            <Typography variant="caption" color="text.secondary" sx={{ pl: 1 }}>
-                                Completed ({currentListItems.filter((i) => i.isCompleted).length})
-                            </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+                                    Completed ({currentListItems.filter((i) => i.isCompleted).length})
+                                </Typography>
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => setCompletedItemsMenuAnchor(e.currentTarget)}
+                                    aria-label="Completed items options"
+                                >
+                                    <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                                <Menu
+                                    anchorEl={completedItemsMenuAnchor}
+                                    open={Boolean(completedItemsMenuAnchor)}
+                                    onClose={() => setCompletedItemsMenuAnchor(null)}
+                                >
+                                    <MenuItem
+                                        onClick={() => {
+                                            setCompletedItemsMenuAnchor(null);
+                                            setDeleteCompletedItemsDialogOpen(true);
+                                        }}
+                                    >
+                                        <ListItemIcon><DeleteSweepIcon fontSize="small" color="error" /></ListItemIcon>
+                                        <ListItemText sx={{ color: 'error.main' }}>Delete all completed</ListItemText>
+                                    </MenuItem>
+                                </Menu>
+                            </Box>
                             <List dense disablePadding>
                                 {currentListItems.filter((i) => i.isCompleted).map((item) => (
                                     <ListItem
@@ -1023,6 +1088,22 @@ export default function NoteDetailPage() {
                         </Button>
                     </DialogActions>
                 </Box>
+            </Dialog>
+
+            {/* Delete all completed list items dialog */}
+            <Dialog open={deleteCompletedItemsDialogOpen} onClose={() => setDeleteCompletedItemsDialogOpen(false)}>
+                <DialogTitle>Delete Completed Items</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete {currentListItems.filter((i) => i.isCompleted).length} completed item{currentListItems.filter((i) => i.isCompleted).length !== 1 ? 's' : ''}? This cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteCompletedItemsDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleDeleteAllCompletedItems} color="error" variant="contained" disabled={deletingCompletedItems}>
+                        {deletingCompletedItems ? 'Deleting…' : 'Delete All'}
+                    </Button>
+                </DialogActions>
             </Dialog>
         </Box>
     );

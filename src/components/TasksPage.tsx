@@ -15,10 +15,20 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import RepeatIcon from '@mui/icons-material/Repeat';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
@@ -30,6 +40,7 @@ export default function TasksPage() {
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
+    const deleteTask = useTaskStore((s) => s.deleteTask);
     const fetchTasks = useTaskStore((s) => s.fetchTasks);
     const projects = useProjectStore((s) => s.projects);
     const navigate = useNavigate();
@@ -52,6 +63,9 @@ export default function TasksPage() {
 
     const [completedExpanded, setCompletedExpanded] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [completedMenuAnchor, setCompletedMenuAnchor] = useState<null | HTMLElement>(null);
+    const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     // Build a map of projectID -> project name for quick lookup
     const projectNameMap = useMemo(() => {
@@ -95,6 +109,15 @@ export default function TasksPage() {
     const handleFabClick = async () => {
         const task = await createBlankTask();
         navigate(`/tasks/${task.recordID}`);
+    };
+
+    const handleDeleteAllCompleted = async () => {
+        setDeleteAllDialogOpen(false);
+        setDeleting(true);
+        for (const task of completedTasks) {
+            await deleteTask(task.recordID);
+        }
+        setDeleting(false);
     };
 
     const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
@@ -225,23 +248,53 @@ export default function TasksPage() {
                     {completedTasks.length > 0 && (
                         <>
                             <Box
-                                onClick={() => setCompletedExpanded(!completedExpanded)}
                                 sx={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    cursor: 'pointer',
                                     mt: openTasks.length > 0 ? 2 : 0,
                                     mb: 1,
                                     px: 1,
                                     py: 0.5,
                                     borderRadius: 1,
-                                    '&:hover': { bgcolor: 'action.hover' },
                                 }}
                             >
-                                {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                                <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                                    Completed ({completedTasks.length})
-                                </Typography>
+                                <Box
+                                    onClick={() => setCompletedExpanded(!completedExpanded)}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        flex: 1,
+                                        '&:hover': { opacity: 0.7 },
+                                    }}
+                                >
+                                    {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                    <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                                        Completed ({completedTasks.length})
+                                    </Typography>
+                                </Box>
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => setCompletedMenuAnchor(e.currentTarget)}
+                                    aria-label="Completed tasks options"
+                                >
+                                    <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                                <Menu
+                                    anchorEl={completedMenuAnchor}
+                                    open={Boolean(completedMenuAnchor)}
+                                    onClose={() => setCompletedMenuAnchor(null)}
+                                >
+                                    <MenuItem
+                                        onClick={() => {
+                                            setCompletedMenuAnchor(null);
+                                            setDeleteAllDialogOpen(true);
+                                        }}
+                                    >
+                                        <ListItemIcon><DeleteSweepIcon fontSize="small" color="error" /></ListItemIcon>
+                                        <ListItemText sx={{ color: 'error.main' }}>Delete all completed</ListItemText>
+                                    </MenuItem>
+                                </Menu>
                             </Box>
                             <Collapse in={completedExpanded}>
                                 <List disablePadding>
@@ -325,6 +378,21 @@ export default function TasksPage() {
             >
                 <AddIcon />
             </Fab>
+
+            <Dialog open={deleteAllDialogOpen} onClose={() => setDeleteAllDialogOpen(false)}>
+                <DialogTitle>Delete All Completed Tasks</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete {completedTasks.length} completed task{completedTasks.length !== 1 ? 's' : ''}? This cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteAllDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleDeleteAllCompleted} color="error" variant="contained" disabled={deleting}>
+                        {deleting ? 'Deleting…' : 'Delete All'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

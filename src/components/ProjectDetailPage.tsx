@@ -5,6 +5,9 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
+import Card from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import CardContent from '@mui/material/CardContent';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -24,6 +27,7 @@ import MenuItem from '@mui/material/MenuItem';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import NotesIcon from '@mui/icons-material/Notes';
 import ChecklistIcon from '@mui/icons-material/Checklist';
@@ -66,6 +70,7 @@ export default function ProjectDetailPage() {
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
+    const deleteTask = useTaskStore((s) => s.deleteTask);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
 
     const project = projects.find((p) => p.recordID === id);
@@ -94,6 +99,9 @@ export default function ProjectDetailPage() {
     const menuOpen = Boolean(menuAnchorEl);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
     const [completedExpanded, setCompletedExpanded] = useState(false);
+    const [completedMenuAnchor, setCompletedMenuAnchor] = useState<null | HTMLElement>(null);
+    const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
+    const [deletingCompleted, setDeletingCompleted] = useState(false);
 
     // Sync local state when project changes
     useEffect(() => {
@@ -245,6 +253,15 @@ export default function ProjectDetailPage() {
         navigate(`/tasks/${task.recordID}`);
     };
 
+    const handleDeleteAllCompletedInProject = async () => {
+        setDeleteCompletedDialogOpen(false);
+        setDeletingCompleted(true);
+        for (const task of completedProjectTasks) {
+            await deleteTask(task.recordID);
+        }
+        setDeletingCompleted(false);
+    };
+
     const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -374,30 +391,70 @@ export default function ProjectDetailPage() {
                     No notes in this project.
                 </Typography>
             ) : (
-                <List dense sx={{ mb: 2 }}>
+                <Box
+                    sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: 1.5,
+                        mb: 2,
+                    }}
+                >
                     {projectNotes.map((note) => (
-                        <ListItem
-                            divider
+                        <Card
                             key={note.recordID}
-                            component="div"
-                            onClick={() => navigate(`/notes/${note.recordID}`)}
-                            sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' }, borderRadius: 1 }}
+                            variant="outlined"
+                            sx={{
+                                borderColor: note.pinned ? 'primary.main' : 'divider',
+                                borderRadius: 3,
+                            }}
                         >
-                            <ListItemIcon>
-                                {note.noteType === 'list' ? <ChecklistIcon fontSize="small" /> : <NotesIcon fontSize="small" />}
-                            </ListItemIcon>
-                            <ListItemText
-                                primary={
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <CardActionArea
+                                onClick={() => navigate(`/notes/${note.recordID}`)}
+                                sx={{ height: '100%' }}
+                            >
+                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                         {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
-                                        {note.title || 'Untitled'}
+                                        {note.noteType === 'list'
+                                            ? <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
+                                            : <NotesIcon color="action" sx={{ fontSize: 14 }} />
+                                        }
+                                        <Typography
+                                            variant="subtitle2"
+                                            noWrap
+                                            sx={{
+                                                flex: 1,
+                                                fontStyle: note.title ? 'normal' : 'italic',
+                                                color: note.title ? 'text.primary' : 'text.secondary',
+                                            }}
+                                        >
+                                            {note.title || 'Untitled'}
+                                        </Typography>
                                     </Box>
-                                }
-                                secondary={new Date(note.updatedAt).toLocaleDateString()}
-                            />
-                        </ListItem>
+                                    {note.body && (
+                                        <Typography
+                                            variant="body2"
+                                            color="text.secondary"
+                                            sx={{
+                                                display: '-webkit-box',
+                                                WebkitLineClamp: 2,
+                                                WebkitBoxOrient: 'vertical',
+                                                overflow: 'hidden',
+                                                fontSize: '0.75rem',
+                                                mb: 0.5,
+                                            }}
+                                        >
+                                            {note.body}
+                                        </Typography>
+                                    )}
+                                    <Typography variant="caption" color="text.secondary">
+                                        {new Date(note.updatedAt).toLocaleDateString()}
+                                    </Typography>
+                                </CardContent>
+                            </CardActionArea>
+                        </Card>
                     ))}
-                </List>
+                </Box>
             )}
 
             <Divider sx={{ mb: 2 }} />
@@ -479,23 +536,53 @@ export default function ProjectDetailPage() {
                     {completedProjectTasks.length > 0 && (
                         <>
                             <Box
-                                onClick={() => setCompletedExpanded(!completedExpanded)}
                                 sx={{
                                     display: 'flex',
                                     alignItems: 'center',
-                                    cursor: 'pointer',
                                     mt: openProjectTasks.length > 0 ? 1 : 0,
                                     mb: 1,
                                     px: 1,
                                     py: 0.5,
                                     borderRadius: 1,
-                                    '&:hover': { bgcolor: 'action.hover' },
                                 }}
                             >
-                                {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-                                <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                                    Completed ({completedProjectTasks.length})
-                                </Typography>
+                                <Box
+                                    onClick={() => setCompletedExpanded(!completedExpanded)}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        flex: 1,
+                                        '&:hover': { opacity: 0.7 },
+                                    }}
+                                >
+                                    {completedExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                    <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                                        Completed ({completedProjectTasks.length})
+                                    </Typography>
+                                </Box>
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => setCompletedMenuAnchor(e.currentTarget)}
+                                    aria-label="Completed tasks options"
+                                >
+                                    <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                                <Menu
+                                    anchorEl={completedMenuAnchor}
+                                    open={Boolean(completedMenuAnchor)}
+                                    onClose={() => setCompletedMenuAnchor(null)}
+                                >
+                                    <MenuItem
+                                        onClick={() => {
+                                            setCompletedMenuAnchor(null);
+                                            setDeleteCompletedDialogOpen(true);
+                                        }}
+                                    >
+                                        <ListItemIcon><DeleteSweepIcon fontSize="small" color="error" /></ListItemIcon>
+                                        <ListItemText sx={{ color: 'error.main' }}>Delete all completed</ListItemText>
+                                    </MenuItem>
+                                </Menu>
                             </Box>
                             <Collapse in={completedExpanded}>
                                 <List disablePadding sx={{ mb: 2 }}>
@@ -641,6 +728,22 @@ export default function ProjectDetailPage() {
                         </Button>
                     </DialogActions>
                 </Box>
+            </Dialog>
+
+            {/* Delete all completed tasks in project dialog */}
+            <Dialog open={deleteCompletedDialogOpen} onClose={() => setDeleteCompletedDialogOpen(false)}>
+                <DialogTitle>Delete Completed Tasks</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete {completedProjectTasks.length} completed task{completedProjectTasks.length !== 1 ? 's' : ''} in this project? This cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteCompletedDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleDeleteAllCompletedInProject} color="error" variant="contained" disabled={deletingCompleted}>
+                        {deletingCompleted ? 'Deleting…' : 'Delete All'}
+                    </Button>
+                </DialogActions>
             </Dialog>
 
         </Box>

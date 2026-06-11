@@ -6,7 +6,7 @@
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
-import { getAll, dequeue, pendingCount, enqueue } from './offlineQueue';
+import { getAll, dequeue, pendingCount, enqueue, hasPendingInsert } from './offlineQueue';
 import { withNetworkTimeout } from './networkUtils';
 import { useOfflineStore } from '../store/offlineStore';
 import { ensureSession } from '../components/extras/ensureSession';
@@ -262,7 +262,16 @@ export async function updateWithOfflineSupport(
         return { success: true, queued: true };
     }
 
-    syncSingleMutation(mutation);
+    // If there's a pending insert for this record, don't fire the update independently.
+    // The batch syncPendingMutations will process them in FIFO order ensuring
+    // the insert completes before the update.
+    const insertPending = await hasPendingInsert(recordID);
+    if (insertPending) {
+        // Trigger a full queue sync instead, which processes in order
+        syncPendingMutations();
+    } else {
+        syncSingleMutation(mutation);
+    }
 
     return { success: true, queued: true };
 }
