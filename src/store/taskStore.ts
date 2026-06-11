@@ -31,6 +31,7 @@ interface TaskStore {
     fetchSubtasks: (taskID: string) => Promise<void>;
     addSubtask: (taskID: string, title: string) => Promise<Subtask | null>;
     toggleSubtask: (subtaskID: string) => Promise<boolean>;
+    updateSubtaskTitle: (subtaskID: string, title: string) => Promise<boolean>;
     deleteSubtask: (subtaskID: string) => Promise<boolean>;
 }
 
@@ -810,6 +811,80 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             setCachedSubtasks(get().subtasks);
             await updateWithOfflineSupport('subtask', 'task_subtasks', subtaskID, {
                 isCompleted: newIsCompleted,
+                updatedAt: now,
+            });
+        }
+
+        return true;
+    },
+
+    updateSubtaskTitle: async (subtaskID, title) => {
+        const validation = validateSubtaskTitle(title);
+        if (!validation.valid) {
+            set({ error: validation.error || 'Invalid subtask title' });
+            return false;
+        }
+
+        const now = Date.now();
+        let foundTaskID: string | null = null;
+
+        // Find the subtask and its parent task
+        const allSubtasks = get().subtasks;
+        for (const taskID of Object.keys(allSubtasks)) {
+            const subtasks = allSubtasks[taskID];
+            if (subtasks.some((s) => s.recordID === subtaskID)) {
+                foundTaskID = taskID;
+                break;
+            }
+        }
+
+        if (foundTaskID === null) {
+            set({ error: 'Subtask not found' });
+            return false;
+        }
+
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const task = get().tasks.find((t) => t.recordID === foundTaskID);
+        const shared = task ? checkTaskIsShared(task, currentUserID) : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
+        }
+
+        // Optimistically update local state
+        set((state) => {
+            const updatedSubtasks = { ...state.subtasks };
+            if (foundTaskID && updatedSubtasks[foundTaskID]) {
+                updatedSubtasks[foundTaskID] = updatedSubtasks[foundTaskID].map((s) =>
+                    s.recordID === subtaskID
+                        ? { ...s, title, updatedAt: now }
+                        : s
+                );
+            }
+            return { subtasks: updatedSubtasks, error: null };
+        });
+
+        if (shared) {
+            try {
+                await ensureSession();
+                const { error } = await supabase
+                    .from('task_subtasks')
+                    .update({ title, updatedAt: now })
+                    .eq('recordID', subtaskID);
+
+                if (error) {
+                    set({ error: error.message });
+                    return false;
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to update subtask' });
+                return false;
+            }
+        } else {
+            setCachedSubtasks(get().subtasks);
+            await updateWithOfflineSupport('subtask', 'task_subtasks', subtaskID, {
+                title,
                 updatedAt: now,
             });
         }

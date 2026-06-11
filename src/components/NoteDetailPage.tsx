@@ -56,6 +56,7 @@ import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
 import { isSharedItem } from '../lib/sharing';
+import { useEntitlement } from '../lib/checkout';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
 export default function NoteDetailPage() {
@@ -86,6 +87,8 @@ export default function NoteDetailPage() {
     const projects = useProjectStore((s) => s.projects);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
     const isOnline = useOfflineStore((s) => s.isOnline);
+    const { subscriptionState, loading: entitlementLoading } = useEntitlement();
+    const hasPro = entitlementLoading || subscriptionState !== 'free';
 
     const [title, setTitle] = useState('');
     const [body, setBody] = useState('');
@@ -690,9 +693,9 @@ export default function NoteDetailPage() {
                     onClose={() => setMenuAnchorEl(null)}
                 >
                     {isCreator && (
-                        <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }}>
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }} disabled={!hasPro}>
                             <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
-                            <ListItemText>Share</ListItemText>
+                            <ListItemText>{hasPro ? 'Share' : 'Share (Pro)'}</ListItemText>
                         </MenuItem>
                     )}
                     {!archived && (
