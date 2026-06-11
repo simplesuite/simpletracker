@@ -47,6 +47,7 @@ import { useTaskStore } from '../store/taskStore';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
 import { supabase } from '../lib/supabase';
+import { useEntitlement } from '../lib/checkout';
 import type { Task, ProjectShared } from '../types/index';
 
 export default function ProjectDetailPage() {
@@ -75,6 +76,8 @@ export default function ProjectDetailPage() {
 
     const project = projects.find((p) => p.recordID === id);
     const isCreator = project?.creatorID === currentUserID;
+    const { subscriptionState, loading: entitlementLoading } = useEntitlement();
+    const hasPro = entitlementLoading || subscriptionState !== 'free';
 
     // Track whether we've attempted to fetch projects
     const [hasFetched, setHasFetched] = useState(false);
@@ -316,9 +319,9 @@ export default function ProjectDetailPage() {
                             open={menuOpen}
                             onClose={() => setMenuAnchorEl(null)}
                         >
-                            <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }}>
+                            <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }} disabled={!hasPro}>
                                 <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
-                                <ListItemText>Share</ListItemText>
+                                <ListItemText>{hasPro ? 'Share' : 'Share (Pro)'}</ListItemText>
                             </MenuItem>
                             <MenuItem onClick={() => { setMenuAnchorEl(null); setDeleteDialogOpen(true); }}>
                                 <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>

@@ -16,6 +16,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
+import Alert from '@mui/material/Alert';
 import PeopleIcon from '@mui/icons-material/People';
 import NotesIcon from '@mui/icons-material/Notes';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -26,6 +27,7 @@ import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
 import { useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
+import { useEntitlement } from '../lib/checkout';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -52,6 +54,12 @@ export default function ProjectsPage() {
     const [nameError, setNameError] = React.useState('');
     const [creating, setCreating] = React.useState(false);
     const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<Set<string>>(new Set());
+
+    const { subscriptionState, loading: entitlementLoading } = useEntitlement();
+    const hasPro = entitlementLoading || subscriptionState !== 'free';
+    const FREE_PROJECT_LIMIT = 3;
+    const ownedProjects = projects.filter(p => p.creatorID === currentUserID);
+    const atProjectLimit = !hasPro && ownedProjects.length >= FREE_PROJECT_LIMIT;
 
     React.useEffect(() => {
         fetchProjects();
@@ -91,6 +99,7 @@ export default function ProjectsPage() {
     }, [projects, notes, sharedNotes, tasks]);
 
     const handleOpenDialog = () => {
+        if (atProjectLimit) return;
         setProjectName('');
         setNameError('');
         setDialogOpen(true);
@@ -241,10 +250,17 @@ export default function ProjectsPage() {
                 </Box>
             )}
 
+            {atProjectLimit && (
+                <Alert severity="info" sx={{ mt: 2, maxWidth: 600, mx: 'auto' }}>
+                    Free plan is limited to {FREE_PROJECT_LIMIT} projects. Upgrade to Pro for unlimited projects.
+                </Alert>
+            )}
+
             <Fab
                 color="primary"
                 aria-label="Create project"
                 onClick={handleOpenDialog}
+                disabled={atProjectLimit}
                 sx={{
                     position: 'fixed',
                     bottom: 72,

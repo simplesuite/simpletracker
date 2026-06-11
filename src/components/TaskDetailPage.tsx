@@ -60,6 +60,7 @@ export default function TaskDetailPage() {
     const addSubtask = useTaskStore((s) => s.addSubtask);
     const toggleSubtask = useTaskStore((s) => s.toggleSubtask);
     const deleteSubtask = useTaskStore((s) => s.deleteSubtask);
+    const updateSubtaskTitle = useTaskStore((s) => s.updateSubtaskTitle);
     const storeError = useTaskStore((s) => s.error);
 
     const projects = useProjectStore((s) => s.projects);
@@ -619,19 +620,8 @@ export default function TaskDetailPage() {
                     {taskSubtasks.map((st: Subtask) => (
                         <ListItem
                             key={st.recordID}
-                            secondaryAction={
-                                isCreator ? (
-                                    <IconButton
-                                        edge="end"
-                                        aria-label="delete subtask"
-                                        onClick={() => handleDeleteSubtask(st.recordID)}
-                                        size="small"
-                                    >
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                ) : undefined
-                            }
                             disablePadding
+                            sx={{ display: 'flex', alignItems: 'center' }}
                         >
                             <ListItemIcon sx={{ minWidth: 36 }}>
                                 <Checkbox
@@ -641,13 +631,32 @@ export default function TaskDetailPage() {
                                     disabled={isShared && !isOnline}
                                 />
                             </ListItemIcon>
-                            <ListItemText
-                                primary={st.title}
+                            <TextField
+                                variant="standard"
+                                fullWidth
+                                value={st.title}
+                                onChange={(e) => updateSubtaskTitle(st.recordID, e.target.value)}
+                                disabled={isShared && !isOnline}
+                                inputProps={{ maxLength: 255 }}
                                 sx={{
-                                    textDecoration: st.isCompleted ? 'line-through' : 'none',
-                                    opacity: st.isCompleted ? 0.6 : 1,
+                                    flex: 1,
+                                    minWidth: 0,
+                                    '& .MuiInput-input': {
+                                        py: 0.5,
+                                        textDecoration: st.isCompleted ? 'line-through' : 'none',
+                                        opacity: st.isCompleted ? 0.6 : 1,
+                                    },
                                 }}
                             />
+                            {isCreator ? (
+                                    <IconButton
+                                        aria-label="delete subtask"
+                                        onClick={() => handleDeleteSubtask(st.recordID)}
+                                        size="small"
+                                    >
+                                        <DeleteIcon />
+                                    </IconButton>
+                                ) : undefined}
                         </ListItem>
                     ))}
                 </List>
@@ -655,6 +664,17 @@ export default function TaskDetailPage() {
                 {/* Add subtask */}
                 {taskSubtasks.length < 50 && (
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', mt: 1 }}>
+                        <IconButton
+                            edge='start'
+                            sx={{ml:-1}}
+                            size='small'
+                            color="primary"
+                            onClick={handleAddSubtask}
+                            disabled={(isShared && !isOnline) || !newSubtaskTitle.trim()}
+                            aria-label="add subtask"
+                        >
+                            <AddIcon />
+                        </IconButton>
                         <TextField
                             size="small"
                             label="New subtask"
@@ -674,14 +694,6 @@ export default function TaskDetailPage() {
                             sx={{ flex: 1 }}
                             disabled={isShared && !isOnline}
                         />
-                        <IconButton
-                            color="primary"
-                            onClick={handleAddSubtask}
-                            disabled={(isShared && !isOnline) || !newSubtaskTitle.trim()}
-                            aria-label="add subtask"
-                        >
-                            <AddIcon />
-                        </IconButton>
                     </Box>
                 )}
 
