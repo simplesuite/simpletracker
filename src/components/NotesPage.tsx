@@ -24,7 +24,9 @@ import { useNavigate } from 'react-router-dom';
 import { useNoteStore } from '../store/noteStore';
 import { useProjectStore } from '../store/projectStore';
 import { useGlobalStore } from '../store/globalStore';
+import { supabase } from '../lib/supabase';
 import type { Note } from '../types/index';
+import Avatar from '@mui/material/Avatar';
 
 function formatTimestamp(ts: number): string {
     const date = new Date(ts);
@@ -60,6 +62,28 @@ export default function NotesPage() {
 
     const [searchQuery, setSearchQuery] = React.useState('');
     const [archivedExpanded, setArchivedExpanded] = React.useState(false);
+    const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(new Set());
+
+    // Fetch which of my notes are shared with others
+    React.useEffect(() => {
+        const fetchSharedByMe = async () => {
+            const ownedNoteIDs = notes
+                .filter(n => n.creatorID === currentUserID)
+                .map(n => n.recordID);
+            if (ownedNoteIDs.length === 0) {
+                setSharedByMeNoteIDs(new Set());
+                return;
+            }
+            const { data } = await supabase
+                .from('notes_shared')
+                .select('noteID')
+                .in('noteID', ownedNoteIDs);
+            if (data) {
+                setSharedByMeNoteIDs(new Set(data.map(r => r.noteID)));
+            }
+        };
+        fetchSharedByMe();
+    }, [notes, currentUserID]);
 
     // Build a map of projectID -> project name for quick lookup
     const projectNameMap = React.useMemo(() => {
@@ -178,19 +202,19 @@ export default function NotesPage() {
                                     {note.body}
                                 </Typography>
                             )}
-                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', mt: 'auto' }}>
+                            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', mt: 'auto' }}>
                                 <Typography variant="caption" color="text.secondary">
                                     {formatTimestamp(note.updatedAt)}
                                 </Typography>
                                 {isSharedNote(note) && (
-                                    <Chip
-                                        icon={<PeopleIcon />}
-                                        label="Shared"
-                                        size="small"
-                                        variant="outlined"
-                                        color="primary"
-                                        sx={{ height: 18, fontSize: '0.65rem' }}
-                                    />
+                                    <Avatar sx={{ width: 30, height: 30, fontSize: '0.6rem' }}>
+                                        <PeopleIcon fontSize='small'/>
+                                    </Avatar>
+                                )}
+                                {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
+                                    <Avatar sx={{ width: 30, height: 30, fontSize: '0.6rem' }}>
+                                        <PeopleIcon fontSize='small'/>
+                                    </Avatar>
                                 )}
                                 {note.projectID && projectNameMap.has(note.projectID) && (
                                     <Chip

@@ -36,6 +36,8 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useIsOffline } from "./extras/OfflineAlert";
 import CloseIcon from '@mui/icons-material/Close';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
@@ -463,6 +465,30 @@ export default function SettingsPage() {
                                             <Chip label="Pro" size="small" variant="outlined" sx={{ ml: 1 }} />
                                         </ListItemButton>
                                     )}
+                                </ListItem>
+                            </List>
+                        </Paper>
+                    </Box>
+
+                    {/* Support */}
+                    <Box>
+                        <Typography color='text.secondary' variant='subtitle2' sx={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+                            Support
+                        </Typography>
+                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                            <List>
+                                <ListItem disablePadding>
+                                    <ListItemButton component="a" href="https://simplesuite.dev/guides" target="_blank" rel="noopener noreferrer">
+                                        <ListItemIcon><MenuBookIcon /></ListItemIcon>
+                                        <ListItemText primary="Guides" />
+                                    </ListItemButton>
+                                </ListItem>
+                                <Divider />
+                                <ListItem disablePadding>
+                                    <ListItemButton component="a" href="https://github.com/simplesuite/simpletracker/issues" target="_blank" rel="noopener noreferrer">
+                                        <ListItemIcon><BugReportIcon /></ListItemIcon>
+                                        <ListItemText primary="Report a Bug or Request a Feature" />
+                                    </ListItemButton>
                                 </ListItem>
                             </List>
                         </Paper>
