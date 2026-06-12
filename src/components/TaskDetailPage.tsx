@@ -231,6 +231,24 @@ export default function TaskDetailPage() {
         return () => clearTimeout(timer);
     }, [body, task?.body]);
 
+    // Flush any pending title/body saves immediately (on unmount or back navigation)
+    const flushPendingSaves = useCallback(() => {
+        if (!id || !task) return;
+        if (title !== task.title && title.trim().length > 0) {
+            saveTitle(title);
+        }
+        if (body !== task.body) {
+            saveBody(body);
+        }
+    }, [id, task, title, body, saveTitle, saveBody]);
+
+    // Flush on unmount
+    useEffect(() => {
+        return () => {
+            flushPendingSaves();
+        };
+    }, [flushPendingSaves]);
+
     const handleDueDateChange = async (newDate: dayjs.Dayjs | null) => {
         if (!id) return;
         setDueDate(newDate);
@@ -368,6 +386,7 @@ export default function TaskDetailPage() {
     };
 
     const handleBack = () => {
+        flushPendingSaves();
         if (isTaskBlank()) {
             setAbandonDialogOpen(true);
         } else {

@@ -296,7 +296,7 @@ export default function TasksPage() {
                                     </MenuItem>
                                 </Menu>
                             </Box>
-                            <Collapse in={completedExpanded}>
+                            <Collapse in={completedExpanded} sx={{mb:7}}>
                                 <List disablePadding>
                                     {completedTasks.map((task) => (
                                         <ListItem key={task.recordID} disablePadding divider>
