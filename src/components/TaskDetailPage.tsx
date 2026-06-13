@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -231,18 +231,26 @@ export default function TaskDetailPage() {
         return () => clearTimeout(timer);
     }, [body, task?.body]);
 
+    // Refs to hold latest values for flush without causing effect re-runs
+    const titleRef = useRef(title);
+    const bodyRef = useRef(body);
+    const taskRef = useRef(task);
+    titleRef.current = title;
+    bodyRef.current = body;
+    taskRef.current = task;
+
     // Flush any pending title/body saves immediately (on unmount or back navigation)
     const flushPendingSaves = useCallback(() => {
-        if (!id || !task) return;
-        if (title !== task.title && title.trim().length > 0) {
-            saveTitle(title);
+        if (!id || !taskRef.current) return;
+        if (titleRef.current !== taskRef.current.title && titleRef.current.trim().length > 0) {
+            saveTitle(titleRef.current);
         }
-        if (body !== task.body) {
-            saveBody(body);
+        if (bodyRef.current !== taskRef.current.body) {
+            saveBody(bodyRef.current);
         }
-    }, [id, task, title, body, saveTitle, saveBody]);
+    }, [id, saveTitle, saveBody]);
 
-    // Flush on unmount
+    // Flush on unmount only
     useEffect(() => {
         return () => {
             flushPendingSaves();
