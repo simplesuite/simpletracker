@@ -1,108 +1,79 @@
 <p align="center">
-  <img width="250" height="250" alt="simpletracker" src="https://github.com/user-attachments/assets/d6e0b16c-ac28-41c4-8467-04f0618dbcb1" />
+  <img width="250" height="250" alt="simpleTracker logo" src="public/logo.png" />
 </p>
 
-# simpleTracker
+<h1 align="center">simpleTracker</h1>
 
-[![Made with Supabase](https://supabase.com/badge-made-with-supabase.svg)](https://supabase.com)
+<p align="center">
+  A simple, open-source productivity app for managing notes, tasks, and projects. Installable as a PWA with full offline support.
+</p>
 
-A simple, mobile-first productivity app for managing notes, tasks, and projects. Installable as a PWA on iOS and Android with full offline support.
+<p align="center">
+  <a href="https://github.com/simplesuite/simpletracker/blob/main/LICENSE"><img src="https://img.shields.io/github/license/simplesuite/simpletracker" alt="License" /></a>
+  <a href="https://github.com/simplesuite/simpletracker/stargazers"><img src="https://img.shields.io/github/stars/simplesuite/simpletracker" alt="Stars" /></a>
+  <a href="https://github.com/simplesuite/simpletracker/issues"><img src="https://img.shields.io/github/issues/simplesuite/simpletracker" alt="Issues" /></a>
+  <a href="https://supabase.com"><img src="https://supabase.com/badge-made-with-supabase.svg" alt="Made with Supabase" /></a>
+</p>
+
+---
+
+## What is simpleTracker?
+
+simpleTracker is a free, open-source alternative to Todoist, KeepNote, DoneTick, and Apple Notes for personal productivity. It's a mobile-first progressive web app (PWA) you can install on iOS, Android, or desktop — or self-host with your own Supabase backend.
+
+Built for people who want a straightforward way to manage notes, tasks, and projects without subscriptions or ads.
 
 ## Features
 
-### Notes
-- Create and edit notes with full Markdown support (live preview, formatting toolbar)
-- Two note types: **text** (freeform Markdown) and **list** (checklist items)
-- Pin important notes to the top
-- Archive and restore notes
-- Organize notes into projects
-- Share individual notes with other users
+- **Markdown notes** — Full Markdown support with live preview and formatting toolbar
+- **Checklists** — List-type notes with completable items
+- **Task management** — Tasks with subtasks, due dates, and completion tracking
+- **Recurring tasks** — Configurable recurrence (daily, weekly, monthly) anchored to due date or completion
+- **Projects** — Group related notes and tasks together
+- **Sharing & collaboration** — Share notes or entire projects with other users via QR code
+- **Notifications** — Daily browser reminders for due and overdue tasks
+- **Offline-first** — Works without internet, syncs automatically when reconnected
+- **CSV export** — Download your notes, tasks, and projects anytime
+- **Dark & light mode** — Respects your preference
+- **Installable PWA** — Add to home screen on any device
+- **Self-hostable** — Point at your own Supabase instance
 
-### Tasks
-- Track tasks with subtasks (up to 50 per task), due dates, and completion status
-- Recurring tasks with configurable intervals (days, weeks, months)
-- Recurrence anchored to due date or completion date
-- Due date indicators (overdue, today, tomorrow)
-- Organize tasks into projects
-- Search and filter tasks
+## An Open-Source Alternative To
 
-### Projects
-- Group related notes and tasks together
-- Share entire projects with collaborators
-- Project descriptions
-
-### Sharing
-- Share notes directly or share entire projects
-- Exchange user IDs via QR code scanning
-- Shared items sync in real-time via Supabase
-
-### Offline Support
-- Full offline-first architecture for non-shared items
-- Optimistic local updates with IndexedDB-backed mutation queue
-- Automatic sync when connectivity returns
-- "Lie-fi" detection (pings Supabase to verify real connectivity beyond `navigator.onLine`)
-- Periodic 30-second heartbeat checks
-- Re-sync on app visibility change (handles mobile app suspension)
-- localStorage cache with 50 MB limit and LRU eviction
-
-### Notifications
-- Daily browser notifications for due and overdue tasks
-- Uses Service Worker notifications for mobile compatibility
-- Once-per-day throttling to avoid spam
-
-### PWA
-- Installable on iOS and Android home screens
-- Service worker with offline asset caching
-- Auto-update prompts with safe SW activation (no black screen on Android)
-- Core routes eagerly loaded for offline access
-
-### Other
-- Dark and light themes
-- Configurable Supabase backend (self-hosted, per-user, or env var)
-- CSV data export
-- Input validation (title/body length limits)
+- Google Keep
+- Todoist
+- Notion
+- Apple Notes / Reminders
+- TickTick
+- Microsoft To Do
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | React 19 + TypeScript |
-| Build | Vite 8 |
+| Frontend | React 19, TypeScript, Vite 8 |
 | UI | MUI 7 (Material UI) |
 | State | Zustand 5 |
 | Backend | Supabase (Auth, PostgreSQL, RLS) |
 | Routing | react-router-dom v7 |
-| Dates | dayjs + @mui/x-date-pickers |
 | Markdown | react-markdown + remark-gfm |
 | Charts | Recharts |
 | QR Codes | qrcode.react + html5-qrcode |
 | PWA | vite-plugin-pwa + Workbox |
-| Testing | Vitest + fast-check (property-based) + happy-dom + fake-indexeddb |
+| Testing | Vitest + fast-check (property-based) |
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+
-- npm
-
-### Install and Run
-
 ```bash
+# Clone the repo
+git clone https://github.com/simplesuite/simpletracker.git
+cd simpletracker
+
 # Install dependencies
 npm install
 
 # Start dev server (http://localhost:3000)
 npm run dev
-
-# Run tests
-npm test
-
-# Production build
-npm run build
-
-# Preview production build locally
-npm run preview
 ```
 
 ### Environment Variables
@@ -118,80 +89,54 @@ If no env vars are set, the app falls back to the built-in production backend.
 
 ## Self-Hosting
 
-simpleTracker supports multiple ways to point at your own Supabase instance:
+To self-host simpleTracker (along with the other simpleSuite apps and the Supabase backend), see the **[simplesuite-selfhost](https://github.com/simplesuite/simplesuite-selfhost)** repository. It has everything needed to run each frontend and the backend on your own infrastructure.
 
-1. **Global config (recommended for self-hosted deployments):** Edit `public/config.js` to set `window.__SUPABASE_CONFIG__` with your Supabase URL and anon key. This applies to all users.
+simpleTracker also supports pointing at your own Supabase instance without the full selfhost setup:
 
-2. **Per-user override:** Users can navigate to `/backend-config` in the app to enter a custom Supabase URL and key, stored in their browser's localStorage.
-
+1. **Global config (recommended):** Edit `public/config.js` to set `window.__SUPABASE_CONFIG__` with your Supabase URL and anon key.
+2. **Per-user override:** Navigate to `/backend-config` in the app to enter a custom Supabase URL and key (stored in localStorage).
 3. **Build-time env vars:** Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_KEY` before building.
 
 Priority order: config.js > localStorage override > env vars > production defaults.
+
+## Offline Architecture
+
+The app uses an offline-first approach for non-shared items:
+
+- All mutations are queued in IndexedDB immediately, then synced in the background
+- Cached data renders instantly on startup while fresh data loads
+- Sync triggers: browser `online` event, 30-second heartbeat, app visibility change
+- "Lie-fi" detection pings Supabase to verify real connectivity beyond `navigator.onLine`
+- Shared items require connectivity since they involve multi-user state
 
 ## Project Structure
 
 ```
 src/
 ├── components/
-│   ├── modals/          # Dialog components (ChangePassword)
-│   ├── subcomponents/   # Shared UI (AppToolbar, AreYouSure, UpdatePrompt, NotificationPrompt)
-│   ├── extras/          # Utilities (ensureSession, OfflineAlert)
-│   ├── NotesPage.tsx    # Notes list view
-│   ├── NoteDetailPage.tsx
-│   ├── TasksPage.tsx    # Tasks list view
-│   ├── TaskDetailPage.tsx
-│   ├── ProjectsPage.tsx
-│   ├── ProjectDetailPage.tsx
-│   ├── SettingsPage.tsx
-│   ├── LoginPage.tsx
-│   ├── SignUpPage.tsx
-│   └── ...
-├── store/               # Zustand stores
-│   ├── globalStore.ts   # Theme, auth, snackbar, loading state
-│   ├── noteStore.ts     # Notes CRUD + sharing logic
-│   ├── taskStore.ts     # Tasks CRUD + recurrence + subtasks
-│   ├── projectStore.ts  # Projects CRUD + sharing logic
-│   ├── offlineStore.ts  # Online/offline state, pending count, sync status
-│   ├── pwaStore.ts      # Service worker update state
-│   ├── notificationStore.ts  # Notification preferences
-│   └── modalStore.ts    # Dialog open/close state
-├── lib/
-│   ├── supabase.ts      # Supabase client init + config resolution
-│   ├── cache.ts         # localStorage cache with LRU eviction
-│   ├── offlineQueue.ts  # IndexedDB-backed mutation queue
-│   ├── offlineSync.ts   # Sync engine (heartbeat, retry, conflict resolution)
-│   ├── networkUtils.ts  # Network timeout wrapper
-│   ├── recurrence.ts    # Recurring task logic
-│   ├── sharing.ts       # Shared item detection (local + remote)
-│   ├── notifications.ts # Task due date notifications
-│   └── validation.ts    # Input validation helpers
-├── types/
-│   └── index.ts         # TypeScript interfaces (Note, Task, Project, Subtask, etc.)
+│   ├── modals/          # Dialog components
+│   ├── subcomponents/   # Shared UI (AppToolbar, AreYouSure, UpdatePrompt)
+│   └── extras/          # Utilities (ensureSession, OfflineAlert)
+├── store/               # Zustand stores (global, notes, tasks, projects, offline, notifications)
+├── lib/                 # Supabase client, cache, offline queue/sync, notifications, validation
+├── types/               # TypeScript interfaces
 ├── App.tsx              # Root layout with bottom navigation
 └── index.tsx            # Entry point, routing, SW registration
 ```
 
-## Data Model
+## Scripts
 
-| Entity | Key Fields |
-|--------|-----------|
-| Note | title, body, noteType (text/list), pinned, archived, projectID |
-| NoteListItem | noteID, title, isCompleted |
-| Task | title, body, status, dueDate, isRecurring, recurrenceInterval/Unit/Anchor, projectID |
-| Subtask | taskID, title, isCompleted |
-| Project | name, description |
-| PendingMutation | entityType, operation (insert/update/delete), recordID, payload |
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build locally |
+| `npm test` | Run unit tests |
 
-## Offline Architecture
+## Contributing
 
-The app uses an offline-first approach for non-shared items:
-
-1. **Write path:** All mutations are enqueued in IndexedDB immediately, then a background sync attempt fires. If it fails, mutations stay queued.
-2. **Read path:** On startup, cached data from localStorage renders instantly while a fresh fetch runs in the background.
-3. **Sync triggers:** Browser `online` event, periodic 30s heartbeat, visibility change (app foregrounded).
-4. **Conflict resolution:** Duplicate key conflicts (23505) are resolved by deferring to the server. Permanent failures (RLS violations, FK violations) are discarded from the queue.
-5. **Shared items:** Bypass the offline queue and require connectivity, since they involve multi-user state.
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
-[AGPL-3.0](LICENSE)
+This project is licensed under the [GNU AGPL v3](LICENSE).
