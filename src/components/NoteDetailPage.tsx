@@ -59,6 +59,48 @@ import { isSharedItem } from '../lib/sharing';
 import { useEntitlement } from '../lib/checkout';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
+/** Inline editable text field that only persists on blur (not on every keystroke). */
+function ListItemTextField({ value, onSave }: { value: string; onSave: (newValue: string) => void }) {
+    const [localValue, setLocalValue] = useState(value);
+    const localRef = useRef(localValue);
+    localRef.current = localValue;
+
+    // Sync incoming prop changes (e.g. from toggling completion status)
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    // Save on unmount if changed
+    useEffect(() => {
+        return () => {
+            if (localRef.current !== value) {
+                onSave(localRef.current);
+            }
+        };
+    }, [value]);
+
+    return (
+        <TextField
+            variant="standard"
+            fullWidth
+            multiline
+            value={localValue}
+            onChange={(e) => {
+                if (e.target.value.length <= 255) {
+                    setLocalValue(e.target.value);
+                }
+            }}
+            onBlur={() => {
+                if (localValue !== value) {
+                    onSave(localValue);
+                }
+            }}
+            inputProps={{ maxLength: 255 }}
+            sx={{ '& .MuiInput-input': { py: 0.5 } }}
+        />
+    );
+}
+
 export default function NoteDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -152,8 +194,9 @@ export default function NoteDetailPage() {
             setError(null);
             setOfflineMessage(null);
 
-            // Try to find in local state first
-            const allLocalNotes = [...notes, ...sharedNotes, ...archivedNotes];
+            // Read latest store state directly to avoid stale closure from render
+            const storeState = useNoteStore.getState();
+            const allLocalNotes = [...storeState.notes, ...storeState.sharedNotes, ...storeState.archivedNotes];
             const localNote = allLocalNotes.find((n) => n.recordID === id);
 
             if (localNote) {
@@ -627,7 +670,7 @@ export default function NoteDetailPage() {
         setDeletingCompletedItems(false);
     };
 
-    const handleListItemTitleChange = (itemID: string, newTitle: string) => {
+    const handleListItemTitleSave = (itemID: string, newTitle: string) => {
         updateListItemTitle(itemID, newTitle);
     };
 
@@ -872,9 +915,9 @@ export default function NoteDetailPage() {
                                         <DeleteIcon fontSize="small" />
                                     </IconButton>
                                 }
-                                sx={{ pr: 5 }}
+                                sx={{ pr: 5, alignItems: 'flex-start' }}
                             >
-                                <ListItemIcon sx={{ minWidth: 36 }}>
+                                <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
                                     <Checkbox
                                         edge="start"
                                         checked={false}
@@ -882,31 +925,28 @@ export default function NoteDetailPage() {
                                         size="small"
                                     />
                                 </ListItemIcon>
-                                <TextField
-                                    variant="standard"
-                                    fullWidth
+                                <ListItemTextField
                                     value={item.title}
-                                    onChange={(e) => handleListItemTitleChange(item.recordID, e.target.value)}
-                                    inputProps={{ maxLength: 255 }}
-                                    sx={{ '& .MuiInput-input': { py: 0.5 } }}
+                                    onSave={(newTitle) => handleListItemTitleSave(item.recordID, newTitle)}
                                 />
                             </ListItem>
                         ))}
                     </List>
 
                     {/* Add new item input */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, pl: 1 }}>
-                        <IconButton size="small" color="primary" onClick={handleAddListItem} aria-label="Add item">
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 1, pl: 1 }}>
+                        <IconButton size="small" color="primary" onClick={handleAddListItem} aria-label="Add item" sx={{ mt: 0.5 }}>
                             <AddIcon fontSize="small" />
                         </IconButton>
                         <TextField
                             variant="standard"
                             fullWidth
+                            multiline
                             placeholder="Add item..."
                             value={newItemText}
                             onChange={(e) => setNewItemText(e.target.value)}
                             onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
+                                if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
                                     handleAddListItem();
                                 }
@@ -962,9 +1002,9 @@ export default function NoteDetailPage() {
                                                 <DeleteIcon fontSize="small" />
                                             </IconButton>
                                         }
-                                        sx={{ pr: 5 }}
+                                        sx={{ pr: 5, alignItems: 'flex-start' }}
                                     >
-                                        <ListItemIcon sx={{ minWidth: 36 }}>
+                                        <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
                                             <Checkbox
                                                 edge="start"
                                                 checked={true}
@@ -979,6 +1019,8 @@ export default function NoteDetailPage() {
                                                 color: 'text.secondary',
                                                 flex: 1,
                                                 py: 0.5,
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-word',
                                             }}
                                         >
                                             {item.title}

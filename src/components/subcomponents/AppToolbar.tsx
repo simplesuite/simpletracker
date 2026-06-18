@@ -26,6 +26,7 @@ export default function AppToolbar() {
     const isOnline = useOfflineStore(s => s.isOnline);
     const pendingCount = useOfflineStore(s => s.pendingCount);
     const isSyncing = useOfflineStore(s => s.isSyncing);
+    const lastSyncError = useOfflineStore(s => s.lastSyncError);
     const [refreshing, setRefreshing] = React.useState(false);
 
     async function handleRefresh() {
@@ -83,14 +84,15 @@ export default function AppToolbar() {
         // Online with pending mutations (not yet syncing): show pending badge
         if (pendingCount > 0) {
             return (
-                <Badge
-                    badgeContent={pendingCount}
-                    color="warning"
-                    sx={{ mr: 1.5 }}
-                    aria-label={`${pendingCount} pending mutations`}
-                >
-                    <SyncIcon fontSize="small" color="action" />
-                </Badge>
+                <Chip
+                    icon={<SyncIcon fontSize="small" />}
+                    label={lastSyncError || `${pendingCount} pending`}
+                    size="small"
+                    color={lastSyncError ? 'error' : 'warning'}
+                    variant="outlined"
+                    sx={{ mr: 1, maxWidth: 220 }}
+                    aria-label={lastSyncError || `${pendingCount} pending mutations`}
+                />
             );
         }
 

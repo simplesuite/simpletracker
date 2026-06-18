@@ -23,6 +23,7 @@ interface ProjectStore {
 
     fetchProjects: () => Promise<void>;
     createProject: (name: string, description?: string) => Promise<Project | null>;
+    createBlankProject: () => Promise<Project>;
     updateProject: (id: string, fields: Partial<Pick<Project, 'name' | 'description'>>) => Promise<boolean>;
     deleteProject: (id: string) => Promise<boolean>;
     shareProject: (projectID: string, userID: string) => Promise<boolean>;
@@ -116,10 +117,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             const allProjects = Array.from(projectMap.values())
                 .sort((a, b) => b.updatedAt - a.updatedAt);
 
-            set({ projects: allProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
+            // Merge: preserve any locally-created projects not yet on the server (pending sync)
+            const serverIDs = new Set(allProjects.map(p => p.recordID));
+            const localOnly = get().projects.filter(
+                (p) => p.creatorID === currentUserID && !serverIDs.has(p.recordID)
+            );
+            const mergedProjects = [...localOnly, ...allProjects];
+
+            set({ projects: mergedProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
 
             // Cache only non-shared projects (projects the user created that aren't shared)
-            const ownedNonSharedProjects = allProjects.filter(
+            const ownedNonSharedProjects = mergedProjects.filter(
                 (p) => p.creatorID === currentUserID && !allSharedProjectIDs.has(p.recordID)
             );
             setCachedProjects(ownedNonSharedProjects);
@@ -155,6 +163,36 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }));
 
         // Update cache
+        const currentUserProjects = get().projects.filter((p) => p.creatorID === currentUserID);
+        setCachedProjects(currentUserProjects);
+
+        // Persist via offline support
+        await insertWithOfflineSupport('project', 'task_projects', project as unknown as Record<string, unknown>);
+
+        return project;
+    },
+
+    createBlankProject: async () => {
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const now = Date.now();
+        const recordID = uuid();
+
+        const project: Project = {
+            recordID,
+            creatorID: currentUserID,
+            name: 'Untitled project',
+            description: '',
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // Optimistically add to local state
+        set((state) => ({
+            projects: [project, ...state.projects],
+            error: null,
+        }));
+
+        // Update cache so the project persists across fetchProjects reloads
         const currentUserProjects = get().projects.filter((p) => p.creatorID === currentUserID);
         setCachedProjects(currentUserProjects);
 

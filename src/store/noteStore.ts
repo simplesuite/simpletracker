@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
-import { getCachedNotes, setCachedNotes, removeCachedItem } from '../lib/cache';
+import { getCachedNotes, setCachedNotes, getCachedSharedNotes, setCachedSharedNotes, removeCachedItem } from '../lib/cache';
 import {
     insertWithOfflineSupport,
     updateWithOfflineSupport,
@@ -61,6 +61,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 .filter((n) => !n.archived)
                 .sort((a, b) => b.updatedAt - a.updatedAt);
             set({ notes: nonArchived });
+        }
+
+        const cachedShared = getCachedSharedNotes();
+        if (cachedShared.length > 0) {
+            set({ sharedNotes: cachedShared });
         }
 
         try {
@@ -151,6 +156,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 return !sharedMap.has(note.recordID);
             });
             setCachedNotes(nonSharedOwn);
+            setCachedSharedNotes(uniqueSharedNotes);
 
             // Set state: notes = own non-archived, sharedNotes = shared non-archived
             const allNotes = [...(ownNotes || [])].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -597,6 +603,21 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             ? isNoteSharedLocally(note.recordID, note.creatorID, note.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
             : false;
 
+        // Capture list items before optimistic removal
+        const noteListItems = get().listItems[id] || [];
+
+        // Optimistically remove from local state immediately
+        set((state) => {
+            const { [id]: _, ...remainingListItems } = state.listItems;
+            return {
+                notes: state.notes.filter((n) => n.recordID !== id),
+                archivedNotes: state.archivedNotes.filter((n) => n.recordID !== id),
+                sharedNotes: state.sharedNotes.filter((n) => n.recordID !== id),
+                listItems: remainingListItems,
+                error: null,
+            };
+        });
+
         if (shared) {
             // Shared items: check connectivity first
             if (!useOfflineStore.getState().isOnline) {
@@ -642,24 +663,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         } else {
             // Non-shared: use offline support
             // Delete list items first, then the note
-            const listItems = get().listItems[id] || [];
-            for (const item of listItems) {
+            for (const item of noteListItems) {
                 await deleteWithOfflineSupport('noteListItem', 'notes_listitems', item.recordID);
             }
             await deleteWithOfflineSupport('note', 'notes', id);
         }
-
-        // Remove from local state
-        set((state) => {
-            const { [id]: _, ...remainingListItems } = state.listItems;
-            return {
-                notes: state.notes.filter((n) => n.recordID !== id),
-                archivedNotes: state.archivedNotes.filter((n) => n.recordID !== id),
-                sharedNotes: state.sharedNotes.filter((n) => n.recordID !== id),
-                listItems: remainingListItems,
-                error: null,
-            };
-        });
 
         // Remove from cache for non-shared items
         if (!shared) {

@@ -10,6 +10,9 @@ interface OfflineState {
     /** Timestamp of last successful network verification */
     lastVerifiedAt: number;
     setLastVerifiedAt: (val: number) => void;
+    /** Last sync error message for debugging */
+    lastSyncError: string | null;
+    setLastSyncError: (val: string | null) => void;
 }
 
 export const useOfflineStore = create<OfflineState>((set) => ({
@@ -21,4 +24,6 @@ export const useOfflineStore = create<OfflineState>((set) => ({
     setIsSyncing: (val) => set({ isSyncing: val }),
     lastVerifiedAt: 0,
     setLastVerifiedAt: (val) => set({ lastVerifiedAt: val }),
+    lastSyncError: null,
+    setLastSyncError: (val) => set({ lastSyncError: val }),
 }));
