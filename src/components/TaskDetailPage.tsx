@@ -96,7 +96,9 @@ export default function TaskDetailPage() {
     useEffect(() => {
         if (!id) return;
 
-        const foundTask = tasks.find((t) => t.recordID === id);
+        // Read latest store state directly to avoid stale closure from render
+        const storeState = useTaskStore.getState();
+        const foundTask = storeState.tasks.find((t) => t.recordID === id);
         if (foundTask) {
             loadTaskData(foundTask);
             setLoading(false);

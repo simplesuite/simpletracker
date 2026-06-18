@@ -6,12 +6,6 @@ import CardActionArea from '@mui/material/CardActionArea';
 import CardContent from '@mui/material/CardContent';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
@@ -26,33 +20,21 @@ import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
 import { useGlobalStore } from '../store/globalStore';
-import { validateProjectName } from '../lib/validation';
 import { useEntitlement } from '../lib/checkout';
 import { supabase } from '../lib/supabase';
-import { useTheme } from '@mui/material/styles';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { dialogPaperStyles } from '../store/globalStore';
-import IconButton from '@mui/material/IconButton';
-import CloseIcon from '@mui/icons-material/Close';
 
 export default function ProjectsPage() {
     const projects = useProjectStore(s => s.projects);
     const loading = useProjectStore(s => s.loading);
     const error = useProjectStore(s => s.error);
     const fetchProjects = useProjectStore(s => s.fetchProjects);
-    const createProject = useProjectStore(s => s.createProject);
+    const createBlankProject = useProjectStore(s => s.createBlankProject);
     const notes = useNoteStore(s => s.notes);
     const sharedNotes = useNoteStore(s => s.sharedNotes);
     const tasks = useTaskStore(s => s.tasks);
     const currentUserID = useGlobalStore(s => s.currentUser.recordID);
     const navigate = useNavigate();
-    const theme = useTheme();
-    const bigger = useMediaQuery(theme.breakpoints.up('sm'));
 
-    const [dialogOpen, setDialogOpen] = React.useState(false);
-    const [projectName, setProjectName] = React.useState('');
-    const [nameError, setNameError] = React.useState('');
-    const [creating, setCreating] = React.useState(false);
     const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<Set<string>>(new Set());
 
     const { subscriptionState, loading: entitlementLoading } = useEntitlement();
@@ -98,46 +80,10 @@ export default function ProjectsPage() {
         });
     }, [projects, notes, sharedNotes, tasks]);
 
-    const handleOpenDialog = () => {
+    const handleCreateProject = async () => {
         if (atProjectLimit) return;
-        setProjectName('');
-        setNameError('');
-        setDialogOpen(true);
-    };
-
-    const handleCloseDialog = () => {
-        setDialogOpen(false);
-        setProjectName('');
-        setNameError('');
-    };
-
-    const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setProjectName(value);
-        if (nameError) {
-            const validation = validateProjectName(value);
-            if (validation.valid) {
-                setNameError('');
-            }
-        }
-    };
-
-    const handleCreateProject = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const validation = validateProjectName(projectName);
-        if (!validation.valid) {
-            setNameError(validation.error || 'Invalid project name');
-            return;
-        }
-
-        setCreating(true);
-        const project = await createProject(projectName.trim());
-        setCreating(false);
-
-        if (project) {
-            handleCloseDialog();
-            navigate(`/projects/${project.recordID}`);
-        }
+        const project = await createBlankProject();
+        navigate(`/projects/${project.recordID}`, { state: { editing: true } });
     };
 
     return (
@@ -259,7 +205,7 @@ export default function ProjectsPage() {
             <Fab
                 color="primary"
                 aria-label="Create project"
-                onClick={handleOpenDialog}
+                onClick={handleCreateProject}
                 disabled={atProjectLimit}
                 sx={{
                     position: 'fixed',
@@ -269,50 +215,6 @@ export default function ProjectsPage() {
             >
                 <AddIcon />
             </Fab>
-
-            <Dialog
-                open={dialogOpen}
-                onClose={handleCloseDialog}
-                fullScreen={!bigger}
-                slotProps={{ paper: bigger ? dialogPaperStyles : undefined }}
-            >
-                <Box
-                    sx={{ bgcolor: 'background.paper', height: '100%' }}
-                    component="form"
-                    onSubmit={handleCreateProject}
-                >
-                    <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        New Project
-                        <IconButton onClick={handleCloseDialog} aria-label="Close">
-                            <CloseIcon />
-                        </IconButton>
-                    </DialogTitle>
-                    <DialogContent>
-                        <TextField
-                            autoFocus
-                            margin="dense"
-                            label="Project Name"
-                            fullWidth
-                            variant="outlined"
-                            value={projectName}
-                            onChange={handleNameChange}
-                            error={!!nameError}
-                            helperText={nameError || `${projectName.trim().length}/100 characters`}
-                            inputProps={{ maxLength: 100 }}
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={handleCloseDialog}>Cancel</Button>
-                        <Button
-                            type="submit"
-                            variant="contained"
-                            disabled={creating || projectName.trim().length === 0}
-                        >
-                            {creating ? 'Creating…' : 'Create'}
-                        </Button>
-                    </DialogActions>
-                </Box>
-            </Dialog>
         </Box>
     );
 }

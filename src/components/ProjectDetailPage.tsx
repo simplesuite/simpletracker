@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -24,6 +24,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import InputAdornment from '@mui/material/InputAdornment';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -34,6 +35,10 @@ import ChecklistIcon from '@mui/icons-material/Checklist';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import ShareIcon from '@mui/icons-material/Share';
+import EditIcon from '@mui/icons-material/Edit';
+import EditOffIcon from '@mui/icons-material/EditOff';
+import SearchIcon from '@mui/icons-material/Search';
+import ClearIcon from '@mui/icons-material/Clear';
 import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
@@ -53,6 +58,7 @@ import type { Task, ProjectShared } from '../types/index';
 export default function ProjectDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
 
     const projects = useProjectStore((s) => s.projects);
     const loading = useProjectStore((s) => s.loading);
@@ -105,6 +111,11 @@ export default function ProjectDetailPage() {
     const [completedMenuAnchor, setCompletedMenuAnchor] = useState<null | HTMLElement>(null);
     const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
     const [deletingCompleted, setDeletingCompleted] = useState(false);
+    const [editing, setEditing] = useState(() => {
+        const state = location.state as { editing?: boolean } | null;
+        return state?.editing ?? false;
+    });
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Sync local state when project changes
     useEffect(() => {
@@ -145,10 +156,25 @@ export default function ProjectDetailPage() {
     }, [storeError]);
 
     // Filter notes and tasks belonging to this project, pinned notes first
-    const projectNotes = [...notes, ...sharedNotes]
-        .filter((n) => n.projectID === id)
-        .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
-    const projectTasks = tasks.filter((t) => t.projectID === id);
+    const projectNotes = useMemo(() => {
+        const allNotes = [...notes, ...sharedNotes]
+            .filter((n) => n.projectID === id)
+            .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1));
+        if (!searchQuery.trim()) return allNotes;
+        const q = searchQuery.toLowerCase();
+        return allNotes.filter(
+            (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
+        );
+    }, [notes, sharedNotes, id, searchQuery]);
+
+    const projectTasks = useMemo(() => {
+        const all = tasks.filter((t) => t.projectID === id);
+        if (!searchQuery.trim()) return all;
+        const q = searchQuery.toLowerCase();
+        return all.filter(
+            (t) => t.title.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
+        );
+    }, [tasks, id, searchQuery]);
 
     // Sort tasks: due date ascending (no due date at end), split open vs completed
     const sortByDueDate = (a: Task, b: Task): number => {
@@ -203,6 +229,16 @@ export default function ProjectDetailPage() {
         if (!success) {
             setError('Failed to update project name');
         }
+    };
+
+    const handleBack = () => {
+        // If project still has the default placeholder name and no description, delete it
+        if (name.trim() === '' || name.trim() === 'Untitled project') {
+            if (!description.trim() && projectNotes.length === 0 && projectTasks.length === 0) {
+                deleteProject(project.recordID);
+            }
+        }
+        navigate('/projects');
     };
 
     const handleDescriptionBlur = async () => {
@@ -299,7 +335,7 @@ export default function ProjectDetailPage() {
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                <IconButton onClick={() => navigate('/projects')} aria-label="Back to projects">
+                <IconButton onClick={handleBack} aria-label="Back to projects">
                     <ArrowBackIcon />
                 </IconButton>
                 {isCreator && (
@@ -319,6 +355,10 @@ export default function ProjectDetailPage() {
                             open={menuOpen}
                             onClose={() => setMenuAnchorEl(null)}
                         >
+                            <MenuItem onClick={() => { setMenuAnchorEl(null); setEditing(!editing); }}>
+                                <ListItemIcon>{editing ? <EditOffIcon fontSize="small" /> : <EditIcon fontSize="small" />}</ListItemIcon>
+                                <ListItemText>{editing ? 'Done editing' : 'Edit details'}</ListItemText>
+                            </MenuItem>
                             <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }} disabled={!hasPro}>
                                 <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
                                 <ListItemText>{hasPro ? 'Share' : 'Share (Pro)'}</ListItemText>
@@ -339,39 +379,78 @@ export default function ProjectDetailPage() {
                 </Alert>
             )}
 
-            {/* Project Name */}
-            <TextField
-                fullWidth
-                variant="standard"
-                label="Project Name"
-                value={name}
-                onChange={(e) => {
-                    setName(e.target.value);
-                    if (nameError) {
-                        const validation = validateProjectName(e.target.value);
-                        if (validation.valid) setNameError('');
-                    }
-                }}
-                onBlur={handleNameBlur}
-                disabled={!isCreator}
-                error={!!nameError}
-                helperText={nameError}
-                inputProps={{ maxLength: 100 }}
-                sx={{ mb: 3 }}
-            />
+            {/* Project Name & Description */}
+            {editing ? (
+                <>
+                    <TextField
+                        fullWidth
+                        variant="standard"
+                        label="Project Name"
+                        autoFocus
+                        value={name}
+                        onFocus={(e) => (e.target as HTMLInputElement).select()}
+                        onChange={(e) => {
+                            setName(e.target.value);
+                            if (nameError) {
+                                const validation = validateProjectName(e.target.value);
+                                if (validation.valid) setNameError('');
+                            }
+                        }}
+                        onBlur={handleNameBlur}
+                        error={!!nameError}
+                        helperText={nameError}
+                        inputProps={{ maxLength: 100 }}
+                        sx={{ mb: 2 }}
+                    />
+                    <TextField
+                        fullWidth
+                        label="Description"
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        onBlur={handleDescriptionBlur}
+                        multiline
+                        minRows={2}
+                        maxRows={6}
+                        sx={{ mb: 2 }}
+                    />
+                </>
+            ) : (
+                <Box sx={{ mb: 2 }}>
+                    <Typography variant="h5" sx={{ fontWeight: 600, fontStyle: project.name ? 'normal' : 'italic', color: project.name ? 'text.primary' : 'text.secondary' }}>
+                        {project.name || 'Untitled'}
+                    </Typography>
+                    {project.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
+                            {project.description}
+                        </Typography>
+                    )}
+                </Box>
+            )}
 
-            {/* Project Description */}
+            {/* Search bar */}
             <TextField
+                size="small"
+                placeholder="Search notes & tasks..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 fullWidth
-                label="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleDescriptionBlur}
-                disabled={!isCreator}
-                multiline
-                minRows={2}
-                maxRows={6}
-                sx={{ mb: 3 }}
+                sx={{ mb: 2 }}
+                slotProps={{
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon fontSize="small" color="action" />
+                            </InputAdornment>
+                        ),
+                        endAdornment: searchQuery ? (
+                            <InputAdornment position="end">
+                                <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                                    <ClearIcon fontSize="small" />
+                                </IconButton>
+                            </InputAdornment>
+                        ) : null,
+                    },
+                }}
             />
 
             <Divider sx={{ mb: 2 }} />

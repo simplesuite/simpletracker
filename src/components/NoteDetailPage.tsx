@@ -194,8 +194,9 @@ export default function NoteDetailPage() {
             setError(null);
             setOfflineMessage(null);
 
-            // Try to find in local state first
-            const allLocalNotes = [...notes, ...sharedNotes, ...archivedNotes];
+            // Read latest store state directly to avoid stale closure from render
+            const storeState = useNoteStore.getState();
+            const allLocalNotes = [...storeState.notes, ...storeState.sharedNotes, ...storeState.archivedNotes];
             const localNote = allLocalNotes.find((n) => n.recordID === id);
 
             if (localNote) {

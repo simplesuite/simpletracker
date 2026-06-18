@@ -47,7 +47,8 @@ export async function verifyConnectivity(): Promise<boolean> {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
 
-        const response = await fetch(
+        // Ping Supabase REST API to detect lie-fi (connected to WiFi but no real internet)
+        await fetch(
             `${SUPABASE_URL}/rest/v1/`,
             {
                 method: 'HEAD',
@@ -59,7 +60,7 @@ export async function verifyConnectivity(): Promise<boolean> {
         );
         clearTimeout(timeout);
 
-        // Any HTTP response (even 4xx/5xx) means the server is reachable.
+        // Any HTTP response (even 4xx/5xx) means the server is reachable
         useOfflineStore.getState().setIsOnline(true);
         useOfflineStore.getState().setLastVerifiedAt(Date.now());
         return true;
@@ -79,6 +80,10 @@ function startHeartbeat(): void {
 
         // If we just came back online, trigger a sync
         if (!wasOnline && isNowOnline) {
+            syncPendingMutations();
+        } else if (navigator.onLine && useOfflineStore.getState().pendingCount > 0) {
+            // Browser says online and we have pending items — attempt sync
+            // regardless of verifyConnectivity result (it may falsely fail)
             syncPendingMutations();
         }
     }, HEARTBEAT_INTERVAL);
@@ -138,11 +143,18 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
     let failed = 0;
 
     try {
-        await withNetworkTimeout(ensureSession(), NETWORK_TIMEOUT);
         const pending = await getAll(); // Already sorted by _queuedAt ascending (FIFO)
 
         for (const mutation of pending) {
             try {
+                // Ensure session is valid before each mutation
+                const sessionValid = await ensureSession();
+                if (!sessionValid) {
+                    useOfflineStore.getState().setLastSyncError('No valid session — please log in again');
+                    failed++;
+                    break; // No point trying more if session is invalid
+                }
+
                 const { error } = await executeMutation(mutation);
 
                 if (error) {
@@ -154,7 +166,7 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
                         console.warn(
                             `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
                         );
-                    } else if (error.code === '42501' || error.code === '23503' || error.code === '23502') {
+                    } else if (error.code === '42501' || error.code === '23503' || error.code === '23502' || error.code === '42P17') {
                         // RLS violation (42501), foreign key violation (23503), or NOT NULL violation (23502):
                         // These are permanent failures — retrying won't help. Remove from queue.
                         await dequeue(mutation.id);
@@ -178,12 +190,14 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
                     synced++;
                 }
             } catch (err) {
-                // Timeout or network error — stop trying, we're probably offline
+                // Timeout or network error for this specific mutation — skip and continue
                 failed++;
-                break;
+                console.error(`Sync timeout for ${mutation.entityType} ${mutation.recordID}`);
             }
         }
-    } catch (err) {
+    } catch (err: any) {
+        const msg = err?.message || 'Unknown sync error';
+        useOfflineStore.getState().setLastSyncError(`Sync failed: ${msg}`);
         console.error('Offline sync error:', err);
     } finally {
         syncInProgress = false;
@@ -191,8 +205,8 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
         // Update pending count
         const count = await pendingCount();
         useOfflineStore.getState().setPendingCount(count);
-        // If ALL items failed (not just some), we're likely offline.
-        if (count > 0 && failed > 0 && synced === 0) {
+        // Only mark offline if browser also thinks we're offline
+        if (count > 0 && failed > 0 && synced === 0 && !navigator.onLine) {
             useOfflineStore.getState().setIsOnline(false);
         }
     }
@@ -313,6 +327,7 @@ async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
         const sessionValid = await ensureSession();
         if (!sessionValid) {
             // No valid session — can't sync, leave in queue
+            useOfflineStore.getState().setLastSyncError('No valid session — please log in again');
             return;
         }
 
@@ -323,31 +338,39 @@ async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
             await dequeue(mutation.id);
             const count = await pendingCount();
             useOfflineStore.getState().setPendingCount(count);
+            useOfflineStore.getState().setLastSyncError(null);
 
             if (error?.code === '23505') {
                 console.warn(
                     `Sync conflict resolved for ${mutation.entityType} ${mutation.recordID}: server record is authoritative`
                 );
             }
-        } else if (error.code === '42501' || error.code === '23503' || error.code === '23502') {
+        } else if (error.code === '42501' || error.code === '23503' || error.code === '23502' || error.code === '42P17') {
             // Permanent failure (RLS, FK, NOT NULL) — remove from queue, retrying won't help
             await dequeue(mutation.id);
             const count = await pendingCount();
             useOfflineStore.getState().setPendingCount(count);
+            const msg = `Sync failed (${error.code}): ${error.message}`;
+            useOfflineStore.getState().setLastSyncError(msg);
             console.error(
                 `Permanent sync failure for ${mutation.entityType} ${mutation.recordID} (${error.code}):`,
                 error.message
             );
         } else {
             // Other error — leave in queue for batch retry
+            const msg = `Sync error [${mutation.entityType} ${mutation.operation}]: ${error.code || ''} ${error.message || JSON.stringify(error)}`;
+            useOfflineStore.getState().setLastSyncError(msg);
             console.error(
                 `Sync error for ${mutation.entityType} ${mutation.operation} ${mutation.recordID}:`,
                 error.message || error
             );
         }
-    } catch {
-        // Timeout or network failure — verify connectivity
-        verifyConnectivity();
+    } catch (err: any) {
+        // Timeout or network failure — don't mark as offline from a single failure,
+        // leave mutation in queue for batch retry
+        const msg = err?.message || 'network failure';
+        useOfflineStore.getState().setLastSyncError(`Sync timeout: ${msg}`);
+        console.error(`syncSingleMutation failed for ${mutation.entityType} ${mutation.recordID}:`, msg);
     }
 }
 
@@ -389,7 +412,7 @@ export function initOfflineSync(): () => void {
     startHeartbeat();
 
     // Check for any pending items on startup
-    pendingCount().then((count) => {
+    pendingCount().then(async (count) => {
         useOfflineStore.getState().setPendingCount(count);
         // If we're online and have pending items, sync them
         if (navigator.onLine && count > 0) {
