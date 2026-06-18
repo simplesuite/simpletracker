@@ -49,6 +49,7 @@ import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
 import { CSVLink } from 'react-csv';
+import IosShareIcon from '@mui/icons-material/IosShare';
 
 export default function SettingsPage() {
     const offline = useIsOffline();
@@ -436,15 +437,6 @@ export default function SettingsPage() {
                                         )}
                                     </>
                                 )}
-                                <Divider />
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={handleShareApp}>
-                                        <ListItemIcon>
-                                            <ShareIcon />
-                                        </ListItemIcon>
-                                        <ListItemText primary="Share App Link" secondary="Share simpleTracker with others" />
-                                    </ListItemButton>
-                                </ListItem>
                             </List>
                         </Paper>
                     </Box>
@@ -522,6 +514,15 @@ export default function SettingsPage() {
                                     <ListItemButton component="a" href="https://github.com/simplesuite/simpletracker/issues" target="_blank" rel="noopener noreferrer">
                                         <ListItemIcon><BugReportIcon /></ListItemIcon>
                                         <ListItemText primary="Report a Bug or Request a Feature" />
+                                    </ListItemButton>
+                                </ListItem>
+                                <Divider />
+                                <ListItem disablePadding>
+                                    <ListItemButton onClick={handleShareApp}>
+                                        <ListItemIcon>
+                                            <IosShareIcon />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Share App Link" secondary="Share simpleTracker with others" />
                                     </ListItemButton>
                                 </ListItem>
                             </List>
