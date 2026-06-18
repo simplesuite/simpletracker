@@ -2,6 +2,7 @@ import type { Note, Task, Subtask, Project } from '../types/index';
 
 // Cache keys
 const CACHE_KEY_NOTES = 'cachedNotes';
+const CACHE_KEY_SHARED_NOTES = 'cachedSharedNotes';
 const CACHE_KEY_TASKS = 'cachedTasks';
 const CACHE_KEY_SUBTASKS = 'cachedSubtasks';
 const CACHE_KEY_PROJECTS = 'cachedProjects';
@@ -32,6 +33,25 @@ export function getCachedNotes(): Note[] {
 export function setCachedNotes(notes: Note[]): void {
     try {
         localStorage.setItem(CACHE_KEY_NOTES, JSON.stringify(notes));
+        evictIfOverLimit();
+    } catch {
+        // localStorage may be full or unavailable
+    }
+}
+
+export function getCachedSharedNotes(): Note[] {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY_SHARED_NOTES);
+        if (!raw) return [];
+        return JSON.parse(raw) as Note[];
+    } catch {
+        return [];
+    }
+}
+
+export function setCachedSharedNotes(notes: Note[]): void {
+    try {
+        localStorage.setItem(CACHE_KEY_SHARED_NOTES, JSON.stringify(notes));
         evictIfOverLimit();
     } catch {
         // localStorage may be full or unavailable
@@ -137,7 +157,7 @@ export function clearLegacyCache(): void {
  */
 export function getTotalCacheSize(): number {
     let total = 0;
-    const keys = [CACHE_KEY_NOTES, CACHE_KEY_TASKS, CACHE_KEY_SUBTASKS, CACHE_KEY_PROJECTS];
+    const keys = [CACHE_KEY_NOTES, CACHE_KEY_SHARED_NOTES, CACHE_KEY_TASKS, CACHE_KEY_SUBTASKS, CACHE_KEY_PROJECTS];
     for (const key of keys) {
         try {
             const value = localStorage.getItem(key);
@@ -171,6 +191,11 @@ export function evictIfOverLimit(): void {
     const notes = getCachedNotes();
     for (const note of notes) {
         evictableItems.push({ recordID: note.recordID, updatedAt: note.updatedAt, cacheKey: CACHE_KEY_NOTES });
+    }
+
+    const sharedNotes = getCachedSharedNotes();
+    for (const note of sharedNotes) {
+        evictableItems.push({ recordID: note.recordID, updatedAt: note.updatedAt, cacheKey: CACHE_KEY_SHARED_NOTES });
     }
 
     const tasks = getCachedTasks();

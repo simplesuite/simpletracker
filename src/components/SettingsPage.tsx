@@ -38,6 +38,7 @@ import { useIsOffline } from "./extras/OfflineAlert";
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import ShareIcon from '@mui/icons-material/Share';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
@@ -153,6 +154,30 @@ export default function SettingsPage() {
                 setSnackText('Permission denied — enable in device settings');
                 setSnackOpen(true);
             }
+        }
+    };
+
+    const handleShareApp = async () => {
+        const appUrl = 'https://tracker.simplesuite.dev';
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: 'simpleTracker', url: appUrl });
+            } catch {
+                // User cancelled or share failed silently
+            }
+        } else {
+            await navigator.clipboard
+                .writeText(appUrl)
+                .then(() => {
+                    setSnackSev('success');
+                    setSnackText('App link copied!');
+                    setSnackOpen(true);
+                })
+                .catch(() => {
+                    setSnackSev('error');
+                    setSnackText('Failed to copy link');
+                    setSnackOpen(true);
+                });
         }
     };
 
@@ -411,6 +436,15 @@ export default function SettingsPage() {
                                         )}
                                     </>
                                 )}
+                                <Divider />
+                                <ListItem disablePadding>
+                                    <ListItemButton onClick={handleShareApp}>
+                                        <ListItemIcon>
+                                            <ShareIcon />
+                                        </ListItemIcon>
+                                        <ListItemText primary="Share App Link" secondary="Share simpleTracker with others" />
+                                    </ListItemButton>
+                                </ListItem>
                             </List>
                         </Paper>
                     </Box>
