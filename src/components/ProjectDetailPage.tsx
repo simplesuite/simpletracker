@@ -5,9 +5,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
+import Paper from '@mui/material/Paper';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -472,26 +470,27 @@ export default function ProjectDetailPage() {
             ) : (
                 <Box
                     sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: 1.5,
+                        columns: 2,
+                        columnGap: 1.5,
                         mb: 2,
+                        '& > *': {
+                            breakInside: 'avoid',
+                            mb: 1.5,
+                        },
                     }}
                 >
                     {projectNotes.map((note) => (
-                        <Card
+                        <Paper
                             key={note.recordID}
-                            variant="outlined"
+                            elevation={4}
                             sx={{
                                 borderColor: note.pinned ? 'primary.main' : 'divider',
-                                borderRadius: 3,
+                                borderRadius: 5,
+                                cursor: 'pointer',
                             }}
+                            onClick={() => navigate(`/notes/${note.recordID}`)}
                         >
-                            <CardActionArea
-                                onClick={() => navigate(`/notes/${note.recordID}`)}
-                                sx={{ height: '100%' }}
-                            >
-                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ p: 1, py: 1.5 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                         {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
                                         {note.noteType === 'list'
@@ -529,9 +528,8 @@ export default function ProjectDetailPage() {
                                     <Typography variant="caption" color="text.secondary">
                                         {new Date(note.updatedAt).toLocaleDateString()}
                                     </Typography>
-                                </CardContent>
-                            </CardActionArea>
-                        </Card>
+                            </Box>
+                        </Paper>
                     ))}
                 </Box>
             )}

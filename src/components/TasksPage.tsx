@@ -34,6 +34,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
 import IconButton from '@mui/material/IconButton';
 import type { Task } from '../types';
+import Paper from "@mui/material/Paper";
 
 export default function TasksPage() {
     const tasks = useTaskStore((s) => s.tasks);
@@ -105,6 +106,37 @@ export default function TasksPage() {
         const completed = filteredBySearch.filter((t) => t.status === 'completed').sort(sortByDueDate);
         return { openTasks: open, completedTasks: completed };
     }, [filteredBySearch]);
+
+    // Group open tasks into due date categories
+    const { overdueTasks, dueTodayTasks, upcomingTasks, noDueDateTasks } = useMemo(() => {
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
+
+        const overdue: Task[] = [];
+        const dueToday: Task[] = [];
+        const upcoming: Task[] = [];
+        const noDueDate: Task[] = [];
+
+        for (const task of openTasks) {
+            if (task.dueDate == null) {
+                noDueDate.push(task);
+            } else if (task.dueDate < todayStart) {
+                overdue.push(task);
+            } else if (task.dueDate <= todayEnd) {
+                dueToday.push(task);
+            } else {
+                upcoming.push(task);
+            }
+        }
+
+        return { overdueTasks: overdue, dueTodayTasks: dueToday, upcomingTasks: upcoming, noDueDateTasks: noDueDate };
+    }, [openTasks]);
+
+    const [overdueExpanded, setOverdueExpanded] = useState(true);
+    const [dueTodayExpanded, setDueTodayExpanded] = useState(true);
+    const [upcomingExpanded, setUpcomingExpanded] = useState(true);
+    const [noDueDateExpanded, setNoDueDateExpanded] = useState(true);
 
     const handleFabClick = async () => {
         const task = await createBlankTask();
@@ -187,62 +219,243 @@ export default function TasksPage() {
             ) : (
                 <>
                     {openTasks.length > 0 && (
-                        <List disablePadding>
-                            {openTasks.map((task) => (
-                                <ListItem key={task.recordID} disablePadding divider>
-                                    <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                        <IconButton
-                                            edge="start"
-                                            size="small"
-                                            onClick={() => completeTask(task.recordID)}
-                                            aria-label="Complete task"
-                                        >
-                                            <RadioButtonUncheckedIcon color="action" />
-                                        </IconButton>
-                                    </ListItemIcon>
-                                    <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                        <ListItemText
-                                            primary={task.title}
-                                            secondary={
-                                                <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                                    {task.dueDate && (() => {
-                                                        const { label, color } = formatDueDate(task.dueDate);
-                                                        return (
-                                                            <Chip
-                                                                label={label}
-                                                                size="small"
-                                                                variant="outlined"
-                                                                color={color}
-                                                                sx={{ height: 20, fontSize: '0.75rem' }}
+                        <>
+                            {overdueTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => setOverdueExpanded(!overdueExpanded)}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {overdueExpanded ? <ExpandLessIcon fontSize="small" color="error" /> : <ExpandMoreIcon fontSize="small" color="error" />}
+                                        <Typography variant="body2" color="error" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            Overdue ({overdueTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={overdueExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <List disablePadding dense>
+                                                {overdueTasks.map((task, index) => (
+                                                    <ListItem key={task.recordID} disablePadding divider={index < overdueTasks.length - 1}>
+                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
+                                                                <RadioButtonUncheckedIcon color="action" />
+                                                            </IconButton>
+                                                        </ListItemIcon>
+                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemText
+                                                                primary={task.title}
+                                                                secondary={
+                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                                                        {task.dueDate && (() => {
+                                                                            const { label, color } = formatDueDate(task.dueDate);
+                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                        })()}
+                                                                        {task.isRecurring && (
+                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                        </Box>
+                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                    </Box>
+                                                                }
+                                                                secondaryTypographyProps={{ component: 'div' }}
                                                             />
-                                                        );
-                                                    })()}
-                                                    {task.projectID && projectNameMap.has(task.projectID) && (
-                                                        <Chip
-                                                            label={projectNameMap.get(task.projectID)}
-                                                            size="small"                                                 
-                                                            variant="outlined"
-                                                            sx={{ height: 20, fontSize: '0.75rem' }}
-                                                        />
-                                                    )}
-                                                    {task.isRecurring && (
-                                                        <Chip
-                                                            icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
-                                                            label="Recurring"
-                                                            size="small"
-                                                            variant="outlined"
-                                                            color="secondary"
-                                                            sx={{ height: 20, fontSize: '0.75rem' }}
-                                                        />
-                                                    )}
-                                                </Box>
-                                            }
-                                            secondaryTypographyProps={{ component: 'div' }}
-                                        />
-                                    </ListItemButton>
-                                </ListItem>
-                            ))}
-                        </List>
+                                                        </ListItemButton>
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+
+                            {dueTodayTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => setDueTodayExpanded(!dueTodayExpanded)}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {dueTodayExpanded ? <ExpandLessIcon fontSize="small" color="warning" /> : <ExpandMoreIcon fontSize="small" color="warning" />}
+                                        <Typography variant="body2" color="warning.main" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            Due Today ({dueTodayTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={dueTodayExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <List disablePadding dense>
+                                                {dueTodayTasks.map((task, index) => (
+                                                    <ListItem key={task.recordID} disablePadding divider={index < dueTodayTasks.length - 1}>
+                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
+                                                                <RadioButtonUncheckedIcon color="action" />
+                                                            </IconButton>
+                                                        </ListItemIcon>
+                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemText
+                                                                primary={task.title}
+                                                                secondary={
+                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                                                        {task.dueDate && (() => {
+                                                                            const { label, color } = formatDueDate(task.dueDate);
+                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                        })()}
+                                                                        {task.isRecurring && (
+                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                        </Box>
+                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                    </Box>
+                                                                }
+                                                                secondaryTypographyProps={{ component: 'div' }}
+                                                            />
+                                                        </ListItemButton>
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+
+                            {upcomingTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => setUpcomingExpanded(!upcomingExpanded)}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {upcomingExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            Upcoming ({upcomingTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={upcomingExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <List disablePadding dense>
+                                                {upcomingTasks.map((task, index) => (
+                                                    <ListItem key={task.recordID} disablePadding divider={index < upcomingTasks.length - 1}>
+                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
+                                                                <RadioButtonUncheckedIcon color="action" />
+                                                            </IconButton>
+                                                        </ListItemIcon>
+                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemText
+                                                                primary={task.title}
+                                                                secondary={
+                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                                                        {task.dueDate && (() => {
+                                                                            const { label, color } = formatDueDate(task.dueDate);
+                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                        })()}
+                                                                        {task.isRecurring && (
+                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                        </Box>
+                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                    </Box>
+                                                                }
+                                                                secondaryTypographyProps={{ component: 'div' }}
+                                                            />
+                                                        </ListItemButton>
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+
+                            {noDueDateTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => setNoDueDateExpanded(!noDueDateExpanded)}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {noDueDateExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            No Due Date ({noDueDateTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={noDueDateExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <List disablePadding dense>
+                                                {noDueDateTasks.map((task, index) => (
+                                                    <ListItem key={task.recordID} disablePadding divider={index < noDueDateTasks.length - 1}>
+                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
+                                                                <RadioButtonUncheckedIcon color="action" />
+                                                            </IconButton>
+                                                        </ListItemIcon>
+                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemText
+                                                                primary={task.title}
+                                                                secondary={
+                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                                                        {task.isRecurring && (
+                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                        </Box>
+                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                        )}
+                                                                    </Box>
+                                                                }
+                                                                secondaryTypographyProps={{ component: 'div' }}
+                                                            />
+                                                        </ListItemButton>
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+                        </>
                     )}
 
                     {completedTasks.length > 0 && (
@@ -297,9 +510,10 @@ export default function TasksPage() {
                                 </Menu>
                             </Box>
                             <Collapse in={completedExpanded} sx={{mb:7}}>
-                                <List disablePadding>
-                                    {completedTasks.map((task) => (
-                                        <ListItem key={task.recordID} disablePadding divider>
+                            <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                <List disablePadding dense>
+                                    {completedTasks.map((task, index) => (
+                                        <ListItem key={task.recordID} disablePadding divider={index < completedTasks.length - 1}>
                                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                 <IconButton
                                                     edge="start"
@@ -314,16 +528,8 @@ export default function TasksPage() {
                                                 <ListItemText
                                                     primary={task.title}
                                                     secondary={
-                                                        <Box component="span" sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5 }}>
-                                                            {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                <Chip
-                                                                    label={projectNameMap.get(task.projectID)}
-                                                                    size="small"
-                                                                    color="primary"
-                                                                    variant="outlined"
-                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
-                                                                />
-                                                            )}
+                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
                                                             {task.dueDate && (() => {
                                                                 const { label, color } = formatDueDate(task.dueDate);
                                                                 return (
@@ -346,6 +552,15 @@ export default function TasksPage() {
                                                                     sx={{ height: 20, fontSize: '0.75rem' }}
                                                                 />
                                                             )}
+                                                            </Box>
+                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                <Chip
+                                                                    label={projectNameMap.get(task.projectID)}
+                                                                    size="small"
+                                                                    variant="outlined"
+                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                />
+                                                            )}
                                                         </Box>
                                                     }
                                                     secondaryTypographyProps={{ component: 'div' }}
@@ -360,6 +575,7 @@ export default function TasksPage() {
                                         </ListItem>
                                     ))}
                                 </List>
+                                </Paper>
                             </Collapse>
                         </>
                     )}
