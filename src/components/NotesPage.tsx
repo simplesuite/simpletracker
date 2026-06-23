@@ -62,7 +62,13 @@ export default function NotesPage() {
 
     const [searchQuery, setSearchQuery] = React.useState('');
     const [archivedExpanded, setArchivedExpanded] = React.useState(false);
-    const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(new Set());
+    const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(() => {
+        try {
+            const cached = localStorage.getItem('sharedByMeNoteIDs');
+            if (cached) return new Set(JSON.parse(cached) as string[]);
+        } catch {}
+        return new Set();
+    });
 
     // Fetch which of my notes are shared with others
     React.useEffect(() => {
@@ -72,6 +78,7 @@ export default function NotesPage() {
                 .map(n => n.recordID);
             if (ownedNoteIDs.length === 0) {
                 setSharedByMeNoteIDs(new Set());
+                localStorage.setItem('sharedByMeNoteIDs', '[]');
                 return;
             }
             const { data } = await supabase
@@ -79,7 +86,9 @@ export default function NotesPage() {
                 .select('noteID')
                 .in('noteID', ownedNoteIDs);
             if (data) {
-                setSharedByMeNoteIDs(new Set(data.map(r => r.noteID)));
+                const ids = data.map(r => r.noteID);
+                setSharedByMeNoteIDs(new Set(ids));
+                localStorage.setItem('sharedByMeNoteIDs', JSON.stringify(ids));
             }
         };
         fetchSharedByMe();

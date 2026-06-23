@@ -334,10 +334,35 @@ export default function ProjectDetailPage() {
     return (
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
-            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
                 <IconButton onClick={handleBack} aria-label="Back to projects">
                     <ArrowBackIcon />
                 </IconButton>
+                {/* Search bar */}
+                <TextField
+                    size="small"
+                    placeholder="Search notes & tasks..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    fullWidth
+                    sx={{ mb: 2 }}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon fontSize="small" color="action" />
+                                </InputAdornment>
+                            ),
+                            endAdornment: searchQuery ? (
+                                <InputAdornment position="end">
+                                    <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                                        <ClearIcon fontSize="small" />
+                                    </IconButton>
+                                </InputAdornment>
+                            ) : null,
+                        },
+                    }}
+                />
                 {isCreator && (
                     <>
                         <IconButton
@@ -416,7 +441,7 @@ export default function ProjectDetailPage() {
                 </>
             ) : (
                 <Box sx={{ mb: 2 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 600, fontStyle: project.name ? 'normal' : 'italic', color: project.name ? 'text.primary' : 'text.secondary' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 600, fontStyle: project.name ? 'normal' : 'italic', color: project.name ? 'text.primary' : 'text.secondary' }}>
                         {project.name || 'Untitled'}
                     </Typography>
                     {project.description && (
@@ -426,34 +451,6 @@ export default function ProjectDetailPage() {
                     )}
                 </Box>
             )}
-
-            {/* Search bar */}
-            <TextField
-                size="small"
-                placeholder="Search notes & tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                fullWidth
-                sx={{ mb: 2 }}
-                slotProps={{
-                    input: {
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon fontSize="small" color="action" />
-                            </InputAdornment>
-                        ),
-                        endAdornment: searchQuery ? (
-                            <InputAdornment position="end">
-                                <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
-                                    <ClearIcon fontSize="small" />
-                                </IconButton>
-                            </InputAdornment>
-                        ) : null,
-                    },
-                }}
-            />
-
-            <Divider sx={{ mb: 2 }} />
 
             {/* Notes in this project */}
             <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -538,8 +535,6 @@ export default function ProjectDetailPage() {
                     ))}
                 </Box>
             )}
-
-            <Divider sx={{ mb: 2 }} />
 
             {/* Tasks in this project */}
             <Box display="flex" alignItems="center" justifyContent="space-between">
