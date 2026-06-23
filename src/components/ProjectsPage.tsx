@@ -1,9 +1,6 @@
 import React from 'react';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -14,7 +11,6 @@ import Alert from '@mui/material/Alert';
 import PeopleIcon from '@mui/icons-material/People';
 import NotesIcon from '@mui/icons-material/Notes';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import FolderIcon from '@mui/icons-material/Folder';
 import { useNavigate } from 'react-router-dom';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
@@ -22,6 +18,7 @@ import { useTaskStore } from '../store/taskStore';
 import { useGlobalStore } from '../store/globalStore';
 import { useEntitlement } from '../lib/checkout';
 import { supabase } from '../lib/supabase';
+import Paper from "@mui/material/Paper";
 
 export default function ProjectsPage() {
     const projects = useProjectStore(s => s.projects);
@@ -109,9 +106,12 @@ export default function ProjectsPage() {
             {sortedProjects.length > 0 && (
                 <Box
                     sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: 1.5,
+                        columns: 2,
+                        columnGap: 1.5,
+                        '& > *': {
+                            breakInside: 'avoid',
+                            mb: 1.5,
+                        },
                     }}
                 >
                     {sortedProjects.map((project) => {
@@ -122,19 +122,18 @@ export default function ProjectsPage() {
                         const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
 
                         return (
-                            <Card
-                                key={project.recordID}
-                                variant="outlined"
-                                sx={{
-                                    borderRadius: 3,
-                                    borderColor: (isSharedToMe || isSharedByMe) ? 'info.main' : 'divider',
-                                }}
-                            >
-                                <CardActionArea
+                            <Paper 
+                                elevation={4}
+                                sx={{ 
+                                    borderRadius: 5, 
+                                    width: '100%',
+                                    cursor: 'pointer',
+                                    borderColor: (isSharedToMe || isSharedByMe) ? 'info.main' : 'divider'
+                                }} 
+                                    key={project.recordID}
                                     onClick={() => navigate(`/projects/${project.recordID}`)}
-                                    sx={{ height: '100%' }}
                                 >
-                                    <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                                    <Stack sx={{ width: '100%', p:1, py: 1.5 }}>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                             <Typography
                                                 variant="subtitle2"
@@ -171,26 +170,22 @@ export default function ProjectsPage() {
                                                 {project.description}
                                             </Typography>
                                         )}
-
-                                        <Stack direction="row" spacing={0.75} sx={{ mt: 'auto' }}>
+                                        <Stack direction="row" spacing={0.75}>
                                             <Chip
-                                                icon={<NotesIcon sx={{ fontSize: 14 }} />}
+                                                icon={<NotesIcon />}
                                                 label={noteCount}
                                                 size="small"
                                                 variant="outlined"
-                                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
                                             />
                                             <Chip
-                                                icon={<TaskAltIcon sx={{ fontSize: 14 }} />}
+                                                icon={<TaskAltIcon />}
                                                 label={taskCount}
                                                 size="small"
                                                 variant="outlined"
-                                                sx={{ height: 20, fontSize: '0.7rem', '& .MuiChip-label': { px: 0.5 } }}
                                             />
                                         </Stack>
-                                    </CardContent>
-                                </CardActionArea>
-                            </Card>
+                                    </Stack>
+                            </Paper>
                         );
                     })}
                 </Box>

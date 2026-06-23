@@ -1,9 +1,7 @@
 import React from 'react';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
+import Paper from '@mui/material/Paper';
 import Fab from '@mui/material/Fab';
 import AddIcon from '@mui/icons-material/Add';
 import Chip from '@mui/material/Chip';
@@ -62,7 +60,13 @@ export default function NotesPage() {
 
     const [searchQuery, setSearchQuery] = React.useState('');
     const [archivedExpanded, setArchivedExpanded] = React.useState(false);
-    const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(new Set());
+    const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(() => {
+        try {
+            const cached = localStorage.getItem('sharedByMeNoteIDs');
+            if (cached) return new Set(JSON.parse(cached) as string[]);
+        } catch {}
+        return new Set();
+    });
 
     // Fetch which of my notes are shared with others
     React.useEffect(() => {
@@ -72,6 +76,7 @@ export default function NotesPage() {
                 .map(n => n.recordID);
             if (ownedNoteIDs.length === 0) {
                 setSharedByMeNoteIDs(new Set());
+                localStorage.setItem('sharedByMeNoteIDs', '[]');
                 return;
             }
             const { data } = await supabase
@@ -79,7 +84,9 @@ export default function NotesPage() {
                 .select('noteID')
                 .in('noteID', ownedNoteIDs);
             if (data) {
-                setSharedByMeNoteIDs(new Set(data.map(r => r.noteID)));
+                const ids = data.map(r => r.noteID);
+                setSharedByMeNoteIDs(new Set(ids));
+                localStorage.setItem('sharedByMeNoteIDs', JSON.stringify(ids));
             }
         };
         fetchSharedByMe();
@@ -148,25 +155,26 @@ export default function NotesPage() {
     const renderNoteGrid = (noteList: Note[]) => (
         <Box
             sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 1.5,
+                columns: 2,
+                columnGap: 1.5,
+                '& > *': {
+                    breakInside: 'avoid',
+                    mb: 1.5,
+                },
             }}
         >
             {noteList.map((note) => (
-                <Card
+                <Paper
                     key={note.recordID}
-                    variant="outlined"
+                    elevation={4}
                     sx={{
                         borderColor: note.pinned ? 'primary.main' : 'divider',
-                        borderRadius: 3,
+                        borderRadius: 5,
+                        cursor: 'pointer',
                     }}
+                    onClick={() => navigate(`/notes/${note.recordID}`)}
                 >
-                    <CardActionArea
-                        onClick={() => navigate(`/notes/${note.recordID}`)}
-                        sx={{ height: '100%' }}
-                    >
-                        <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                    <Box sx={{ p: 1, py: 1.5 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                 {note.pinned && (
                                     <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
@@ -225,9 +233,8 @@ export default function NotesPage() {
                                     />
                                 )}
                             </Box>
-                        </CardContent>
-                    </CardActionArea>
-                </Card>
+                    </Box>
+                </Paper>
             ))}
         </Box>
     );

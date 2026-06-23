@@ -5,9 +5,7 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
+import Paper from '@mui/material/Paper';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -334,10 +332,35 @@ export default function ProjectDetailPage() {
     return (
         <Box sx={{ maxWidth: 600, mx: 'auto' }}>
             {/* Header with back button and menu */}
-            <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
                 <IconButton onClick={handleBack} aria-label="Back to projects">
                     <ArrowBackIcon />
                 </IconButton>
+                {/* Search bar */}
+                <TextField
+                    size="small"
+                    placeholder="Search notes & tasks..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    fullWidth
+                    sx={{ mb: 2 }}
+                    slotProps={{
+                        input: {
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <SearchIcon fontSize="small" color="action" />
+                                </InputAdornment>
+                            ),
+                            endAdornment: searchQuery ? (
+                                <InputAdornment position="end">
+                                    <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
+                                        <ClearIcon fontSize="small" />
+                                    </IconButton>
+                                </InputAdornment>
+                            ) : null,
+                        },
+                    }}
+                />
                 {isCreator && (
                     <>
                         <IconButton
@@ -416,7 +439,7 @@ export default function ProjectDetailPage() {
                 </>
             ) : (
                 <Box sx={{ mb: 2 }}>
-                    <Typography variant="h5" sx={{ fontWeight: 600, fontStyle: project.name ? 'normal' : 'italic', color: project.name ? 'text.primary' : 'text.secondary' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 600, fontStyle: project.name ? 'normal' : 'italic', color: project.name ? 'text.primary' : 'text.secondary' }}>
                         {project.name || 'Untitled'}
                     </Typography>
                     {project.description && (
@@ -426,34 +449,6 @@ export default function ProjectDetailPage() {
                     )}
                 </Box>
             )}
-
-            {/* Search bar */}
-            <TextField
-                size="small"
-                placeholder="Search notes & tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                fullWidth
-                sx={{ mb: 2 }}
-                slotProps={{
-                    input: {
-                        startAdornment: (
-                            <InputAdornment position="start">
-                                <SearchIcon fontSize="small" color="action" />
-                            </InputAdornment>
-                        ),
-                        endAdornment: searchQuery ? (
-                            <InputAdornment position="end">
-                                <IconButton size="small" onClick={() => setSearchQuery('')} aria-label="Clear search">
-                                    <ClearIcon fontSize="small" />
-                                </IconButton>
-                            </InputAdornment>
-                        ) : null,
-                    },
-                }}
-            />
-
-            <Divider sx={{ mb: 2 }} />
 
             {/* Notes in this project */}
             <Box display="flex" alignItems="center" justifyContent="space-between">
@@ -475,26 +470,27 @@ export default function ProjectDetailPage() {
             ) : (
                 <Box
                     sx={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, 1fr)',
-                        gap: 1.5,
+                        columns: 2,
+                        columnGap: 1.5,
                         mb: 2,
+                        '& > *': {
+                            breakInside: 'avoid',
+                            mb: 1.5,
+                        },
                     }}
                 >
                     {projectNotes.map((note) => (
-                        <Card
+                        <Paper
                             key={note.recordID}
-                            variant="outlined"
+                            elevation={4}
                             sx={{
                                 borderColor: note.pinned ? 'primary.main' : 'divider',
-                                borderRadius: 3,
+                                borderRadius: 5,
+                                cursor: 'pointer',
                             }}
+                            onClick={() => navigate(`/notes/${note.recordID}`)}
                         >
-                            <CardActionArea
-                                onClick={() => navigate(`/notes/${note.recordID}`)}
-                                sx={{ height: '100%' }}
-                            >
-                                <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ p: 1, py: 1.5 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                         {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
                                         {note.noteType === 'list'
@@ -532,14 +528,11 @@ export default function ProjectDetailPage() {
                                     <Typography variant="caption" color="text.secondary">
                                         {new Date(note.updatedAt).toLocaleDateString()}
                                     </Typography>
-                                </CardContent>
-                            </CardActionArea>
-                        </Card>
+                            </Box>
+                        </Paper>
                     ))}
                 </Box>
             )}
-
-            <Divider sx={{ mb: 2 }} />
 
             {/* Tasks in this project */}
             <Box display="flex" alignItems="center" justifyContent="space-between">

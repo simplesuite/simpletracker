@@ -20,8 +20,6 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Stack from '@mui/material/Stack';
 import Menu from '@mui/material/Menu';
-import Tooltip from '@mui/material/Tooltip';
-import Switch from '@mui/material/Switch';
 import Checkbox from '@mui/material/Checkbox';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -37,18 +35,10 @@ import ShareIcon from '@mui/icons-material/Share';
 import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
 import PushPinIcon from '@mui/icons-material/PushPin';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
-import FormatBoldIcon from '@mui/icons-material/FormatBold';
-import FormatItalicIcon from '@mui/icons-material/FormatItalic';
-import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import TitleIcon from '@mui/icons-material/Title';
-import CodeIcon from '@mui/icons-material/Code';
-import FormatQuoteIcon from '@mui/icons-material/FormatQuote';
-import LinkIcon from '@mui/icons-material/Link';
 import AddIcon from '@mui/icons-material/Add';
 import ChecklistIcon from '@mui/icons-material/Checklist';
 import NotesIcon from '@mui/icons-material/Notes';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MarkdownEditor from './MarkdownEditor';
 import { useNoteStore } from '../store/noteStore';
 import { useProjectStore } from '../store/projectStore';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
@@ -144,14 +134,6 @@ export default function NoteDetailPage() {
     const [titleError, setTitleError] = useState<string | null>(null);
     const [bodyError, setBodyError] = useState<string | null>(null);
     const [newItemText, setNewItemText] = useState('');
-    const [showPreview, setShowPreview] = useState(() => {
-        const stored = localStorage.getItem('notePreviewEnabled');
-        return stored === null ? true : stored === 'true';
-    });
-    const handlePreviewToggle = (checked: boolean) => {
-        setShowPreview(checked);
-        localStorage.setItem('notePreviewEnabled', String(checked));
-    };
     const [isShared, setIsShared] = useState(false);
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
@@ -181,7 +163,6 @@ export default function NoteDetailPage() {
 
     // Debounce timer ref
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     const isCreator = creatorID === currentUserID;
 
@@ -399,144 +380,6 @@ export default function NoteDetailPage() {
         debouncedSave({ projectID: value });
     };
 
-    // Insert markdown at cursor position
-    const insertMarkdown = (prefix: string, suffix: string = '', defaultText: string = '') => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = body.substring(start, end);
-        const insertText = selectedText || defaultText;
-        const newBody = body.substring(0, start) + prefix + insertText + suffix + body.substring(end);
-
-        if (newBody.length > 100000) {
-            setBodyError('Body must not exceed 100,000 characters');
-            return;
-        }
-
-        setBodyError(null);
-        setBody(newBody);
-        debouncedSave({ body: newBody });
-
-        // Restore focus and set cursor position after the inserted text
-        setTimeout(() => {
-            textarea.focus();
-            const cursorPos = start + prefix.length + insertText.length + suffix.length;
-            textarea.setSelectionRange(
-                selectedText ? cursorPos : start + prefix.length,
-                selectedText ? cursorPos : start + prefix.length + insertText.length
-            );
-        }, 0);
-    };
-
-    // Smart line continuation for markdown lists, checkboxes, quotes, etc.
-    const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key !== 'Enter') return;
-
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-
-        const cursorPos = textarea.selectionStart;
-        const selectionEnd = textarea.selectionEnd;
-
-        // Only act when there's no selection
-        if (cursorPos !== selectionEnd) return;
-
-        // Find the current line
-        const textBefore = body.substring(0, cursorPos);
-        const lastNewline = textBefore.lastIndexOf('\n');
-        const currentLine = textBefore.substring(lastNewline + 1);
-
-        // Match patterns: checkbox, bullet, numbered list, blockquote
-        const patterns: { regex: RegExp; getPrefix: (match: RegExpMatchArray) => string }[] = [
-            // Checked checkbox: - [x] or * [x]
-            { regex: /^(\s*[-*]\s*)\[x\]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
-            // Unchecked checkbox: - [ ] or * [ ]
-            { regex: /^(\s*[-*]\s*)\[ \]\s/, getPrefix: (m) => `${m[1]}[ ] ` },
-            // Numbered list: 1. or 1)
-            { regex: /^(\s*)(\d+)([.)]\s)/, getPrefix: (m) => `${m[1]}${parseInt(m[2]) + 1}${m[3]}` },
-            // Bullet list: - or * or +
-            { regex: /^(\s*[-*+]\s)/, getPrefix: (m) => m[1] },
-            // Blockquote: >
-            { regex: /^(\s*>\s)/, getPrefix: (m) => m[1] },
-        ];
-
-        for (const { regex, getPrefix } of patterns) {
-            const match = currentLine.match(regex);
-            if (match) {
-                const prefix = getPrefix(match);
-                const contentAfterPrefix = currentLine.substring(match[0].length);
-
-                // If the line is empty (just the prefix with no content), clear the prefix instead
-                if (contentAfterPrefix.trim() === '') {
-                    e.preventDefault();
-                    const lineStart = lastNewline + 1;
-                    const newBody = body.substring(0, lineStart) + '\n' + body.substring(cursorPos);
-                    setBody(newBody);
-                    debouncedSave({ body: newBody });
-                    setTimeout(() => {
-                        textarea.focus();
-                        const newCursor = lineStart + 1;
-                        textarea.setSelectionRange(newCursor, newCursor);
-                    }, 0);
-                    return;
-                }
-
-                // Insert newline + prefix
-                e.preventDefault();
-                const insertion = '\n' + prefix;
-                const newBody = body.substring(0, cursorPos) + insertion + body.substring(cursorPos);
-
-                if (newBody.length > 100000) {
-                    setBodyError('Body must not exceed 100,000 characters');
-                    return;
-                }
-
-                setBody(newBody);
-                debouncedSave({ body: newBody });
-                setTimeout(() => {
-                    textarea.focus();
-                    const newCursor = cursorPos + insertion.length;
-                    textarea.setSelectionRange(newCursor, newCursor);
-                }, 0);
-                return;
-            }
-        }
-    };
-
-    const insertLinePrefix = (prefix: string) => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = body.substring(start, end);
-
-        // If there's a selection spanning multiple lines, prefix each line
-        if (selectedText.includes('\n')) {
-            const lines = selectedText.split('\n').map(line => prefix + line);
-            const newText = lines.join('\n');
-            const newBody = body.substring(0, start) + newText + body.substring(end);
-            setBody(newBody);
-            debouncedSave({ body: newBody });
-            setTimeout(() => {
-                textarea.focus();
-                textarea.setSelectionRange(start, start + newText.length);
-            }, 0);
-        } else {
-            // Find the start of the current line
-            const lineStart = body.lastIndexOf('\n', start - 1) + 1;
-            const newBody = body.substring(0, lineStart) + prefix + body.substring(lineStart);
-            setBody(newBody);
-            debouncedSave({ body: newBody });
-            setTimeout(() => {
-                textarea.focus();
-                textarea.setSelectionRange(start + prefix.length, end + prefix.length);
-            }, 0);
-        }
-    };
-
     const handleArchive = async () => {
         if (!id) return;
         const success = archived ? await unarchiveNote(id) : await archiveNote(id);
@@ -694,14 +537,14 @@ export default function NoteDetailPage() {
     }
 
     return (
-        <Box sx={{ pb: 4, maxWidth: 600, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 600, mx: 'auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
                 <IconButton onClick={handleBack} aria-label="Back to notes">
                     <ArrowBackIcon />
                 </IconButton>
                 {/* Project assignment */}
-                <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <FormControl fullWidth size="small">
                     <InputLabel id="project-select-label">Project</InputLabel>
                     <Select
                         labelId="project-select-label"
@@ -788,111 +631,37 @@ export default function NoteDetailPage() {
                 sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
             />
 
-            {/* Markdown toolbar + editor + live preview (text notes only) */}
+            {/* Markdown live-preview editor (text notes only) */}
             {noteType !== 'list' && (
-                <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
-                    {/* Toolbar */}
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, p: 0.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover', alignItems: 'center' }}>
-                        <Tooltip title="Heading">
-                            <IconButton size="small" onClick={() => insertLinePrefix('## ')} disabled={!!offlineMessage && isShared}>
-                                <TitleIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Bold">
-                            <IconButton size="small" onClick={() => insertMarkdown('**', '**', 'bold')} disabled={!!offlineMessage && isShared}>
-                                <FormatBoldIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Italic">
-                            <IconButton size="small" onClick={() => insertMarkdown('*', '*', 'italic')} disabled={!!offlineMessage && isShared}>
-                                <FormatItalicIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Bullet list">
-                            <IconButton size="small" onClick={() => insertLinePrefix('- ')} disabled={!!offlineMessage && isShared}>
-                                <FormatListBulletedIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-                        <Tooltip title="Code">
-                            <IconButton size="small" onClick={() => insertMarkdown('`', '`', 'code')} disabled={!!offlineMessage && isShared}>
-                                <CodeIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Quote">
-                            <IconButton size="small" onClick={() => insertLinePrefix('> ')} disabled={!!offlineMessage && isShared}>
-                                <FormatQuoteIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Link">
-                            <IconButton size="small" onClick={() => insertMarkdown('[', '](url)', 'link text')} disabled={!!offlineMessage && isShared}>
-                                <LinkIcon fontSize="small" />
-                            </IconButton>
-                        </Tooltip>
-                        <Box sx={{ flex: 1 }} />
-                        <Tooltip title={showPreview ? 'Hide preview' : 'Show preview'}>
-                            <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 0.5 }}>
-                                <Typography variant="caption" color="text.secondary">Preview</Typography>
-                                <Switch size="small" checked={showPreview} onChange={(e) => handlePreviewToggle(e.target.checked)} />
-                            </Stack>
-                        </Tooltip>
-                    </Box>
-
-                    {/* Textarea */}
-                    <TextField
-                        fullWidth
-                        multiline
-                        minRows={12}
-                        placeholder="Write your note in markdown..."
+                <Box sx={{
+                    border: { xs: 'none', sm: '1px solid' },
+                    borderColor: 'divider',
+                    borderRadius: { xs: 0, sm: 1 },
+                    mb: 2,
+                    mx: { xs: -2, sm: 0 },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    overflow: 'hidden',
+                }}>
+                    <MarkdownEditor
                         value={body}
-                        onChange={handleBodyChange}
-                        onKeyDown={handleBodyKeyDown}
-                        error={!!bodyError}
-                        helperText={bodyError || `${body.length}/100,000`}
-                        disabled={!!offlineMessage && isShared}
-                        inputRef={textareaRef}
-                        sx={{
-                            '& .MuiOutlinedInput-root': { borderRadius: 0 },
-                            '& fieldset': { border: 'none' },
+                        onChange={(newBody) => {
+                            if (newBody.length > 100000) {
+                                setBodyError('Body must not exceed 100,000 characters');
+                                return;
+                            }
+                            setBodyError(null);
+                            setBody(newBody);
+                            debouncedSave({ body: newBody });
                         }}
+                        placeholder="Write your note in markdown..."
+                        disabled={!!offlineMessage && isShared}
                     />
-
-                    {showPreview && body && (
-                        <>
-                            <Divider />
-                            <Box
-                                sx={{
-                                    p: 2,
-                                    minHeight: 100,
-                                    '& h1, & h2, & h3, & h4, & h5, & h6': { mt: 2, mb: 1 },
-                                    '& p': { mb: 1 },
-                                    '& ul, & ol': { pl: 3 },
-                                    '& blockquote': {
-                                        borderLeft: '4px solid',
-                                        borderColor: 'divider',
-                                        pl: 2,
-                                        ml: 0,
-                                        color: 'text.secondary',
-                                    },
-                                    '& code': {
-                                        bgcolor: 'action.hover',
-                                        px: 0.5,
-                                        borderRadius: 0.5,
-                                        fontFamily: 'monospace',
-                                    },
-                                    '& pre': {
-                                        bgcolor: 'action.hover',
-                                        p: 2,
-                                        borderRadius: 1,
-                                        overflow: 'auto',
-                                    },
-                                    '& a': { color: 'primary.main' },
-                                    '& input[type="checkbox"]': { mr: 1 },
-                                }}
-                            >
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                            </Box>
-                        </>
+                    {bodyError && (
+                        <Typography variant="caption" color="error" sx={{ px: 2, py: 0.5 }}>
+                            {bodyError}
+                        </Typography>
                     )}
                 </Box>
             )}
