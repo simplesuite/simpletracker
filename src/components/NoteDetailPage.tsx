@@ -174,8 +174,24 @@ export default function NoteDetailPage() {
     // Selected list item (shows delete button)
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
-    // Completed items collapsed state
-    const [completedCollapsed, setCompletedCollapsed] = useState(false);
+    // Completed items collapsed state (persisted in localStorage)
+    const [completedCollapsed, setCompletedCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem('noteListCompletedCollapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleCompletedCollapsed = () => {
+        setCompletedCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem('noteListCompletedCollapsed', String(next));
+            } catch { /* ignore */ }
+            return next;
+        });
+    };
 
     // Newly added item that should receive focus
     const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
@@ -819,7 +835,7 @@ export default function NoteDetailPage() {
                             <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
                                 <Box
                                     sx={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer' }}
-                                    onClick={() => setCompletedCollapsed((v) => !v)}
+                                    onClick={() => toggleCompletedCollapsed()}
                                 >
                                     <IconButton size="small" aria-label={completedCollapsed ? 'Expand completed items' : 'Collapse completed items'}>
                                         {completedCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
