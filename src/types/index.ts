@@ -16,6 +16,7 @@ export interface NoteListItem {
     noteID: string;
     title: string;
     isCompleted: boolean;
+    indexOrder: number;
     createdAt: number;
     updatedAt: number;
 }

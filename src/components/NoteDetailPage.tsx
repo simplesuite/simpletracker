@@ -25,9 +25,11 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Collapse from '@mui/material/Collapse';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import UnarchiveIcon from '@mui/icons-material/Unarchive';
@@ -38,6 +40,9 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import ChecklistIcon from '@mui/icons-material/Checklist';
 import NotesIcon from '@mui/icons-material/Notes';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import MarkdownEditor from './MarkdownEditor';
 import { useNoteStore } from '../store/noteStore';
 import { useProjectStore } from '../store/projectStore';
@@ -50,7 +55,7 @@ import { useEntitlement } from '../lib/checkout';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
 /** Inline editable text field that only persists on blur (not on every keystroke). */
-function ListItemTextField({ value, onSave }: { value: string; onSave: (newValue: string) => void }) {
+function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
     const [localValue, setLocalValue] = useState(value);
     const localRef = useRef(localValue);
     localRef.current = localValue;
@@ -74,6 +79,7 @@ function ListItemTextField({ value, onSave }: { value: string; onSave: (newValue
             variant="standard"
             fullWidth
             multiline
+            autoFocus={autoFocus}
             value={localValue}
             onChange={(e) => {
                 if (e.target.value.length <= 255) {
@@ -115,6 +121,7 @@ export default function NoteDetailPage() {
     const toggleListItem = useNoteStore((s) => s.toggleListItem);
     const updateListItemTitle = useNoteStore((s) => s.updateListItemTitle);
     const deleteListItem = useNoteStore((s) => s.deleteListItem);
+    const reorderListItems = useNoteStore((s) => s.reorderListItems);
 
     const projects = useProjectStore((s) => s.projects);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
@@ -133,7 +140,6 @@ export default function NoteDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
     const [bodyError, setBodyError] = useState<string | null>(null);
-    const [newItemText, setNewItemText] = useState('');
     const [isShared, setIsShared] = useState(false);
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
@@ -160,6 +166,43 @@ export default function NoteDetailPage() {
     const [completedItemsMenuAnchor, setCompletedItemsMenuAnchor] = useState<null | HTMLElement>(null);
     const [deleteCompletedItemsDialogOpen, setDeleteCompletedItemsDialogOpen] = useState(false);
     const [deletingCompletedItems, setDeletingCompletedItems] = useState(false);
+
+    // Drag-to-reorder state
+    const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+    const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+
+    // Selected list item (shows delete button)
+    const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+    // Completed items collapsed state (persisted in localStorage)
+    const [completedCollapsed, setCompletedCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem('noteListCompletedCollapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleCompletedCollapsed = () => {
+        setCompletedCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem('noteListCompletedCollapsed', String(next));
+            } catch { /* ignore */ }
+            return next;
+        });
+    };
+
+    // Newly added item that should receive focus
+    const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+
+    // Clear focused item after it receives focus
+    useEffect(() => {
+        if (focusedItemId) {
+            const timer = setTimeout(() => setFocusedItemId(null), 100);
+            return () => clearTimeout(timer);
+        }
+    }, [focusedItemId]);
 
     // Debounce timer ref
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -486,10 +529,10 @@ export default function NoteDetailPage() {
     // ─── List Item Handlers ─────────────────────────────────────────────
 
     const handleAddListItem = async () => {
-        if (!id || !newItemText.trim()) return;
-        const item = await addListItem(id, newItemText.trim());
+        if (!id) return;
+        const item = await addListItem(id, '');
         if (item) {
-            setNewItemText('');
+            setFocusedItemId(item.recordID);
         } else {
             setError(useNoteStore.getState().error || 'Failed to add item.');
         }
@@ -515,6 +558,56 @@ export default function NoteDetailPage() {
 
     const handleListItemTitleSave = (itemID: string, newTitle: string) => {
         updateListItemTitle(itemID, newTitle);
+    };
+
+    // ─── Drag-to-Reorder Handlers ──────────────────────────────────────
+
+    const handleDragStart = (e: React.DragEvent, itemID: string) => {
+        setDraggedItemId(itemID);
+        e.dataTransfer.effectAllowed = 'move';
+        // Make the drag image slightly transparent
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '0.5';
+        }
+    };
+
+    const handleDragEnd = (e: React.DragEvent) => {
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.style.opacity = '1';
+        }
+        setDraggedItemId(null);
+        setDragOverItemId(null);
+    };
+
+    const handleDragOver = (e: React.DragEvent, itemID: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (itemID !== draggedItemId) {
+            setDragOverItemId(itemID);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent, targetItemID: string) => {
+        e.preventDefault();
+        if (!draggedItemId || draggedItemId === targetItemID || !id) return;
+
+        const uncompleted = currentListItems.filter((i) => !i.isCompleted);
+        const draggedIndex = uncompleted.findIndex((i) => i.recordID === draggedItemId);
+        const targetIndex = uncompleted.findIndex((i) => i.recordID === targetItemID);
+
+        if (draggedIndex === -1 || targetIndex === -1) return;
+
+        const reordered = [...uncompleted];
+        const [removed] = reordered.splice(draggedIndex, 1);
+        reordered.splice(targetIndex, 0, removed);
+
+        // Combine reordered uncompleted with completed items
+        const completed = currentListItems.filter((i) => i.isCompleted);
+        const allReordered = [...reordered, ...completed];
+
+        reorderListItems(id, allReordered);
+        setDraggedItemId(null);
+        setDragOverItemId(null);
     };
 
     if (loading) {
@@ -642,7 +735,7 @@ export default function NoteDetailPage() {
                     display: 'flex',
                     flexDirection: 'column',
                     flex: 1,
-                    overflow: 'hidden',
+                    overflow: { xs: 'visible', sm: 'hidden' },
                 }}>
                     <MarkdownEditor
                         value={body}
@@ -674,19 +767,40 @@ export default function NoteDetailPage() {
                             <ListItem
                                 key={item.recordID}
                                 disablePadding
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, item.recordID)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => handleDragOver(e, item.recordID)}
+                                onDrop={(e) => handleDrop(e, item.recordID)}
+                                onClick={() => setSelectedItemId(item.recordID)}
                                 secondaryAction={
-                                    <IconButton
-                                        edge="end"
-                                        size="small"
-                                        onClick={() => handleDeleteListItem(item.recordID)}
-                                        aria-label="Delete item"
-                                    >
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
+                                    selectedItemId === item.recordID ? (
+                                        <IconButton
+                                            edge="end"
+                                            size="small"
+                                            onClick={() => handleDeleteListItem(item.recordID)}
+                                            aria-label="Delete item"
+                                        >
+                                            <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                    ) : undefined
                                 }
-                                sx={{ pr: 5, alignItems: 'flex-start' }}
+                                sx={{
+                                    pr: 5,
+                                    alignItems: 'flex-start',
+                                    borderTop: dragOverItemId === item.recordID && draggedItemId !== item.recordID
+                                        ? '2px solid'
+                                        : '2px solid transparent',
+                                    borderColor: dragOverItemId === item.recordID && draggedItemId !== item.recordID
+                                        ? 'primary.main'
+                                        : 'transparent',
+                                    transition: 'border-color 0.15s ease',
+                                }}
                             >
-                                <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                                <ListItemIcon sx={{ minWidth: 28, mt: 1.5, cursor: 'grab', touchAction: 'none' }}>
+                                    <DragIndicatorIcon fontSize="small" color="action" />
+                                </ListItemIcon>
+                                <ListItemIcon sx={{ minWidth: 28, mt: 0.5 }}>
                                     <Checkbox
                                         edge="start"
                                         checked={false}
@@ -697,42 +811,39 @@ export default function NoteDetailPage() {
                                 <ListItemTextField
                                     value={item.title}
                                     onSave={(newTitle) => handleListItemTitleSave(item.recordID, newTitle)}
+                                    autoFocus={focusedItemId === item.recordID}
                                 />
                             </ListItem>
                         ))}
                     </List>
 
-                    {/* Add new item input */}
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, mt: 1, pl: 1 }}>
-                        <IconButton size="small" color="primary" onClick={handleAddListItem} aria-label="Add item" sx={{ mt: 0.5 }}>
-                            <AddIcon fontSize="small" />
-                        </IconButton>
-                        <TextField
-                            variant="standard"
-                            fullWidth
-                            multiline
-                            placeholder="Add item..."
-                            value={newItemText}
-                            onChange={(e) => setNewItemText(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleAddListItem();
-                                }
-                            }}
-                            inputProps={{ maxLength: 255 }}
-                            sx={{ '& .MuiInput-input': { py: 0.5 } }}
-                        />
-                    </Box>
+                    {/* Add new item button */}
+                    <Button
+                        fullWidth
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddListItem}
+                        sx={{ mt: 1, ml: 1, textTransform: 'none' }}
+                    >
+                        Add item
+                    </Button>
 
                     {/* Completed items */}
                     {currentListItems.filter((i) => i.isCompleted).length > 0 && (
                         <>
                             <Divider sx={{ my: 1.5 }} />
                             <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-                                    Completed ({currentListItems.filter((i) => i.isCompleted).length})
-                                </Typography>
+                                <Box
+                                    sx={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer' }}
+                                    onClick={() => toggleCompletedCollapsed()}
+                                >
+                                    <IconButton size="small" aria-label={completedCollapsed ? 'Expand completed items' : 'Collapse completed items'}>
+                                        {completedCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                                    </IconButton>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Completed ({currentListItems.filter((i) => i.isCompleted).length})
+                                    </Typography>
+                                </Box>
                                 <IconButton
                                     size="small"
                                     onClick={(e) => setCompletedItemsMenuAnchor(e.currentTarget)}
@@ -756,20 +867,24 @@ export default function NoteDetailPage() {
                                     </MenuItem>
                                 </Menu>
                             </Box>
+                            <Collapse in={!completedCollapsed}>
                             <List dense disablePadding>
                                 {currentListItems.filter((i) => i.isCompleted).map((item) => (
                                     <ListItem
                                         key={item.recordID}
                                         disablePadding
+                                        onClick={() => setSelectedItemId(item.recordID)}
                                         secondaryAction={
-                                            <IconButton
-                                                edge="end"
-                                                size="small"
-                                                onClick={() => handleDeleteListItem(item.recordID)}
-                                                aria-label="Delete item"
-                                            >
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
+                                            selectedItemId === item.recordID ? (
+                                                <IconButton
+                                                    edge="end"
+                                                    size="small"
+                                                    onClick={() => handleDeleteListItem(item.recordID)}
+                                                    aria-label="Delete item"
+                                                >
+                                                    <CloseIcon fontSize="small" />
+                                                </IconButton>
+                                            ) : undefined
                                         }
                                         sx={{ pr: 5, alignItems: 'flex-start' }}
                                     >
@@ -797,6 +912,7 @@ export default function NoteDetailPage() {
                                     </ListItem>
                                 ))}
                             </List>
+                            </Collapse>
                         </>
                     )}
                 </Box>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -319,6 +319,70 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
     onChangeRef.current = onChange;
     const currentTheme = useGlobalStore((s) => s.themeAtom);
 
+    // Track editor focus for mobile toolbar visibility
+    const [editorFocused, setEditorFocused] = useState(false);
+    const [toolbarBottom, setToolbarBottom] = useState(0);
+    const toolbarRef = useRef<HTMLDivElement>(null);
+
+    // Detect mobile (touch device with narrow viewport)
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 600px) and (pointer: coarse)').matches;
+
+    // Bottom nav height (56px) + safe area inset
+    const BOTTOM_NAV_HEIGHT = 56;
+    const TOOLBAR_HEIGHT = 48;
+
+    // Add bottom padding to CM content area so text doesn't hide behind the fixed toolbar
+    useEffect(() => {
+        if (!isMobile) return;
+        const view = viewRef.current;
+        if (!view) return;
+        const contentEl = view.contentDOM;
+        if (editorFocused) {
+            contentEl.style.paddingBottom = `${TOOLBAR_HEIGHT}px`;
+        } else {
+            contentEl.style.paddingBottom = '';
+        }
+    }, [isMobile, editorFocused]);
+
+    // Position toolbar above the virtual keyboard using visualViewport
+    useEffect(() => {
+        if (!isMobile || !editorFocused) return;
+
+        const viewport = window.visualViewport;
+        if (!viewport) return;
+
+        // Parse safe-area-inset-bottom from CSS env
+        const getSafeAreaBottom = () => {
+            const div = document.createElement('div');
+            div.style.position = 'fixed';
+            div.style.bottom = '0';
+            div.style.paddingBottom = 'env(safe-area-inset-bottom, 0px)';
+            document.body.appendChild(div);
+            const safeArea = parseInt(getComputedStyle(div).paddingBottom, 10) || 0;
+            document.body.removeChild(div);
+            return safeArea;
+        };
+
+        const minBottom = BOTTOM_NAV_HEIGHT + getSafeAreaBottom();
+
+        const updatePosition = () => {
+            // The visual viewport height shrinks when the keyboard is open.
+            // Position the toolbar at the bottom of the visible area.
+            const offsetTop = viewport.offsetTop;
+            const bottom = window.innerHeight - (viewport.height + offsetTop);
+            setToolbarBottom(Math.max(bottom, minBottom));
+        };
+
+        updatePosition();
+        viewport.addEventListener('resize', updatePosition);
+        viewport.addEventListener('scroll', updatePosition);
+
+        return () => {
+            viewport.removeEventListener('resize', updatePosition);
+            viewport.removeEventListener('scroll', updatePosition);
+        };
+    }, [isMobile, editorFocused]);
+
     // Create editor on mount
     useEffect(() => {
         if (!containerRef.current) return;
@@ -326,6 +390,9 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
         const updateListener = EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
                 onChangeRef.current(update.state.doc.toString());
+            }
+            if (update.focusChanged) {
+                setEditorFocused(update.view.hasFocus);
             }
         });
 
@@ -380,11 +447,31 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
 
     // ─── Toolbar helpers ─────────────────────────────────────────────────
 
-    /** Wrap selection (or insert placeholder) with prefix/suffix */
+    /** Expand to word boundaries if cursor is inside a word with no selection */
+    const getWordRange = (view: EditorView, from: number, to: number): { from: number; to: number } => {
+        if (from !== to) return { from, to }; // already has a selection
+        const doc = view.state.doc;
+        const line = doc.lineAt(from);
+        const lineText = line.text;
+        const offset = from - line.from;
+
+        // Find word boundaries (letters, digits, underscores, hyphens)
+        let start = offset;
+        let end = offset;
+        while (start > 0 && /\w/.test(lineText[start - 1])) start--;
+        while (end < lineText.length && /\w/.test(lineText[end])) end++;
+
+        // Only expand if cursor is actually inside a word
+        if (start === end) return { from, to };
+        return { from: line.from + start, to: line.from + end };
+    };
+
+    /** Wrap selection (or current word, or insert placeholder) with prefix/suffix */
     const wrapSelection = (prefix: string, suffix: string, placeholder: string = '') => {
         const view = viewRef.current;
         if (!view || disabled) return;
-        const { from, to } = view.state.selection.main;
+        const { from: rawFrom, to: rawTo } = view.state.selection.main;
+        const { from, to } = getWordRange(view, rawFrom, rawTo);
         const selected = view.state.sliceDoc(from, to);
         const insert = selected || placeholder;
         view.dispatch({
@@ -408,8 +495,33 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
 
     return (
         <>
-            {/* Toolbar */}
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, p: 0.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover', alignItems: 'center' }}>
+            {/* Toolbar — on mobile, only show when keyboard is up (editor focused), positioned above keyboard */}
+            <Box
+                ref={toolbarRef}
+                sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 0.5,
+                    p: 0.5,
+                    borderBottom: isMobile ? 'none' : '1px solid',
+                    borderTop: isMobile ? '1px solid' : 'none',
+                    borderColor: 'divider',
+                    bgcolor: 'background.paper',
+                    alignItems: 'center',
+                    // Mobile: fixed above keyboard, only shown when focused
+                    ...(isMobile
+                        ? {
+                              position: 'fixed',
+                              left: 0,
+                              right: 0,
+                              bottom: `${toolbarBottom}px`,
+                              zIndex: 1300,
+                              display: editorFocused ? 'flex' : 'none',
+                              boxShadow: '0 -2px 8px rgba(0,0,0,0.15)',
+                          }
+                        : {}),
+                }}
+            >
                 <Tooltip title="Heading">
                     <IconButton size="small" onClick={() => insertLinePrefix('## ')} disabled={disabled}>
                         <TitleIcon fontSize="small" />
@@ -456,7 +568,12 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
             {/* Editor */}
             <div
                 ref={containerRef}
-                style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+                style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0,
+                }}
             />
         </>
     );
