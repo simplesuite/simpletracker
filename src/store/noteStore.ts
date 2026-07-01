@@ -41,6 +41,7 @@ interface NoteStore {
     toggleListItem: (itemID: string) => Promise<boolean>;
     updateListItemTitle: (itemID: string, title: string) => Promise<boolean>;
     deleteListItem: (itemID: string) => Promise<boolean>;
+    reorderListItems: (noteID: string, reorderedItems: NoteListItem[]) => Promise<boolean>;
 }
 
 export const useNoteStore = create<NoteStore>((set, get) => ({
@@ -788,7 +789,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 .from('notes_listitems')
                 .select('*')
                 .eq('noteID', noteID)
-                .order('createdAt', { ascending: true });
+                .order('indexOrder', { ascending: true });
 
             if (error) {
                 set({ error: error.message });
@@ -805,9 +806,6 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     },
 
     addListItem: async (noteID, title) => {
-        if (title.trim().length === 0) {
-            return null;
-        }
         if (title.length > 255) {
             set({ error: 'List item must not exceed 255 characters' });
             return null;
@@ -842,6 +840,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             noteID,
             title: title.trim(),
             isCompleted: false,
+            indexOrder: existing.length + 1,
             createdAt: now,
             updatedAt: now,
         };
@@ -1115,6 +1114,69 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         } else {
             // Non-shared: use offline support
             await deleteWithOfflineSupport('noteListItem', 'notes_listitems', itemID);
+        }
+
+        return true;
+    },
+
+    reorderListItems: async (noteID, reorderedItems) => {
+        // Check if the parent note is shared
+        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+        const allNotes = [...get().notes, ...get().sharedNotes];
+        const parentNote = allNotes.find((n) => n.recordID === noteID);
+        const sharedNoteIDs = new Set(get().sharedNotes.map((n) => n.recordID));
+        const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+        const shared = parentNote
+            ? isNoteSharedLocally(parentNote.recordID, parentNote.creatorID, parentNote.projectID, currentUserID, sharedNoteIDs, sharedProjectIDs)
+            : false;
+
+        if (shared && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
+        }
+
+        // Assign new indexOrder values based on array position
+        const updatedItems = reorderedItems.map((item, index) => ({
+            ...item,
+            indexOrder: index + 1,
+        }));
+
+        // Optimistically update local state
+        set((state) => ({
+            listItems: {
+                ...state.listItems,
+                [noteID]: updatedItems,
+            },
+            error: null,
+        }));
+
+        // Persist each item's new indexOrder
+        const now = Date.now();
+        if (shared) {
+            try {
+                await ensureSession();
+                for (const item of updatedItems) {
+                    const { error } = await supabase
+                        .from('notes_listitems')
+                        .update({ indexOrder: item.indexOrder, updatedAt: now })
+                        .eq('recordID', item.recordID);
+
+                    if (error) {
+                        set({ error: error.message });
+                        return false;
+                    }
+                }
+            } catch (err: any) {
+                set({ error: err.message || 'Failed to reorder items' });
+                return false;
+            }
+        } else {
+            for (const item of updatedItems) {
+                await updateWithOfflineSupport('noteListItem', 'notes_listitems', item.recordID, {
+                    indexOrder: item.indexOrder,
+                    updatedAt: now,
+                });
+            }
         }
 
         return true;

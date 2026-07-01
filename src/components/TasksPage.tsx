@@ -42,6 +42,7 @@ export default function TasksPage() {
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
     const deleteTask = useTaskStore((s) => s.deleteTask);
+    const updateTask = useTaskStore((s) => s.updateTask);
     const fetchTasks = useTaskStore((s) => s.fetchTasks);
     const projects = useProjectStore((s) => s.projects);
     const navigate = useNavigate();
@@ -137,6 +138,8 @@ export default function TasksPage() {
     const [dueTodayExpanded, setDueTodayExpanded] = useState(true);
     const [upcomingExpanded, setUpcomingExpanded] = useState(true);
     const [noDueDateExpanded, setNoDueDateExpanded] = useState(true);
+    const [overdueMenuAnchor, setOverdueMenuAnchor] = useState<null | HTMLElement>(null);
+    const [rescheduling, setRescheduling] = useState(false);
 
     const handleFabClick = async () => {
         const task = await createBlankTask();
@@ -150,6 +153,18 @@ export default function TasksPage() {
             await deleteTask(task.recordID);
         }
         setDeleting(false);
+    };
+
+    const handleRescheduleOverdueToToday = async () => {
+        setOverdueMenuAnchor(null);
+        setRescheduling(true);
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayTimestamp = todayStart.getTime();
+        for (const task of overdueTasks) {
+            await updateTask(task.recordID, { dueDate: todayTimestamp });
+        }
+        setRescheduling(false);
     };
 
     const formatDueDate = (dueDate: number): { label: string; color: 'default' | 'warning' | 'error' } => {
@@ -223,22 +238,47 @@ export default function TasksPage() {
                             {overdueTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setOverdueExpanded(!overdueExpanded)}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            cursor: 'pointer',
                                             mb: 0.5,
                                             px: 1,
                                             py: 0.5,
                                             borderRadius: 1,
-                                            '&:hover': { opacity: 0.7 },
                                         }}
                                     >
-                                        {overdueExpanded ? <ExpandLessIcon fontSize="small" color="error" /> : <ExpandMoreIcon fontSize="small" color="error" />}
-                                        <Typography variant="body2" color="error" sx={{ ml: 0.5, fontWeight: 600 }}>
-                                            Overdue ({overdueTasks.length})
-                                        </Typography>
+                                        <Box
+                                            onClick={() => setOverdueExpanded(!overdueExpanded)}
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                cursor: 'pointer',
+                                                flex: 1,
+                                                '&:hover': { opacity: 0.7 },
+                                            }}
+                                        >
+                                            {overdueExpanded ? <ExpandLessIcon fontSize="small" color="error" /> : <ExpandMoreIcon fontSize="small" color="error" />}
+                                            <Typography variant="body2" color="error" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                                Overdue ({overdueTasks.length})
+                                            </Typography>
+                                        </Box>
+                                        <IconButton
+                                            size="small"
+                                            onClick={(e) => setOverdueMenuAnchor(e.currentTarget)}
+                                            aria-label="Overdue tasks options"
+                                            disabled={rescheduling}
+                                        >
+                                            <MoreVertIcon fontSize="small" />
+                                        </IconButton>
+                                        <Menu
+                                            anchorEl={overdueMenuAnchor}
+                                            open={Boolean(overdueMenuAnchor)}
+                                            onClose={() => setOverdueMenuAnchor(null)}
+                                        >
+                                            <MenuItem onClick={handleRescheduleOverdueToToday} disabled={rescheduling}>
+                                                Reschedule all to today
+                                            </MenuItem>
+                                        </Menu>
                                     </Box>
                                     <Collapse in={overdueExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>

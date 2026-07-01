@@ -27,7 +27,11 @@ import CircularProgress from '@mui/material/CircularProgress';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import DeleteIcon from '@mui/icons-material/Delete';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import AddIcon from '@mui/icons-material/Add';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReplayIcon from '@mui/icons-material/Replay';
 import Grid from '@mui/material/Grid';
@@ -593,46 +597,76 @@ export default function TaskDetailPage() {
 
                 {isRecurring && (
                     <Box sx={{ pl: 2, mb: 2 }}>
-                        <Grid container spacing={2}>
+                        <Grid container spacing={2} alignItems="center">
+                            {/* Interval with up/down buttons */}
                             <Grid size={{ xs: 12, sm: 4 }}>
-                                <TextField
-                                    label="Interval"
-                                    type="number"
-                                    value={recurrenceInterval}
-                                    onChange={(e) => handleRecurrenceIntervalChange(e.target.value)}
-                                    inputProps={{ min: 1, max: 365 }}
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                    Interval
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                            if (recurrenceInterval > 1) {
+                                                handleRecurrenceIntervalChange(String(recurrenceInterval - 1));
+                                            }
+                                        }}
+                                        disabled={(isShared && !isOnline) || recurrenceInterval <= 1}
+                                        aria-label="Decrease interval"
+                                    >
+                                        <KeyboardArrowDownIcon />
+                                    </IconButton>
+                                    <Typography variant="h6" sx={{ minWidth: 32, textAlign: 'center' }}>
+                                        {recurrenceInterval}
+                                    </Typography>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => {
+                                            if (recurrenceInterval < 365) {
+                                                handleRecurrenceIntervalChange(String(recurrenceInterval + 1));
+                                            }
+                                        }}
+                                        disabled={(isShared && !isOnline) || recurrenceInterval >= 365}
+                                        aria-label="Increase interval"
+                                    >
+                                        <KeyboardArrowUpIcon />
+                                    </IconButton>
+                                </Box>
+                            </Grid>
+                            {/* Unit as button group */}
+                            <Grid size={{ xs: 12, sm: 4 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                    Unit
+                                </Typography>
+                                <ToggleButtonGroup
+                                    value={recurrenceUnit}
+                                    exclusive
+                                    onChange={(_, val) => { if (val) handleRecurrenceUnitChange(val); }}
+                                    size="small"
                                     fullWidth
                                     disabled={isShared && !isOnline}
-                                />
+                                >
+                                    <ToggleButton value="days">Days</ToggleButton>
+                                    <ToggleButton value="weeks">Weeks</ToggleButton>
+                                    <ToggleButton value="months">Months</ToggleButton>
+                                </ToggleButtonGroup>
                             </Grid>
+                            {/* Anchor as button group */}
                             <Grid size={{ xs: 12, sm: 4 }}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Unit</InputLabel>
-                                    <Select
-                                        value={recurrenceUnit}
-                                        onChange={(e) => handleRecurrenceUnitChange(e.target.value as 'days' | 'weeks' | 'months')}
-                                        label="Unit"
-                                        disabled={isShared && !isOnline}
-                                    >
-                                        <MenuItem value="days">Days</MenuItem>
-                                        <MenuItem value="weeks">Weeks</MenuItem>
-                                        <MenuItem value="months">Months</MenuItem>
-                                    </Select>
-                                </FormControl>
-                            </Grid>
-                            <Grid size={{ xs: 12, sm: 4 }}>
-                                <FormControl fullWidth>
-                                    <InputLabel>Anchor</InputLabel>
-                                    <Select
-                                        value={recurrenceAnchor}
-                                        onChange={(e) => handleRecurrenceAnchorChange(e.target.value as 'due_date' | 'completed_date')}
-                                        label="Anchor"
-                                        disabled={isShared && !isOnline}
-                                    >
-                                        <MenuItem value="due_date">Due Date</MenuItem>
-                                        <MenuItem value="completed_date">Completed Date</MenuItem>
-                                    </Select>
-                                </FormControl>
+                                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                    Repeated from
+                                </Typography>
+                                <ToggleButtonGroup
+                                    value={recurrenceAnchor}
+                                    exclusive
+                                    onChange={(_, val) => { if (val) handleRecurrenceAnchorChange(val); }}
+                                    size="small"
+                                    fullWidth
+                                    disabled={isShared && !isOnline}
+                                >
+                                    <ToggleButton value="due_date">Due Date</ToggleButton>
+                                    <ToggleButton value="completed_date">Completed</ToggleButton>
+                                </ToggleButtonGroup>
                             </Grid>
                         </Grid>
                     </Box>
