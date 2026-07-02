@@ -36,11 +36,8 @@ export function validateTaskTitle(title: string): ValidationResult {
  */
 export function validateSubtaskTitle(title: string): ValidationResult {
     const trimmedLength = title.trim().length;
-    if (trimmedLength < 1) {
-        return { valid: false, error: 'Subtask title must be between 1 and 255 characters' };
-    }
     if (trimmedLength > 255) {
-        return { valid: false, error: 'Subtask title must be between 1 and 255 characters' };
+        return { valid: false, error: 'Subtask title must not exceed 255 characters' };
     }
     return { valid: true };
 }

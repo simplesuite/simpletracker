@@ -5,7 +5,7 @@
  * and drains the pending mutation queue when connectivity returns.
  */
 
-import { supabase, SUPABASE_URL } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
 import { getAll, dequeue, pendingCount, enqueue, hasPendingInsert } from './offlineQueue';
 import { withNetworkTimeout } from './networkUtils';
 import { useOfflineStore } from '../store/offlineStore';
@@ -47,11 +47,12 @@ export async function verifyConnectivity(): Promise<boolean> {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
 
-        // Ping Supabase auth health endpoint (no auth required, no console errors)
+        // Ping Supabase auth health endpoint with apikey header
         await fetch(
             `${SUPABASE_URL}/auth/v1/health`,
             {
                 method: 'GET',
+                headers: { 'apikey': SUPABASE_KEY },
                 signal: controller.signal,
             }
         );
