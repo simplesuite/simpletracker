@@ -267,16 +267,16 @@ export default function TaskDetailPage() {
   taskRef.current = task;
 
   // Flush any pending title/body saves immediately (on unmount or back navigation)
-  const flushPendingSaves = useCallback(() => {
+  const flushPendingSaves = useCallback(async () => {
     if (!id || !taskRef.current) return;
     if (
       titleRef.current !== taskRef.current.title &&
       titleRef.current.trim().length > 0
     ) {
-      saveTitle(titleRef.current);
+      await saveTitle(titleRef.current);
     }
     if (bodyRef.current !== taskRef.current.body) {
-      saveBody(bodyRef.current);
+      await saveBody(bodyRef.current);
     }
   }, [id, saveTitle, saveBody]);
 
@@ -425,8 +425,8 @@ export default function TaskDetailPage() {
     return title.trim().length === 0 && body.trim().length === 0;
   };
 
-  const handleBack = () => {
-    flushPendingSaves();
+  const handleBack = async () => {
+    await flushPendingSaves();
     if (isTaskBlank()) {
       setAbandonDialogOpen(true);
     } else {
@@ -572,6 +572,7 @@ export default function TaskDetailPage() {
         {/* Title input */}
         <TextField
           fullWidth
+          multiline
           variant="standard"
           placeholder="Untitled"
           value={title}
@@ -616,6 +617,7 @@ export default function TaskDetailPage() {
               slotProps={{
                 textField: { fullWidth: true },
                 field: { clearable: true },
+                actionBar: { actions: ['today', 'clear'] },
               }}
               disabled={isShared && !isOnline}
             />
