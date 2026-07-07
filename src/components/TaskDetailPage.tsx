@@ -617,6 +617,7 @@ export default function TaskDetailPage() {
               slotProps={{
                 textField: { fullWidth: true },
                 field: { clearable: true },
+                actionBar: { actions: ['today', 'clear'] },
               }}
               disabled={isShared && !isOnline}
             />
