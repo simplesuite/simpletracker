@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
 import { getCachedTasks, setCachedTasks, getCachedSubtasks, setCachedSubtasks } from '../lib/cache';
 import { insertWithOfflineSupport, updateWithOfflineSupport, deleteWithOfflineSupport } from '../lib/offlineSync';
+import { getAll as getAllPendingMutations } from '../lib/offlineQueue';
 import { spawnRecurringTask } from '../lib/recurrence';
 import { isTaskSharedLocally } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
@@ -135,6 +136,38 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             const allTasks = Array.from(allTasksMap.values())
                 .sort((a, b) => b.updatedAt - a.updatedAt);
 
+            // Filter out tasks that have a pending delete in the offline queue
+            // to prevent re-adding tasks the user already deleted locally
+            // Also preserve tasks that have a pending insert (not yet on server)
+            let filteredTasks = allTasks;
+            try {
+                const pendingMutations = await getAllPendingMutations();
+                const pendingDeleteIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'task' && m.operation === 'delete')
+                        .map((m) => m.recordID)
+                );
+                const pendingInsertIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'task' && m.operation === 'insert')
+                        .map((m) => m.recordID)
+                );
+                if (pendingDeleteIDs.size > 0) {
+                    filteredTasks = allTasks.filter((t) => !pendingDeleteIDs.has(t.recordID));
+                }
+                // Merge in any locally-created tasks that haven't synced yet
+                if (pendingInsertIDs.size > 0) {
+                    const currentTasks = get().tasks;
+                    const serverTaskIDs = new Set(filteredTasks.map((t) => t.recordID));
+                    const localOnlyTasks = currentTasks.filter(
+                        (t) => pendingInsertIDs.has(t.recordID) && !serverTaskIDs.has(t.recordID)
+                    );
+                    filteredTasks = [...localOnlyTasks, ...filteredTasks];
+                }
+            } catch {
+                // If we can't read the queue, proceed without filtering
+            }
+
             // Cache only non-shared tasks (own tasks not in shared projects)
             const sharedProjectIDs = new Set((projectShares || []).map((p) => p.projectID));
             const nonSharedTasks = (ownTasks || []).filter((task) => {
@@ -143,7 +176,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             });
             setCachedTasks(nonSharedTasks);
 
-            set({ tasks: allTasks, loading: false, error: null });
+            set({ tasks: filteredTasks, loading: false, error: null });
         } catch (err: any) {
             set({ error: err.message || 'Failed to fetch tasks', loading: false });
         }
@@ -601,12 +634,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
                 set({ error: err.message || 'Failed to delete task' });
                 return false;
             }
-        } else {
-            // Non-shared items: use offline support
-            await deleteWithOfflineSupport('task', 'tasks', id);
         }
 
-        // Optimistically remove from state
+        // Optimistically remove from state immediately
         set((state) => ({
             tasks: state.tasks.filter((t) => t.recordID !== id),
             subtasks: (() => {
@@ -621,6 +651,9 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         if (!shared) {
             setCachedTasks(get().tasks);
             setCachedSubtasks(get().subtasks);
+
+            // Queue the delete for server sync (fire-and-forget, state already updated)
+            deleteWithOfflineSupport('task', 'tasks', id);
         }
 
         return true;
