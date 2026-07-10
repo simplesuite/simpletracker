@@ -50,6 +50,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             await ensureSession();
             const currentUserID = useGlobalStore.getState().currentUser.recordID;
 
+            if (!currentUserID) {
+                set({ loading: false, error: null });
+                return;
+            }
+
             // Fetch projects created by the user
             const { data: ownProjects, error: ownError } = await supabase
                 .from('task_projects')
