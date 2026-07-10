@@ -145,7 +145,7 @@ export default function ProjectsPage() {
                   t.dueDate < todayStart,
               ).length;
             })();
-            const isSharedToMe = project.creatorID !== currentUserID;
+            const isSharedToMe = currentUserID ? project.creatorID !== currentUserID : false;
             const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
 
             return (
