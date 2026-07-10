@@ -275,16 +275,19 @@ export default function TasksPage() {
                         scrollbarWidth: 'none',
                     }}
                 >
-                    {sortedProjects.map((project) => (
+                    {sortedProjects.map((project) => {
+                        const count = tasks.filter((t) => t.projectID === project.recordID).length;
+                        return (
                         <Chip
                             key={project.recordID}
-                            label={project.name}
+                            label={`${project.name} (${count})`}
                             variant={selectedProjectIDs.has(project.recordID) ? 'filled' : 'outlined'}
                             color={selectedProjectIDs.has(project.recordID) ? 'primary' : 'default'}
                             onClick={() => toggleProjectFilter(project.recordID)}
                             sx={{ flexShrink: 0 }}
                         />
-                    ))}
+                        );
+                    })}
                 </Box>
             )}
 
