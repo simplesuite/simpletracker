@@ -19,6 +19,7 @@ import Fade from "@mui/material/Fade";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
+import Grid from "@mui/material/Grid";
 import { useNavigate } from "react-router-dom";
 import { useNoteStore } from "../store/noteStore";
 import { useProjectStore } from "../store/projectStore";
@@ -66,6 +67,8 @@ export default function NotesPage() {
   const fetchNotes = useNoteStore((s) => s.fetchNotes);
   const fetchArchivedNotes = useNoteStore((s) => s.fetchArchivedNotes);
   const createNote = useNoteStore((s) => s.createNote);
+  const listItems = useNoteStore((s) => s.listItems);
+  const fetchListItems = useNoteStore((s) => s.fetchListItems);
   const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
   const projects = useProjectStore((s) => s.projects);
 
@@ -130,6 +133,16 @@ export default function NotesPage() {
     fetchArchivedNotes();
   }, [fetchNotes, fetchArchivedNotes]);
 
+  // Fetch list items for checklist-type notes (for card previews)
+  React.useEffect(() => {
+    const listNotes = [...notes, ...sharedNotes].filter((n) => n.noteType === "list");
+    for (const note of listNotes) {
+      if (!listItems[note.recordID]) {
+        fetchListItems(note.recordID);
+      }
+    }
+  }, [notes, sharedNotes]);
+
   const handleCreateNote = async () => {
     const newNote = await createNote();
     if (newNote) {
@@ -187,17 +200,9 @@ export default function NotesPage() {
   };
 
   const renderNoteGrid = (noteList: Note[]) => (
-    <Box
-      sx={{
-        columns: 2,
-        columnGap: 1.5,
-        "& > *": {
-          breakInside: "avoid",
-          mb: 1.5,
-        },
-      }}
-    >
+    <Grid container spacing={1.5}>
       {noteList.map((note) => (
+        <Grid size={6} key={note.recordID}>
         <Paper
           key={note.recordID}
           elevation={4}
@@ -205,10 +210,11 @@ export default function NotesPage() {
             borderColor: note.pinned ? "primary.main" : "divider",
             borderRadius: 5,
             cursor: "pointer",
+            height: "100%",
           }}
           onClick={() => navigate(`/notes/${note.recordID}`)}
         >
-          <Box sx={{ p: 1, py: 1.5 }}>
+          <Box sx={{ p: 1, py: 1.5, display: "flex", flexDirection: "column", height: "100%" }}>
             <Box
               sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}
             >
@@ -230,13 +236,13 @@ export default function NotesPage() {
                 {note.title || "Untitled"}
               </Typography>
             </Box>
-            {note.body && (
+            {note.noteType !== "list" && note.body && (
               <Typography
                 variant="body2"
                 color="text.secondary"
                 sx={{
                   display: "-webkit-box",
-                  WebkitLineClamp: 1,
+                  WebkitLineClamp: 2,
                   WebkitBoxOrient: "vertical",
                   overflow: "hidden",
                   mb: 0.5,
@@ -245,6 +251,25 @@ export default function NotesPage() {
               >
                 {note.body}
               </Typography>
+            )}
+            {note.noteType === "list" && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
+              <Box sx={{ mb: 0.5 }}>
+                {listItems[note.recordID].slice(0, 2).map((item) => (
+                  <Typography
+                    key={item.recordID}
+                    variant="body2"
+                    color="text.secondary"
+                    noWrap
+                    sx={{
+                      fontSize: "0.75rem",
+                      textDecoration: item.isCompleted ? "line-through" : "none",
+                      opacity: item.isCompleted ? 0.6 : 1,
+                    }}
+                  >
+                    {item.isCompleted ? "☑" : "☐"} {item.title || "Untitled"}
+                  </Typography>
+                ))}
+              </Box>
             )}
             <Box
               sx={{
@@ -280,8 +305,9 @@ export default function NotesPage() {
             </Box>
           </Box>
         </Paper>
+        </Grid>
       ))}
-    </Box>
+    </Grid>
   );
 
   const toggleProjectFilter = (projectID: string) => {
@@ -346,16 +372,19 @@ export default function NotesPage() {
             scrollbarWidth: "none",
           }}
         >
-          {sortedProjects.map((project) => (
+          {sortedProjects.map((project) => {
+            const count = activeNotes.filter((n) => n.projectID === project.recordID).length;
+            return (
             <Chip
               key={project.recordID}
-              label={project.name}
+              label={`${project.name} (${count})`}
               variant={selectedProjectIDs.has(project.recordID) ? "filled" : "outlined"}
               color={selectedProjectIDs.has(project.recordID) ? "primary" : "default"}
               onClick={() => toggleProjectFilter(project.recordID)}
               sx={{ flexShrink: 0 }}
             />
-          ))}
+            );
+          })}
         </Box>
       )}
 
