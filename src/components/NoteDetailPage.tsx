@@ -134,6 +134,7 @@ export default function NoteDetailPage() {
     const [archived, setArchived] = useState(false);
     const [pinned, setPinned] = useState(false);
     const [creatorID, setCreatorID] = useState('');
+    const [createdAt, setCreatedAt] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
@@ -233,6 +234,7 @@ export default function NoteDetailPage() {
                         setArchived(localNote.archived);
                         setPinned(localNote.pinned);
                         setCreatorID(localNote.creatorID);
+                        setCreatedAt(localNote.createdAt);
                         setNoteType(localNote.noteType || 'text');
                         setLoading(false);
                         return;
@@ -258,6 +260,7 @@ export default function NoteDetailPage() {
                         setArchived(data.archived);
                         setPinned(data.pinned);
                         setCreatorID(data.creatorID);
+                        setCreatedAt(data.createdAt);
                         setNoteType(data.noteType || 'text');
                     } catch {
                         setError('Failed to load note from server.');
@@ -269,6 +272,7 @@ export default function NoteDetailPage() {
                     setArchived(localNote.archived);
                     setPinned(localNote.pinned);
                     setCreatorID(localNote.creatorID);
+                    setCreatedAt(localNote.createdAt);
                     setNoteType(localNote.noteType || 'text');
                 }
             } else {
@@ -301,6 +305,7 @@ export default function NoteDetailPage() {
                     setArchived(data.archived);
                     setPinned(data.pinned);
                     setCreatorID(data.creatorID);
+                    setCreatedAt(data.createdAt);
                     setNoteType(data.noteType || 'text');
                 } catch {
                     setError('Failed to load note.');
@@ -702,7 +707,7 @@ export default function NoteDetailPage() {
                 value={title}
                 onChange={handleTitleChange}
                 error={!!titleError}
-                helperText={titleError || `${title.length}/255`}
+                helperText={titleError || (createdAt ? `${new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : '')}
                 disabled={!!offlineMessage && isShared}
                 inputProps={{ maxLength: 255 }}
                 sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
