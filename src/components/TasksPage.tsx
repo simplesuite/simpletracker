@@ -22,6 +22,7 @@ import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import { TransitionGroup } from 'react-transition-group';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -63,8 +64,11 @@ export default function TasksPage() {
         return () => document.removeEventListener('visibilitychange', handleVisibility);
     }, [fetchTasks]);
 
-    const [completedExpanded, setCompletedExpanded] = useState(false);
+    const [completedExpanded, setCompletedExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksCompletedExpanded') === 'true'; } catch { return false; }
+    });
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
     const [completedMenuAnchor, setCompletedMenuAnchor] = useState<null | HTMLElement>(null);
     const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -77,6 +81,27 @@ export default function TasksPage() {
         }
         return map;
     }, [projects]);
+
+    // Sort projects by most tasks descending
+    const sortedProjects = useMemo(() => {
+        return [...projects].sort((a, b) => {
+            const aCount = tasks.filter((t) => t.projectID === a.recordID).length;
+            const bCount = tasks.filter((t) => t.projectID === b.recordID).length;
+            return bCount - aCount;
+        });
+    }, [projects, tasks]);
+
+    const toggleProjectFilter = (projectID: string) => {
+        setSelectedProjectIDs((prev) => {
+            const next = new Set(prev);
+            if (next.has(projectID)) {
+                next.delete(projectID);
+            } else {
+                next.add(projectID);
+            }
+            return next;
+        });
+    };
 
     /**
      * Sort tasks by due date (earliest first), tasks without a due date go after
@@ -92,14 +117,18 @@ export default function TasksPage() {
         return b.createdAt - a.createdAt;
     };
 
-    // Filter tasks by search query (title and body)
+    // Filter tasks by search query and selected projects
     const filteredBySearch = useMemo(() => {
-        if (!searchQuery.trim()) return tasks;
+        let filtered = tasks;
+        if (selectedProjectIDs.size > 0) {
+            filtered = filtered.filter((t) => t.projectID && selectedProjectIDs.has(t.projectID));
+        }
+        if (!searchQuery.trim()) return filtered;
         const q = searchQuery.toLowerCase();
-        return tasks.filter(
+        return filtered.filter(
             (t) => t.title.toLowerCase().includes(q) || t.body.toLowerCase().includes(q)
         );
-    }, [tasks, searchQuery]);
+    }, [tasks, searchQuery, selectedProjectIDs]);
 
     // Split and sort tasks
     const { openTasks, completedTasks } = useMemo(() => {
@@ -134,10 +163,18 @@ export default function TasksPage() {
         return { overdueTasks: overdue, dueTodayTasks: dueToday, upcomingTasks: upcoming, noDueDateTasks: noDueDate };
     }, [openTasks]);
 
-    const [overdueExpanded, setOverdueExpanded] = useState(true);
-    const [dueTodayExpanded, setDueTodayExpanded] = useState(true);
-    const [upcomingExpanded, setUpcomingExpanded] = useState(true);
-    const [noDueDateExpanded, setNoDueDateExpanded] = useState(true);
+    const [overdueExpanded, setOverdueExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksOverdueExpanded') !== 'false'; } catch { return true; }
+    });
+    const [dueTodayExpanded, setDueTodayExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksDueTodayExpanded') !== 'false'; } catch { return true; }
+    });
+    const [upcomingExpanded, setUpcomingExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksUpcomingExpanded') !== 'false'; } catch { return true; }
+    });
+    const [noDueDateExpanded, setNoDueDateExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksNoDueDateExpanded') !== 'false'; } catch { return true; }
+    });
     const [overdueMenuAnchor, setOverdueMenuAnchor] = useState<null | HTMLElement>(null);
     const [rescheduling, setRescheduling] = useState(false);
 
@@ -225,6 +262,32 @@ export default function TasksPage() {
                 }}
             />
 
+            {/* Project filter chips */}
+            {sortedProjects.length > 0 && (
+                <Box
+                    sx={{
+                        display: 'flex',
+                        gap: 1,
+                        overflowX: 'auto',
+                        pb: 1,
+                        mb: 1.5,
+                        '&::-webkit-scrollbar': { display: 'none' },
+                        scrollbarWidth: 'none',
+                    }}
+                >
+                    {sortedProjects.map((project) => (
+                        <Chip
+                            key={project.recordID}
+                            label={project.name}
+                            variant={selectedProjectIDs.has(project.recordID) ? 'filled' : 'outlined'}
+                            color={selectedProjectIDs.has(project.recordID) ? 'primary' : 'default'}
+                            onClick={() => toggleProjectFilter(project.recordID)}
+                            sx={{ flexShrink: 0 }}
+                        />
+                    ))}
+                </Box>
+            )}
+
             {openTasks.length === 0 && completedTasks.length === 0 ? (
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
                     {searchQuery.trim()
@@ -248,7 +311,7 @@ export default function TasksPage() {
                                         }}
                                     >
                                         <Box
-                                            onClick={() => setOverdueExpanded(!overdueExpanded)}
+                                            onClick={() => { const next = !overdueExpanded; setOverdueExpanded(next); try { localStorage.setItem('tasksOverdueExpanded', String(next)); } catch {} }}
                                             sx={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -282,9 +345,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={overdueExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {overdueTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < overdueTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < overdueTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -313,8 +377,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -323,7 +388,7 @@ export default function TasksPage() {
                             {dueTodayTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setDueTodayExpanded(!dueTodayExpanded)}
+                                        onClick={() => { const next = !dueTodayExpanded; setDueTodayExpanded(next); try { localStorage.setItem('tasksDueTodayExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -342,9 +407,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={dueTodayExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {dueTodayTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < dueTodayTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < dueTodayTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -373,8 +439,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -383,7 +450,7 @@ export default function TasksPage() {
                             {upcomingTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setUpcomingExpanded(!upcomingExpanded)}
+                                        onClick={() => { const next = !upcomingExpanded; setUpcomingExpanded(next); try { localStorage.setItem('tasksUpcomingExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -402,9 +469,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={upcomingExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {upcomingTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < upcomingTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < upcomingTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -433,8 +501,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -443,7 +512,7 @@ export default function TasksPage() {
                             {noDueDateTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setNoDueDateExpanded(!noDueDateExpanded)}
+                                        onClick={() => { const next = !noDueDateExpanded; setNoDueDateExpanded(next); try { localStorage.setItem('tasksNoDueDateExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -462,9 +531,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={noDueDateExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {noDueDateTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < noDueDateTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < noDueDateTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -489,8 +559,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -512,7 +583,7 @@ export default function TasksPage() {
                                 }}
                             >
                                 <Box
-                                    onClick={() => setCompletedExpanded(!completedExpanded)}
+                                    onClick={() => { const next = !completedExpanded; setCompletedExpanded(next); try { localStorage.setItem('tasksCompletedExpanded', String(next)); } catch {} }}
                                     sx={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -551,9 +622,10 @@ export default function TasksPage() {
                             </Box>
                             <Collapse in={completedExpanded} sx={{mb:7}}>
                             <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                <List disablePadding dense>
+                                <TransitionGroup component={List} disablePadding dense>
                                     {completedTasks.map((task, index) => (
-                                        <ListItem key={task.recordID} disablePadding divider={index < completedTasks.length - 1}>
+                                        <Collapse key={task.recordID}>
+                                        <ListItem disablePadding divider={index < completedTasks.length - 1}>
                                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                 <IconButton
                                                     edge="start"
@@ -613,8 +685,9 @@ export default function TasksPage() {
                                                 />
                                             </ListItemButton>
                                         </ListItem>
+                                        </Collapse>
                                     ))}
-                                </List>
+                                </TransitionGroup>
                                 </Paper>
                             </Collapse>
                         </>

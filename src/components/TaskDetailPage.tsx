@@ -70,6 +70,9 @@ export default function TaskDetailPage() {
 
   const projects = useProjectStore((s) => s.projects);
   const currentUser = useGlobalStore((s) => s.currentUser);
+  const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+  const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+  const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const [task, setTask] = useState<Task | null>(null);
@@ -323,10 +326,14 @@ export default function TaskDetailPage() {
       setNetworkError("Failed to update task status");
     } else {
       setNetworkError(null);
-      setTask({
-        ...task,
-        status: task.status === "open" ? "completed" : "open",
-      });
+      if (task.status === "open") {
+        navigate(-1);
+      } else {
+        setTask({
+          ...task,
+          status: "open",
+        });
+      }
     }
   };
 
@@ -428,22 +435,21 @@ export default function TaskDetailPage() {
   const handleBack = async () => {
     await flushPendingSaves();
     if (isTaskBlank()) {
-      setAbandonDialogOpen(true);
+      handleAbandonDelete();
     } else {
       navigate(-1);
     }
   };
 
-  const handleAbandonDelete = async () => {
+  const handleAbandonDelete = () => {
     if (!id) return;
-    setAbandonDialogOpen(false);
-    await deleteTask(id);
+    // Navigate immediately to avoid glitch where the task briefly appears on the list
+    setSnackText('Empty task discarded');
+    setSnackSev('info');
+    setSnackOpen(true);
     navigate(-1);
-  };
-
-  const handleAbandonKeep = () => {
-    setAbandonDialogOpen(false);
-    navigate(-1);
+    // Fire-and-forget: store already removes the task optimistically
+    deleteTask(id);
   };
 
   // Show loading state — return null to avoid flashing UI for the common case
@@ -855,32 +861,6 @@ export default function TaskDetailPage() {
             <DialogActions>
               <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleDelete} color="error" variant="contained">
-                Delete
-              </Button>
-            </DialogActions>
-          </Box>
-        </Dialog>
-
-        {/* Abandon blank task dialog */}
-        <Dialog
-          open={abandonDialogOpen}
-          onClose={() => setAbandonDialogOpen(false)}
-          slotProps={{ paper: dialogPaperStyles }}
-        >
-          <Box sx={{ bgcolor: "background.paper", height: "100%" }}>
-            <DialogTitle>Empty Task</DialogTitle>
-            <DialogContent>
-              <DialogContentText>
-                This task is blank. Would you like to delete it?
-              </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleAbandonKeep}>Keep</Button>
-              <Button
-                onClick={handleAbandonDelete}
-                color="error"
-                variant="contained"
-              >
                 Delete
               </Button>
             </DialogActions>

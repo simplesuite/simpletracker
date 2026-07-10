@@ -15,6 +15,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ChecklistIcon from "@mui/icons-material/Checklist";
 import CircularProgress from "@mui/material/CircularProgress";
 import Collapse from "@mui/material/Collapse";
+import Fade from "@mui/material/Fade";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
@@ -69,6 +70,7 @@ export default function NotesPage() {
   const projects = useProjectStore((s) => s.projects);
 
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [selectedProjectIDs, setSelectedProjectIDs] = React.useState<Set<string>>(new Set());
   const [archivedExpanded, setArchivedExpanded] = React.useState(false);
   const [sharedByMeNoteIDs, setSharedByMeNoteIDs] = React.useState<Set<string>>(
     () => {
@@ -113,6 +115,16 @@ export default function NotesPage() {
     return map;
   }, [projects]);
 
+  // Sort projects by most notes descending
+  const sortedProjects = React.useMemo(() => {
+    const allNotes = [...notes, ...sharedNotes];
+    return [...projects].sort((a, b) => {
+      const aCount = allNotes.filter((n) => n.projectID === a.recordID).length;
+      const bCount = allNotes.filter((n) => n.projectID === b.recordID).length;
+      return bCount - aCount;
+    });
+  }, [projects, notes, sharedNotes]);
+
   React.useEffect(() => {
     fetchNotes();
     fetchArchivedNotes();
@@ -142,25 +154,33 @@ export default function NotesPage() {
     });
   }, [notes, sharedNotes]);
 
-  // Filter active notes by search query (title and body)
+  // Filter active notes by search query and selected projects
   const filteredActiveNotes = React.useMemo(() => {
-    if (!searchQuery.trim()) return activeNotes;
+    let filtered = activeNotes;
+    if (selectedProjectIDs.size > 0) {
+      filtered = filtered.filter((n) => n.projectID && selectedProjectIDs.has(n.projectID));
+    }
+    if (!searchQuery.trim()) return filtered;
     const q = searchQuery.toLowerCase();
-    return activeNotes.filter(
+    return filtered.filter(
       (n) =>
         n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q),
     );
-  }, [activeNotes, searchQuery]);
+  }, [activeNotes, searchQuery, selectedProjectIDs]);
 
-  // Filter archived notes by search query
+  // Filter archived notes by search query and selected projects
   const filteredArchivedNotes = React.useMemo(() => {
-    if (!searchQuery.trim()) return archivedNotes;
+    let filtered = archivedNotes;
+    if (selectedProjectIDs.size > 0) {
+      filtered = filtered.filter((n) => n.projectID && selectedProjectIDs.has(n.projectID));
+    }
+    if (!searchQuery.trim()) return filtered;
     const q = searchQuery.toLowerCase();
-    return archivedNotes.filter(
+    return filtered.filter(
       (n) =>
         n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q),
     );
-  }, [archivedNotes, searchQuery]);
+  }, [archivedNotes, searchQuery, selectedProjectIDs]);
 
   const isSharedNote = (note: Note): boolean => {
     return note.creatorID !== currentUserID;
@@ -264,6 +284,24 @@ export default function NotesPage() {
     </Box>
   );
 
+  const toggleProjectFilter = (projectID: string) => {
+    setSelectedProjectIDs((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectID)) {
+        next.delete(projectID);
+      } else {
+        next.add(projectID);
+      }
+      return next;
+    });
+  };
+
+  // Key that changes when project filter changes, triggering a crossfade
+  const filterKey = React.useMemo(
+    () => [...selectedProjectIDs].sort().join(",") || "all",
+    [selectedProjectIDs]
+  );
+
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
       <TextField
@@ -295,6 +333,32 @@ export default function NotesPage() {
         }}
       />
 
+      {/* Project filter chips */}
+      {sortedProjects.length > 0 && (
+        <Box
+          sx={{
+            display: "flex",
+            gap: 1,
+            overflowX: "auto",
+            pb: 1,
+            mb: 1.5,
+            "&::-webkit-scrollbar": { display: "none" },
+            scrollbarWidth: "none",
+          }}
+        >
+          {sortedProjects.map((project) => (
+            <Chip
+              key={project.recordID}
+              label={project.name}
+              variant={selectedProjectIDs.has(project.recordID) ? "filled" : "outlined"}
+              color={selectedProjectIDs.has(project.recordID) ? "primary" : "default"}
+              onClick={() => toggleProjectFilter(project.recordID)}
+              sx={{ flexShrink: 0 }}
+            />
+          ))}
+        </Box>
+      )}
+
       {loading && filteredActiveNotes.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
           <CircularProgress />
@@ -308,8 +372,11 @@ export default function NotesPage() {
         </Typography>
       ) : (
         <>
-          {filteredActiveNotes.length > 0 &&
-            renderNoteGrid(filteredActiveNotes)}
+          {filteredActiveNotes.length > 0 && (
+            <Fade key={filterKey} in timeout={300}>
+              <div>{renderNoteGrid(filteredActiveNotes)}</div>
+            </Fade>
+          )}
 
           {filteredArchivedNotes.length > 0 && (
             <>

@@ -50,7 +50,6 @@ import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
-import { isSharedItem } from '../lib/sharing';
 import { useEntitlement } from '../lib/checkout';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
@@ -100,10 +99,6 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
 export default function NoteDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-
-    const notes = useNoteStore((s) => s.notes);
-    const sharedNotes = useNoteStore((s) => s.sharedNotes);
-    const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const updateNote = useNoteStore((s) => s.updateNote);
     const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
@@ -125,6 +120,9 @@ export default function NoteDetailPage() {
 
     const projects = useProjectStore((s) => s.projects);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
+    const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+    const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+    const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
     const isOnline = useOfflineStore((s) => s.isOnline);
     const { subscriptionState, loading: entitlementLoading } = useEntitlement();
     const hasPro = entitlementLoading || subscriptionState !== 'free';
@@ -136,6 +134,7 @@ export default function NoteDetailPage() {
     const [archived, setArchived] = useState(false);
     const [pinned, setPinned] = useState(false);
     const [creatorID, setCreatorID] = useState('');
+    const [createdAt, setCreatedAt] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [titleError, setTitleError] = useState<string | null>(null);
@@ -151,9 +150,6 @@ export default function NoteDetailPage() {
 
     // Delete confirmation dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-    // Empty note back-navigation dialog
-    const [emptyNoteDialogOpen, setEmptyNoteDialogOpen] = useState(false);
 
     // Menu state
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -238,6 +234,7 @@ export default function NoteDetailPage() {
                         setArchived(localNote.archived);
                         setPinned(localNote.pinned);
                         setCreatorID(localNote.creatorID);
+                        setCreatedAt(localNote.createdAt);
                         setNoteType(localNote.noteType || 'text');
                         setLoading(false);
                         return;
@@ -263,6 +260,7 @@ export default function NoteDetailPage() {
                         setArchived(data.archived);
                         setPinned(data.pinned);
                         setCreatorID(data.creatorID);
+                        setCreatedAt(data.createdAt);
                         setNoteType(data.noteType || 'text');
                     } catch {
                         setError('Failed to load note from server.');
@@ -274,6 +272,7 @@ export default function NoteDetailPage() {
                     setArchived(localNote.archived);
                     setPinned(localNote.pinned);
                     setCreatorID(localNote.creatorID);
+                    setCreatedAt(localNote.createdAt);
                     setNoteType(localNote.noteType || 'text');
                 }
             } else {
@@ -306,6 +305,7 @@ export default function NoteDetailPage() {
                     setArchived(data.archived);
                     setPinned(data.pinned);
                     setCreatorID(data.creatorID);
+                    setCreatedAt(data.createdAt);
                     setNoteType(data.noteType || 'text');
                 } catch {
                     setError('Failed to load note.');
@@ -406,17 +406,6 @@ export default function NoteDetailPage() {
         debouncedSave({ title: newTitle });
     };
 
-    const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newBody = e.target.value;
-        if (newBody.length > 100000) {
-            setBodyError('Body must not exceed 100,000 characters');
-            return;
-        }
-        setBodyError(null);
-        setBody(newBody);
-        debouncedSave({ body: newBody });
-    };
-
     const handleProjectChange = (newProjectID: string) => {
         const value = newProjectID === '' ? null : newProjectID;
         setProjectID(value);
@@ -472,25 +461,25 @@ export default function NoteDetailPage() {
         }
     };
 
+    const handleDeleteEmptyNote = () => {
+        if (!id) return;
+        // Navigate immediately to avoid glitch where the note briefly appears on the list
+        setSnackText('Empty note discarded');
+        setSnackSev('info');
+        setSnackOpen(true);
+        navigate(-1);
+        // Fire-and-forget: store already removes the note optimistically
+        deleteNote(id);
+    };
+
     const handleBack = () => {
         // Flush any pending debounced save so data isn't lost
         flushPendingSave();
 
         if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
-            setEmptyNoteDialogOpen(true);
+            handleDeleteEmptyNote();
         } else {
             navigate(-1);
-        }
-    };
-
-    const handleDeleteEmptyNote = async () => {
-        if (!id) return;
-        setEmptyNoteDialogOpen(false);
-        const success = await deleteNote(id);
-        if (success) {
-            navigate(-1);
-        } else {
-            setError(useNoteStore.getState().error || 'Failed to delete note.');
         }
     };
 
@@ -718,7 +707,7 @@ export default function NoteDetailPage() {
                 value={title}
                 onChange={handleTitleChange}
                 error={!!titleError}
-                helperText={titleError || `${title.length}/255`}
+                helperText={titleError || (createdAt ? `${new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : '')}
                 disabled={!!offlineMessage && isShared}
                 inputProps={{ maxLength: 255 }}
                 sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
@@ -994,26 +983,6 @@ export default function NoteDetailPage() {
                     <DialogActions>
                         <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleDelete} color="error" variant="contained">
-                            Delete
-                        </Button>
-                    </DialogActions>
-                </Box>
-            </Dialog>
-
-            {/* Empty note dialog */}
-            <Dialog open={emptyNoteDialogOpen} onClose={() => setEmptyNoteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
-                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
-                    <DialogTitle>Delete empty note?</DialogTitle>
-                    <DialogContent>
-                        <DialogContentText>
-                            This note has no title or content. Would you like to delete it?
-                        </DialogContentText>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => { setEmptyNoteDialogOpen(false); navigate(-1); }}>
-                            Keep
-                        </Button>
-                        <Button onClick={handleDeleteEmptyNote} color="error" variant="contained">
                             Delete
                         </Button>
                     </DialogActions>
