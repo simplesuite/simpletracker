@@ -50,7 +50,6 @@ import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
-import { isSharedItem } from '../lib/sharing';
 import { useEntitlement } from '../lib/checkout';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
@@ -100,10 +99,6 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
 export default function NoteDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-
-    const notes = useNoteStore((s) => s.notes);
-    const sharedNotes = useNoteStore((s) => s.sharedNotes);
-    const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const updateNote = useNoteStore((s) => s.updateNote);
     const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
@@ -151,9 +146,6 @@ export default function NoteDetailPage() {
 
     // Delete confirmation dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
-    // Empty note back-navigation dialog
-    const [emptyNoteDialogOpen, setEmptyNoteDialogOpen] = useState(false);
 
     // Menu state
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -406,17 +398,6 @@ export default function NoteDetailPage() {
         debouncedSave({ title: newTitle });
     };
 
-    const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const newBody = e.target.value;
-        if (newBody.length > 100000) {
-            setBodyError('Body must not exceed 100,000 characters');
-            return;
-        }
-        setBodyError(null);
-        setBody(newBody);
-        debouncedSave({ body: newBody });
-    };
-
     const handleProjectChange = (newProjectID: string) => {
         const value = newProjectID === '' ? null : newProjectID;
         setProjectID(value);
@@ -472,25 +453,24 @@ export default function NoteDetailPage() {
         }
     };
 
-    const handleBack = () => {
-        // Flush any pending debounced save so data isn't lost
-        flushPendingSave();
-
-        if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
-            setEmptyNoteDialogOpen(true);
-        } else {
-            navigate(-1);
-        }
-    };
-
     const handleDeleteEmptyNote = async () => {
         if (!id) return;
-        setEmptyNoteDialogOpen(false);
         const success = await deleteNote(id);
         if (success) {
             navigate(-1);
         } else {
             setError(useNoteStore.getState().error || 'Failed to delete note.');
+        }
+    };
+
+    const handleBack = () => {
+        // Flush any pending debounced save so data isn't lost
+        flushPendingSave();
+
+        if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
+            handleDeleteEmptyNote();
+        } else {
+            navigate(-1);
         }
     };
 
@@ -994,26 +974,6 @@ export default function NoteDetailPage() {
                     <DialogActions>
                         <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleDelete} color="error" variant="contained">
-                            Delete
-                        </Button>
-                    </DialogActions>
-                </Box>
-            </Dialog>
-
-            {/* Empty note dialog */}
-            <Dialog open={emptyNoteDialogOpen} onClose={() => setEmptyNoteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
-                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
-                    <DialogTitle>Delete empty note?</DialogTitle>
-                    <DialogContent>
-                        <DialogContentText>
-                            This note has no title or content. Would you like to delete it?
-                        </DialogContentText>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => { setEmptyNoteDialogOpen(false); navigate(-1); }}>
-                            Keep
-                        </Button>
-                        <Button onClick={handleDeleteEmptyNote} color="error" variant="contained">
                             Delete
                         </Button>
                     </DialogActions>

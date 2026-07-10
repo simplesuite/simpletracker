@@ -428,7 +428,7 @@ export default function TaskDetailPage() {
   const handleBack = async () => {
     await flushPendingSaves();
     if (isTaskBlank()) {
-      setAbandonDialogOpen(true);
+      handleAbandonDelete();
     } else {
       navigate(-1);
     }
@@ -436,13 +436,7 @@ export default function TaskDetailPage() {
 
   const handleAbandonDelete = async () => {
     if (!id) return;
-    setAbandonDialogOpen(false);
     await deleteTask(id);
-    navigate(-1);
-  };
-
-  const handleAbandonKeep = () => {
-    setAbandonDialogOpen(false);
     navigate(-1);
   };
 
@@ -855,32 +849,6 @@ export default function TaskDetailPage() {
             <DialogActions>
               <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleDelete} color="error" variant="contained">
-                Delete
-              </Button>
-            </DialogActions>
-          </Box>
-        </Dialog>
-
-        {/* Abandon blank task dialog */}
-        <Dialog
-          open={abandonDialogOpen}
-          onClose={() => setAbandonDialogOpen(false)}
-          slotProps={{ paper: dialogPaperStyles }}
-        >
-          <Box sx={{ bgcolor: "background.paper", height: "100%" }}>
-            <DialogTitle>Empty Task</DialogTitle>
-            <DialogContent>
-              <DialogContentText>
-                This task is blank. Would you like to delete it?
-              </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleAbandonKeep}>Keep</Button>
-              <Button
-                onClick={handleAbandonDelete}
-                color="error"
-                variant="contained"
-              >
                 Delete
               </Button>
             </DialogActions>
