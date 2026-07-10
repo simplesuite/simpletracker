@@ -310,7 +310,7 @@ export default function TasksPage() {
                                         }}
                                     >
                                         <Box
-                                            onClick={() => setOverdueExpanded(!overdueExpanded)}
+                                            onClick={() => { const next = !overdueExpanded; setOverdueExpanded(next); try { localStorage.setItem('tasksOverdueExpanded', String(next)); } catch {} }}
                                             sx={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -385,7 +385,7 @@ export default function TasksPage() {
                             {dueTodayTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setDueTodayExpanded(!dueTodayExpanded)}
+                                        onClick={() => { const next = !dueTodayExpanded; setDueTodayExpanded(next); try { localStorage.setItem('tasksDueTodayExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -445,7 +445,7 @@ export default function TasksPage() {
                             {upcomingTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setUpcomingExpanded(!upcomingExpanded)}
+                                        onClick={() => { const next = !upcomingExpanded; setUpcomingExpanded(next); try { localStorage.setItem('tasksUpcomingExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -505,7 +505,7 @@ export default function TasksPage() {
                             {noDueDateTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => setNoDueDateExpanded(!noDueDateExpanded)}
+                                        onClick={() => { const next = !noDueDateExpanded; setNoDueDateExpanded(next); try { localStorage.setItem('tasksNoDueDateExpanded', String(next)); } catch {} }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -574,7 +574,7 @@ export default function TasksPage() {
                                 }}
                             >
                                 <Box
-                                    onClick={() => setCompletedExpanded(!completedExpanded)}
+                                    onClick={() => { const next = !completedExpanded; setCompletedExpanded(next); try { localStorage.setItem('tasksCompletedExpanded', String(next)); } catch {} }}
                                     sx={{
                                         display: 'flex',
                                         alignItems: 'center',
