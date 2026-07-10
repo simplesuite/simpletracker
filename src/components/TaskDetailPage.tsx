@@ -326,10 +326,14 @@ export default function TaskDetailPage() {
       setNetworkError("Failed to update task status");
     } else {
       setNetworkError(null);
-      setTask({
-        ...task,
-        status: task.status === "open" ? "completed" : "open",
-      });
+      if (task.status === "open") {
+        navigate(-1);
+      } else {
+        setTask({
+          ...task,
+          status: "open",
+        });
+      }
     }
   };
 
