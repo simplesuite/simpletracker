@@ -38,6 +38,34 @@ Built for people who want a straightforward way to manage notes, tasks, and proj
 - **Installable PWA** — Add to home screen on any device
 - **Self-hostable** — Point at your own Supabase instance
 
+## Screenshots
+
+### Notes
+
+| Notes overview | Filter by project | Search |
+|:-:|:-:|:-:|
+| ![Notes page](readme_assets/notespage.png) | ![Notes filtered by project](readme_assets/notespage_filt_projectchip.png) | ![Notes search](readme_assets/notespage_filt_searchbar.png) |
+
+| Markdown editor | Checklist note |
+|:-:|:-:|
+| ![Note detail - markdown](readme_assets/notedetails_note.png) | ![Note detail - checklist](readme_assets/notedetails_list.png) |
+
+### Tasks
+
+| Tasks overview | Filter by project |
+|:-:|:-:|
+| ![Tasks page](readme_assets/taskspage.png) | ![Tasks filtered by project](readme_assets/taskspage_filt_projectchip.png) |
+
+| Task detail | Recurring |
+|:-:|:-:|
+| ![Task detail](readme_assets/taskdetails.png) | ![Recurring task - completion anchor](readme_assets/taskdetails_recurring_completed.png) |
+
+### Projects & Settings
+
+| Projects overview | Project detail | Settings |
+|:-:|:-:|:-:|
+| ![Projects page](readme_assets/projectspage.png) | ![Project detail](readme_assets/projectdetails.png) | ![Settings](readme_assets/settings.png) |
+
 ## An Open-Source Alternative To
 
 - Google Keep
