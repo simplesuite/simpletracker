@@ -22,6 +22,7 @@ import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import { TransitionGroup } from 'react-transition-group';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -344,9 +345,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={overdueExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {overdueTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < overdueTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < overdueTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -375,8 +377,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -404,9 +407,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={dueTodayExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {dueTodayTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < dueTodayTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < dueTodayTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -435,8 +439,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -464,9 +469,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={upcomingExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {upcomingTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < upcomingTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < upcomingTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -495,8 +501,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -524,9 +531,10 @@ export default function TasksPage() {
                                     </Box>
                                     <Collapse in={noDueDateExpanded}>
                                         <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                            <List disablePadding dense>
+                                            <TransitionGroup component={List} disablePadding dense>
                                                 {noDueDateTasks.map((task, index) => (
-                                                    <ListItem key={task.recordID} disablePadding divider={index < noDueDateTasks.length - 1}>
+                                                    <Collapse key={task.recordID}>
+                                                    <ListItem disablePadding divider={index < noDueDateTasks.length - 1}>
                                                         <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                             <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
                                                                 <RadioButtonUncheckedIcon color="action" />
@@ -551,8 +559,9 @@ export default function TasksPage() {
                                                             />
                                                         </ListItemButton>
                                                     </ListItem>
+                                                    </Collapse>
                                                 ))}
-                                            </List>
+                                            </TransitionGroup>
                                         </Paper>
                                     </Collapse>
                                 </Box>
@@ -613,9 +622,10 @@ export default function TasksPage() {
                             </Box>
                             <Collapse in={completedExpanded} sx={{mb:7}}>
                             <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                <List disablePadding dense>
+                                <TransitionGroup component={List} disablePadding dense>
                                     {completedTasks.map((task, index) => (
-                                        <ListItem key={task.recordID} disablePadding divider={index < completedTasks.length - 1}>
+                                        <Collapse key={task.recordID}>
+                                        <ListItem disablePadding divider={index < completedTasks.length - 1}>
                                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                 <IconButton
                                                     edge="start"
@@ -675,8 +685,9 @@ export default function TasksPage() {
                                                 />
                                             </ListItemButton>
                                         </ListItem>
+                                        </Collapse>
                                     ))}
-                                </List>
+                                </TransitionGroup>
                                 </Paper>
                             </Collapse>
                         </>
