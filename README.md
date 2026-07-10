@@ -47,6 +47,29 @@ Built for people who want a straightforward way to manage notes, tasks, and proj
 - TickTick
 - Microsoft To Do
 
+## Data notice
+
+Your data is protected by RLS policies within Supabase. Only you and those you share it with can view it.
+
+Your data will never be sold, marketed, given away, whatever. It STAYS in simpleTracker and will never leave. If you are extra concerned about data privacy / security, please self-host the backend - and the front end if you want.
+
+## Background of this Project / Disclaimers
+
+This has thus far been a solo project. Not gonna lie, lots of AI has gotten this project to it's feet. I used spec-driven development, not pure vibes. I have made a number of React-based projects before, and this follows all my normal guidelines. Still though, I did not write a lot of this code. Take that as you will.
+
+I did NOT make this to make money. Hear me - I made this to have an easy to use notes/tasks app.
+
+The subscription model is ONLY there to cover hosting fees from supabase and vercel. If you self-host the backend, everything is free - FOREVER.
+
+I couldn't stand having an app for notes, and another app for tasks, and another app for bigger notes. That's literally what I had, lol. I also did NOT like using public apps where I didn't know what they were doing with my data (especially with Google Tasks / Keep Note - I used those heavily)
+
+So, I took my favorite apps, smooshed them together, and only took the features I wanted. I call it simpleTracker.
+
+From there, I went through and added some nice-to-have features.
+
+You may notice there aren't any issues in here. Feel free to add some if you wish. I just typically keep my list elsewhere. If people start actually using this, I will transfer to issues for tracking.
+
+
 ## Tech Stack
 
 | Layer | Technology |

@@ -196,6 +196,7 @@ export default function NotesPage() {
   }, [archivedNotes, searchQuery, selectedProjectIDs]);
 
   const isSharedNote = (note: Note): boolean => {
+    if (!currentUserID) return false;
     return note.creatorID !== currentUserID;
   };
 
