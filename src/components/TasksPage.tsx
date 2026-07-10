@@ -218,7 +218,7 @@ export default function TasksPage() {
                 day: 'numeric',
                 year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
             });
-            return { label: `Overdue · ${label}`, color: 'error' };
+            return { label: `${label}`, color: 'error' };
         }
         if (diffDays === 0) return { label: 'Today', color: 'warning' };
         if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
