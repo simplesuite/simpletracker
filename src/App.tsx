@@ -69,11 +69,31 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
       setAuthChecked(true);
+      if (session?.user) {
+        const store = useGlobalStore.getState();
+        if (!store.currentUser.recordID) {
+          store.setCurrentUser({
+            recordID: session.user.id,
+            fullName: store.currentUser.fullName,
+            userType: store.currentUser.userType,
+          });
+        }
+      }
     });
     // Also check current session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
       setAuthChecked(true);
+      if (session?.user) {
+        const store = useGlobalStore.getState();
+        if (!store.currentUser.recordID) {
+          store.setCurrentUser({
+            recordID: session.user.id,
+            fullName: store.currentUser.fullName,
+            userType: store.currentUser.userType,
+          });
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
