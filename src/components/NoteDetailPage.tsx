@@ -120,6 +120,9 @@ export default function NoteDetailPage() {
 
     const projects = useProjectStore((s) => s.projects);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
+    const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+    const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+    const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
     const isOnline = useOfflineStore((s) => s.isOnline);
     const { subscriptionState, loading: entitlementLoading } = useEntitlement();
     const hasPro = entitlementLoading || subscriptionState !== 'free';
@@ -453,14 +456,15 @@ export default function NoteDetailPage() {
         }
     };
 
-    const handleDeleteEmptyNote = async () => {
+    const handleDeleteEmptyNote = () => {
         if (!id) return;
-        const success = await deleteNote(id);
-        if (success) {
-            navigate(-1);
-        } else {
-            setError(useNoteStore.getState().error || 'Failed to delete note.');
-        }
+        // Navigate immediately to avoid glitch where the note briefly appears on the list
+        setSnackText('Empty note discarded');
+        setSnackSev('info');
+        setSnackOpen(true);
+        navigate(-1);
+        // Fire-and-forget: store already removes the note optimistically
+        deleteNote(id);
     };
 
     const handleBack = () => {

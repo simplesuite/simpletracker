@@ -70,6 +70,9 @@ export default function TaskDetailPage() {
 
   const projects = useProjectStore((s) => s.projects);
   const currentUser = useGlobalStore((s) => s.currentUser);
+  const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+  const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+  const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const [task, setTask] = useState<Task | null>(null);
@@ -434,10 +437,15 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleAbandonDelete = async () => {
+  const handleAbandonDelete = () => {
     if (!id) return;
-    await deleteTask(id);
+    // Navigate immediately to avoid glitch where the task briefly appears on the list
+    setSnackText('Empty task discarded');
+    setSnackSev('info');
+    setSnackOpen(true);
     navigate(-1);
+    // Fire-and-forget: store already removes the task optimistically
+    deleteTask(id);
   };
 
   // Show loading state — return null to avoid flashing UI for the common case
