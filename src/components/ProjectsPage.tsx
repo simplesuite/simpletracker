@@ -89,7 +89,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 600, mx: "auto" }}>
+    <Box sx={{ maxWidth: 600, mx: "auto", overflowX: "hidden" }}>
       {loading && projects.length === 0 && (
         <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
           <CircularProgress />
@@ -114,6 +114,8 @@ export default function ProjectsPage() {
             display: "grid",
             gridTemplateColumns: "repeat(2, 1fr)",
             gap: 1.5,
+            pt: 0.5,
+            pb: 1,
           }}
         >
           {sortedProjects.map((project) => {
@@ -154,6 +156,7 @@ export default function ProjectsPage() {
                 sx={{
                   display: "block",
                   width: "100%",
+                  minWidth: 0,
                   "& .MuiBadge-badge": {
                     top: 6,
                     right: 6,
@@ -168,6 +171,7 @@ export default function ProjectsPage() {
                     height: 120,
                     cursor: "pointer",
                     textAlign: "center",
+                    overflow: "hidden",
                     borderColor:
                       isSharedToMe || isSharedByMe ? "info.main" : "divider",
                   }}
@@ -179,18 +183,20 @@ export default function ProjectsPage() {
                       height: "100%",
                       p: 1.5,
                       justifyContent: "space-between",
+                      overflow: "hidden",
                     }}
                   >
-                    <Box>
+                    <Box sx={{ minWidth: 0 }}>
                       <Box
                         sx={{
                           display: "flex",
                           alignItems: "center",
                           gap: 0.5,
                           mb: 1,
+                          minWidth: 0,
                         }}
                       >
-                        <Typography variant="subtitle2" noWrap sx={{ flex: 1 }}>
+                        <Typography variant="subtitle2" noWrap sx={{ flex: 1, minWidth: 0 }}>
                           {project.name}
                         </Typography>
                         {isSharedToMe && (

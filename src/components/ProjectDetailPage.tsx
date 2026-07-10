@@ -44,6 +44,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import Chip from '@mui/material/Chip';
+import Grid from '@mui/material/Grid';
 import { useProjectStore } from '../store/projectStore';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
@@ -71,6 +72,8 @@ export default function ProjectDetailPage() {
     const notes = useNoteStore((s) => s.notes);
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const createNote = useNoteStore((s) => s.createNote);
+    const listItems = useNoteStore((s) => s.listItems);
+    const fetchListItems = useNoteStore((s) => s.fetchListItems);
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
@@ -164,6 +167,16 @@ export default function ProjectDetailPage() {
             (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
         );
     }, [notes, sharedNotes, id, searchQuery]);
+
+    // Fetch list items for checklist-type notes (for card previews)
+    useEffect(() => {
+        const listNotes = projectNotes.filter((n) => n.noteType === 'list');
+        for (const note of listNotes) {
+            if (!listItems[note.recordID]) {
+                fetchListItems(note.recordID);
+            }
+        }
+    }, [projectNotes]);
 
     const projectTasks = useMemo(() => {
         const all = tasks.filter((t) => t.projectID === id);
@@ -468,29 +481,20 @@ export default function ProjectDetailPage() {
                     No notes in this project.
                 </Typography>
             ) : (
-                <Box
-                    sx={{
-                        columns: 2,
-                        columnGap: 1.5,
-                        mb: 2,
-                        '& > *': {
-                            breakInside: 'avoid',
-                            mb: 1.5,
-                        },
-                    }}
-                >
+                <Grid container spacing={1.5} sx={{ mb: 2 }}>
                     {projectNotes.map((note) => (
+                        <Grid size={6} key={note.recordID}>
                         <Paper
-                            key={note.recordID}
                             elevation={4}
                             sx={{
                                 borderColor: note.pinned ? 'primary.main' : 'divider',
                                 borderRadius: 5,
                                 cursor: 'pointer',
+                                height: '100%',
                             }}
                             onClick={() => navigate(`/notes/${note.recordID}`)}
                         >
-                            <Box sx={{ p: 1, py: 1.5 }}>
+                            <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                         {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
                                         {note.noteType === 'list'
@@ -509,7 +513,7 @@ export default function ProjectDetailPage() {
                                             {note.title || 'Untitled'}
                                         </Typography>
                                     </Box>
-                                    {note.body && (
+                                    {note.noteType !== 'list' && note.body && (
                                         <Typography
                                             variant="body2"
                                             color="text.secondary"
@@ -525,13 +529,33 @@ export default function ProjectDetailPage() {
                                             {note.body}
                                         </Typography>
                                     )}
-                                    <Typography variant="caption" color="text.secondary">
+                                    {note.noteType === 'list' && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
+                                        <Box sx={{ mb: 0.5 }}>
+                                            {listItems[note.recordID].slice(0, 2).map((item) => (
+                                                <Typography
+                                                    key={item.recordID}
+                                                    variant="body2"
+                                                    color="text.secondary"
+                                                    noWrap
+                                                    sx={{
+                                                        fontSize: '0.75rem',
+                                                        textDecoration: item.isCompleted ? 'line-through' : 'none',
+                                                        opacity: item.isCompleted ? 0.6 : 1,
+                                                    }}
+                                                >
+                                                    {item.isCompleted ? '☑' : '☐'} {item.title || 'Untitled'}
+                                                </Typography>
+                                            ))}
+                                        </Box>
+                                    )}
+                                    <Typography variant="caption" color="text.secondary" sx={{ mt: 'auto' }}>
                                         {new Date(note.updatedAt).toLocaleDateString()}
                                     </Typography>
                             </Box>
                         </Paper>
+                        </Grid>
                     ))}
-                </Box>
+                </Grid>
             )}
 
             {/* Tasks in this project */}
