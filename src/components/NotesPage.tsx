@@ -15,6 +15,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ChecklistIcon from "@mui/icons-material/Checklist";
 import CircularProgress from "@mui/material/CircularProgress";
 import Collapse from "@mui/material/Collapse";
+import Fade from "@mui/material/Fade";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
@@ -295,6 +296,12 @@ export default function NotesPage() {
     });
   };
 
+  // Key that changes when project filter changes, triggering a crossfade
+  const filterKey = React.useMemo(
+    () => [...selectedProjectIDs].sort().join(",") || "all",
+    [selectedProjectIDs]
+  );
+
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
       <TextField
@@ -365,8 +372,11 @@ export default function NotesPage() {
         </Typography>
       ) : (
         <>
-          {filteredActiveNotes.length > 0 &&
-            renderNoteGrid(filteredActiveNotes)}
+          {filteredActiveNotes.length > 0 && (
+            <Fade key={filterKey} in timeout={300}>
+              <div>{renderNoteGrid(filteredActiveNotes)}</div>
+            </Fade>
+          )}
 
           {filteredArchivedNotes.length > 0 && (
             <>
