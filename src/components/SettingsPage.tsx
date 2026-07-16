@@ -260,14 +260,14 @@ export default function SettingsPage() {
                         <Divider sx={{ mb: 2 }} />
                         <Stack direction="row" spacing={1.5}>
                             <Button
-                                variant="outlined" size="small" startIcon={<QrCodeIcon />}
+                                variant="outlined" startIcon={<QrCodeIcon />}
                                 onClick={() => setQrOpen(true)}
                                 sx={{ textTransform: 'none', borderRadius: 2, flex: 1 }}
                             >
                                 My QR Code
                             </Button>
                             <Button
-                                variant="outlined" size="small" startIcon={<LogoutIcon />}
+                                variant="outlined" startIcon={<LogoutIcon />}
                                 onClick={fnLogout} disabled={offline}
                                 color="error"
                                 sx={{ textTransform: 'none', borderRadius: 2, flex: 1 }}
@@ -293,7 +293,7 @@ export default function SettingsPage() {
                                 <Typography variant="caption" color="text.secondary">Unlock exports, sharing & more</Typography>
                             </Box>
                             <Button
-                                variant="contained" size="small" onClick={handleUpgrade}
+                                variant="contained" onClick={handleUpgrade}
                                 disabled={offline || checkoutLoading}
                                 sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
                             >
@@ -311,7 +311,7 @@ export default function SettingsPage() {
 
                     {/* ─── Preferences Card ─── */}
                     <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2.5, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                        <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 2.5, textTransform: 'uppercase' }}>
                             Preferences
                         </Typography>
 
@@ -344,7 +344,7 @@ export default function SettingsPage() {
                                         severity="warning"
                                         sx={{ borderRadius: 2, mt: 2 }}
                                         action={
-                                            <Button color="inherit" size="small" onClick={handleFixPermission}>
+                                            <Button color="inherit" onClick={handleFixPermission}>
                                                 {Notification.permission === 'denied' ? 'How to fix' : 'Allow'}
                                             </Button>
                                         }
@@ -359,7 +359,7 @@ export default function SettingsPage() {
                     {/* ─── Account Card ─── */}
                     <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                            <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
                                 Account
                             </Typography>
                             <Chip
@@ -394,7 +394,7 @@ export default function SettingsPage() {
 
                     {/* ─── Export Card ─── */}
                     <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                        <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 1, textTransform: 'uppercase' }}>
                             Export Data
                         </Typography>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
@@ -402,11 +402,11 @@ export default function SettingsPage() {
                         </Typography>
 
                         {hasPro ? (
-                            <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+                            <Stack direction={bigger ? "row" : "column"} spacing={1.5}>
                                 <Button
                                     color='secondary'
                                     component={CSVLink} data={notesCSVData} filename="simpletracker-notes.csv" target="_blank"
-                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    variant="outlined" startIcon={<DownloadIcon />}
                                     sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
                                 >
                                     Notes ({notesCSVData.length})
@@ -414,7 +414,7 @@ export default function SettingsPage() {
                                 <Button
                                     color='secondary'
                                     component={CSVLink} data={tasksCSVData} filename="simpletracker-tasks.csv" target="_blank"
-                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    variant="outlined" startIcon={<DownloadIcon />}
                                     sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
                                 >
                                     Tasks ({tasksCSVData.length})
@@ -422,7 +422,7 @@ export default function SettingsPage() {
                                 <Button
                                     color='secondary'
                                     component={CSVLink} data={projectsCSVData} filename="simpletracker-projects.csv" target="_blank"
-                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    variant="outlined" startIcon={<DownloadIcon />}
                                     sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
                                 >
                                     Projects ({projectsCSVData.length})
@@ -441,14 +441,14 @@ export default function SettingsPage() {
 
                     {/* ─── Support Card ─── */}
                     <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2.5, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                        <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 2.5, textTransform: 'uppercase' }}>
                             Support
                         </Typography>
 
-                        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+                        <Stack direction={bigger ? "row" : "column"} spacing={1.5}>
                             <Button
                                 color='primary'
-                                variant="outlined" size="small" startIcon={<MenuBookIcon />}
+                                variant="outlined" startIcon={<MenuBookIcon />}
                                 component="a" href="https://simplesuite.dev/guides" target="_blank" rel="noopener noreferrer"
                                 sx={{ textTransform: 'none', borderRadius: 2, textDecoration: 'none' }}
                             >
@@ -456,7 +456,7 @@ export default function SettingsPage() {
                             </Button>
                             <Button
                                 color='primary'
-                                variant="outlined" size="small" startIcon={<BugReportIcon />}
+                                variant="outlined" startIcon={<BugReportIcon />}
                                 component="a" href="https://github.com/simplesuite/simpletracker/issues" target="_blank" rel="noopener noreferrer"
                                 sx={{ textTransform: 'none', borderRadius: 2, textDecoration: 'none' }}
                             >
@@ -464,7 +464,7 @@ export default function SettingsPage() {
                             </Button>
                             <Button
                                 color='primary'
-                                variant="outlined" size="small" startIcon={<IosShareIcon />}
+                                variant="outlined" startIcon={<IosShareIcon />}
                                 onClick={handleShareApp}
                                 sx={{ textTransform: 'none', borderRadius: 2 }}
                             >
