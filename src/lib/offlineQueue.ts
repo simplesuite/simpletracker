@@ -113,3 +113,36 @@ export async function hasPendingInsert(recordID: string): Promise<boolean> {
         request.onerror = () => reject(request.error);
     });
 }
+
+/**
+ * Merge update fields into an existing pending insert for the same recordID.
+ * This ensures the insert carries the latest data when it finally syncs,
+ * eliminating the need for a separate update mutation.
+ */
+export async function mergeIntoInsert(recordID: string, updatePayload: Record<string, unknown>): Promise<void> {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const index = store.index('by_recordID');
+        const request = index.openCursor(IDBKeyRange.only(recordID));
+
+        request.onsuccess = () => {
+            const cursor = request.result;
+            if (cursor) {
+                const mutation: PendingMutation = cursor.value;
+                if (mutation.operation === 'insert') {
+                    // Merge update fields into the insert payload
+                    const merged = { ...mutation.payload, ...updatePayload };
+                    cursor.update({ ...mutation, payload: merged });
+                } else {
+                    cursor.continue();
+                    return;
+                }
+            }
+        };
+
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}

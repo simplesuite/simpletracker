@@ -659,7 +659,7 @@ export default function TaskDetailPage() {
               disabled={isShared && !isOnline}
             />
           }
-          label="Recurring"
+          label=" Recurring"
           sx={{ mb: 1, display: "block" }}
         />
 
