@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet, WidgetType, keymap, placeholder as cmPlaceholder } from '@codemirror/view';
+import { EditorState, StateField, StateEffect } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { defaultKeymap, indentWithTab, history, historyKeymap } from '@codemirror/commands';
 import Box from '@mui/material/Box';
@@ -23,6 +23,151 @@ import { useGlobalStore } from '../store/globalStore';
  * The active cursor line shows raw markdown for editing.
  */
 
+// ─── Table Preview Plugin ────────────────────────────────────────────────────
+
+/** Check if a line looks like a markdown table row */
+function isTableRow(text: string): boolean {
+    const trimmed = text.trim();
+    // Must start with | or have at least 2 pipe characters (cells)
+    return trimmed.startsWith('|') || (trimmed.split('|').length >= 3);
+}
+
+/** Check if a line is the separator row (e.g. |---|---|) */
+function isSeparatorRow(text: string): boolean {
+    return /^\|?[\s|:\-]+\|?$/.test(text.trim()) && text.includes('-');
+}
+
+/** Parse cell contents from a pipe-delimited row */
+function parseTableCells(text: string): string[] {
+    let inner = text.trim();
+    if (inner.startsWith('|')) inner = inner.slice(1);
+    if (inner.endsWith('|')) inner = inner.slice(0, -1);
+    return inner.split('|').map(c => c.trim());
+}
+
+class TableWidget extends WidgetType {
+    constructor(private rows: string[][], private hasSeparator: boolean) {
+        super();
+    }
+
+    eq(other: TableWidget) {
+        return JSON.stringify(this.rows) === JSON.stringify(other.rows) &&
+            this.hasSeparator === other.hasSeparator;
+    }
+
+    toDOM() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'cm-preview-table-wrapper';
+        const table = document.createElement('table');
+        table.className = 'cm-preview-table';
+
+        // Filter out the separator row placeholder
+        const dataRows = this.rows.filter(r => r.length > 0);
+
+        dataRows.forEach((cells, rowIdx) => {
+            const isHeader = this.hasSeparator && rowIdx === 0;
+            const section = isHeader
+                ? (table.tHead || table.createTHead())
+                : (table.tBodies[0] || table.createTBody());
+            const tr = section.insertRow();
+            cells.forEach(cell => {
+                const el = document.createElement(isHeader ? 'th' : 'td');
+                el.textContent = cell;
+                tr.appendChild(el);
+            });
+        });
+
+        wrapper.appendChild(table);
+        return wrapper;
+    }
+
+    ignoreEvent() { return false; }
+
+    get estimatedHeight() { return -1; }
+}
+
+// ─── Focus tracking for StateField-based decorations ─────────────────────────
+
+const editorFocusEffect = StateEffect.define<boolean>();
+
+const editorFocusField = StateField.define<boolean>({
+    create() { return false; },
+    update(focused, tr) {
+        for (const e of tr.effects) {
+            if (e.is(editorFocusEffect)) return e.value;
+        }
+        return focused;
+    },
+});
+
+function buildTableDecos(state: EditorState): DecorationSet {
+    const editorFocused = state.field(editorFocusField, false) ?? true;
+    const cursorLine = editorFocused
+        ? state.doc.lineAt(state.selection.main.head).number
+        : -1;
+    const decos: Array<{ from: number; to: number; value: Decoration }> = [];
+
+    let i = 1;
+    while (i <= state.doc.lines) {
+        const lineText = state.doc.line(i).text;
+        if (isTableRow(lineText)) {
+            const startLine = i;
+            while (i <= state.doc.lines && isTableRow(state.doc.line(i).text)) {
+                i++;
+            }
+            const endLine = i - 1;
+
+            // Need at least 2 lines to be a valid table
+            if (endLine - startLine < 1) continue;
+
+            // If cursor is anywhere in this table block, show raw markdown
+            if (cursorLine >= startLine && cursorLine <= endLine) continue;
+
+            // Parse table rows
+            const rows: string[][] = [];
+            let hasSeparator = false;
+            for (let ln = startLine; ln <= endLine; ln++) {
+                const lt = state.doc.line(ln).text;
+                if (isSeparatorRow(lt)) {
+                    hasSeparator = true;
+                    rows.push([]); // placeholder
+                } else {
+                    rows.push(parseTableCells(lt));
+                }
+            }
+
+            const from = state.doc.line(startLine).from;
+            const to = state.doc.line(endLine).to;
+
+            decos.push({
+                from,
+                to,
+                value: Decoration.replace({ widget: new TableWidget(rows, hasSeparator), block: true }),
+            });
+        } else {
+            i++;
+        }
+    }
+
+    if (decos.length === 0) return Decoration.none;
+    return Decoration.set(decos.map(d => d.value.range(d.from, d.to)), true);
+}
+
+const tableField = StateField.define<DecorationSet>({
+    create(state) {
+        return buildTableDecos(state);
+    },
+    update(decos, tr) {
+        if (tr.docChanged || tr.selection || tr.effects.some(e => e.is(editorFocusEffect))) {
+            return buildTableDecos(tr.state);
+        }
+        return decos;
+    },
+    provide(field) {
+        return EditorView.decorations.from(field);
+    },
+});
+
 // ─── Conceal Plugin ──────────────────────────────────────────────────────────
 
 const concealPlugin = ViewPlugin.fromClass(
@@ -33,8 +178,11 @@ const concealPlugin = ViewPlugin.fromClass(
         }
         build(view: EditorView): DecorationSet {
             const state = view.state;
-            const cursorLine = state.doc.lineAt(state.selection.main.head).number;
-            const decos: Array<{from: number; to: number; value: Decoration}> = [];
+            // When editor is not focused, render all lines fully (no line is "active")
+            const cursorLine = view.hasFocus
+                ? state.doc.lineAt(state.selection.main.head).number
+                : -1;
+            const decos: Array<{ from: number; to: number; value: Decoration }> = [];
 
             for (let i = 1; i <= state.doc.lines; i++) {
                 const isFocused = i === cursorLine;
@@ -135,7 +283,7 @@ const concealPlugin = ViewPlugin.fromClass(
             return Decoration.set(decos.map(d => d.value.range(d.from, d.to)), true);
         }
         update(update: ViewUpdate) {
-            if (update.docChanged || update.selectionSet) {
+            if (update.docChanged || update.selectionSet || update.focusChanged) {
                 this.decorations = this.build(update.view);
             }
         }
@@ -222,6 +370,28 @@ const lightTheme = EditorView.theme({
         overflow: 'hidden',
         color: 'transparent',
     },
+    '.cm-preview-table-wrapper': {
+        padding: '4px 0',
+        overflow: 'auto',
+    },
+    '.cm-preview-table': {
+        borderCollapse: 'collapse',
+        margin: '4px 0',
+        width: 'auto',
+        fontSize: '0.95em',
+    },
+    '.cm-preview-table th, .cm-preview-table td': {
+        border: '1px solid #ddd',
+        padding: '6px 12px',
+        textAlign: 'left',
+    },
+    '.cm-preview-table th': {
+        backgroundColor: 'rgba(0,0,0,0.04)',
+        fontWeight: '600',
+    },
+    '.cm-preview-table tr:nth-child(even) td': {
+        backgroundColor: 'rgba(0,0,0,0.02)',
+    },
 });
 
 const darkTheme = EditorView.theme({
@@ -300,6 +470,28 @@ const darkTheme = EditorView.theme({
         width: '0',
         overflow: 'hidden',
         color: 'transparent',
+    },
+    '.cm-preview-table-wrapper': {
+        padding: '4px 0',
+        overflow: 'auto',
+    },
+    '.cm-preview-table': {
+        borderCollapse: 'collapse',
+        margin: '4px 0',
+        width: 'auto',
+        fontSize: '0.95em',
+    },
+    '.cm-preview-table th, .cm-preview-table td': {
+        border: '1px solid #444',
+        padding: '6px 12px',
+        textAlign: 'left',
+    },
+    '.cm-preview-table th': {
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        fontWeight: '600',
+    },
+    '.cm-preview-table tr:nth-child(even) td': {
+        backgroundColor: 'rgba(255,255,255,0.03)',
     },
 }, { dark: true });
 
@@ -393,6 +585,9 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
             }
             if (update.focusChanged) {
                 setEditorFocused(update.view.hasFocus);
+                update.view.dispatch({
+                    effects: editorFocusEffect.of(update.view.hasFocus),
+                });
             }
         });
 
@@ -400,7 +595,9 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
             doc: value,
             extensions: [
                 markdown({ base: markdownLanguage }),
+                editorFocusField,
                 concealPlugin,
+                tableField,
                 currentTheme === 'dark' ? darkTheme : lightTheme,
                 updateListener,
                 keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
@@ -511,14 +708,14 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
                     // Mobile: fixed above keyboard, only shown when focused
                     ...(isMobile
                         ? {
-                              position: 'fixed',
-                              left: 0,
-                              right: 0,
-                              bottom: `${toolbarBottom}px`,
-                              zIndex: 1300,
-                              display: editorFocused ? 'flex' : 'none',
-                              boxShadow: '0 -2px 8px rgba(0,0,0,0.15)',
-                          }
+                            position: 'fixed',
+                            left: 0,
+                            right: 0,
+                            bottom: `${toolbarBottom}px`,
+                            zIndex: 1300,
+                            display: editorFocused ? 'flex' : 'none',
+                            boxShadow: '0 -2px 8px rgba(0,0,0,0.15)',
+                        }
                         : {}),
                 }}
             >

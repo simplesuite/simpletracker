@@ -80,11 +80,24 @@ export default function ProjectDetailPage() {
     const reopenTask = useTaskStore((s) => s.reopenTask);
     const deleteTask = useTaskStore((s) => s.deleteTask);
     const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
+    const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+    const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+    const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
 
     const project = projects.find((p) => p.recordID === id);
     const isCreator = project?.creatorID === currentUserID;
     const { subscriptionState, loading: entitlementLoading } = useEntitlement();
     const hasPro = entitlementLoading || subscriptionState !== 'free';
+
+    const handleCompleteTask = async (taskId: string) => {
+        const task = tasks.find((t) => t.recordID === taskId);
+        const success = await completeTask(taskId);
+        if (success) {
+            setSnackSev('success');
+            setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackOpen(true);
+        }
+    };
 
     // Track whether we've attempted to fetch projects
     const [hasFetched, setHasFetched] = useState(false);
@@ -484,17 +497,17 @@ export default function ProjectDetailPage() {
                 <Grid container spacing={1.5} sx={{ mb: 2 }}>
                     {projectNotes.map((note) => (
                         <Grid size={6} key={note.recordID}>
-                        <Paper
-                            elevation={4}
-                            sx={{
-                                borderColor: note.pinned ? 'primary.main' : 'divider',
-                                borderRadius: 5,
-                                cursor: 'pointer',
-                                height: '100%',
-                            }}
-                            onClick={() => navigate(`/notes/${note.recordID}`)}
-                        >
-                            <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <Paper
+                                elevation={4}
+                                sx={{
+                                    borderColor: note.pinned ? 'primary.main' : 'divider',
+                                    borderRadius: 5,
+                                    cursor: 'pointer',
+                                    height: '100%',
+                                }}
+                                onClick={() => navigate(`/notes/${note.recordID}`)}
+                            >
+                                <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                                         {note.pinned && <PushPinIcon color="primary" sx={{ fontSize: 14 }} />}
                                         {note.noteType === 'list'
@@ -551,8 +564,8 @@ export default function ProjectDetailPage() {
                                     <Typography variant="caption" color="text.secondary" sx={{ mt: 'auto' }}>
                                         {new Date(note.updatedAt).toLocaleDateString()}
                                     </Typography>
-                            </Box>
-                        </Paper>
+                                </Box>
+                            </Paper>
                         </Grid>
                     ))}
                 </Grid>
@@ -585,7 +598,7 @@ export default function ProjectDetailPage() {
                                         <IconButton
                                             edge="start"
                                             size="small"
-                                            onClick={() => completeTask(task.recordID)}
+                                            onClick={() => handleCompleteTask(task.recordID)}
                                             aria-label="Complete task"
                                         >
                                             <RadioButtonUncheckedIcon color="action" />

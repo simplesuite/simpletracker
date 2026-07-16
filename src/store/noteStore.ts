@@ -619,6 +619,10 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             };
         });
 
+        // Remove from cache immediately so fetchNotes won't restore it from stale cache
+        removeCachedItem('cachedNotes', id);
+        removeCachedItem('cachedSharedNotes', id);
+
         if (shared) {
             // Shared items: check connectivity first
             if (!useOfflineStore.getState().isOnline) {
@@ -670,10 +674,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             await deleteWithOfflineSupport('note', 'notes', id);
         }
 
-        // Remove from cache for non-shared items
-        if (!shared) {
-            removeCachedItem('cachedNotes', id);
-        }
+
 
         return true;
     },
@@ -835,12 +836,15 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         const now = Date.now();
         const recordID = uuidv4();
 
+        // Use max existing indexOrder + 1 to avoid collisions after deletions
+        const maxOrder = existing.reduce((max, item) => Math.max(max, item.indexOrder), 0);
+
         const newItem: NoteListItem = {
             recordID,
             noteID,
             title: title.trim(),
             isCompleted: false,
-            indexOrder: existing.length + 1,
+            indexOrder: maxOrder + 1,
             createdAt: now,
             updatedAt: now,
         };

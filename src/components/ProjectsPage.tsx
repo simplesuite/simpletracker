@@ -89,7 +89,7 @@ export default function ProjectsPage() {
   };
 
   return (
-    <Box sx={{ maxWidth: 600, mx: "auto", overflowX: "hidden" }}>
+    <Box sx={{ maxWidth: 600, mx: "auto" }}>
       {loading && projects.length === 0 && (
         <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
           <CircularProgress />
@@ -116,6 +116,7 @@ export default function ProjectsPage() {
             gap: 1.5,
             pt: 0.5,
             pb: 1,
+            px: 1,
           }}
         >
           {sortedProjects.map((project) => {

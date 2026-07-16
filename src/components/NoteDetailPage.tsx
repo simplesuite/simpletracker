@@ -57,12 +57,20 @@ import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/ind
 function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
     const [localValue, setLocalValue] = useState(value);
     const localRef = useRef(localValue);
+    const inputRef = useRef<HTMLInputElement>(null);
     localRef.current = localValue;
 
     // Sync incoming prop changes (e.g. from toggling completion status)
     useEffect(() => {
         setLocalValue(value);
     }, [value]);
+
+    // Focus the input when autoFocus becomes true (handles both mount and re-render)
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
 
     // Save on unmount if changed
     useEffect(() => {
@@ -79,6 +87,7 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
             fullWidth
             multiline
             autoFocus={autoFocus}
+            inputRef={inputRef}
             value={localValue}
             onChange={(e) => {
                 if (e.target.value.length <= 255) {
@@ -166,6 +175,7 @@ export default function NoteDetailPage() {
     // Drag-to-reorder state
     const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
     const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+    const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below' | null>(null);
 
     // Selected list item (shows delete button)
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -554,25 +564,35 @@ export default function NoteDetailPage() {
     const handleDragStart = (e: React.DragEvent, itemID: string) => {
         setDraggedItemId(itemID);
         e.dataTransfer.effectAllowed = 'move';
-        // Make the drag image slightly transparent
-        if (e.currentTarget instanceof HTMLElement) {
-            e.currentTarget.style.opacity = '0.5';
-        }
     };
 
-    const handleDragEnd = (e: React.DragEvent) => {
-        if (e.currentTarget instanceof HTMLElement) {
-            e.currentTarget.style.opacity = '1';
-        }
+    const handleDragEnd = (_e: React.DragEvent) => {
         setDraggedItemId(null);
         setDragOverItemId(null);
+        setDragOverPosition(null);
     };
 
     const handleDragOver = (e: React.DragEvent, itemID: string) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (itemID !== draggedItemId) {
-            setDragOverItemId(itemID);
+        if (itemID === draggedItemId) {
+            setDragOverItemId(null);
+            setDragOverPosition(null);
+            return;
+        }
+        // Determine if cursor is above or below the midpoint of the target element
+        const rect = e.currentTarget.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const position = e.clientY < midpoint ? 'above' : 'below';
+        setDragOverItemId(itemID);
+        setDragOverPosition(position);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if actually leaving the element (not entering a child)
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverItemId(null);
+            setDragOverPosition(null);
         }
     };
 
@@ -588,7 +608,17 @@ export default function NoteDetailPage() {
 
         const reordered = [...uncompleted];
         const [removed] = reordered.splice(draggedIndex, 1);
-        reordered.splice(targetIndex, 0, removed);
+
+        // Insert based on cursor position relative to target midpoint
+        let insertIndex = targetIndex;
+        // After removing the dragged item, adjust target index if dragged was before target
+        if (draggedIndex < targetIndex) {
+            insertIndex = targetIndex - 1;
+        }
+        if (dragOverPosition === 'below') {
+            insertIndex += 1;
+        }
+        reordered.splice(insertIndex, 0, removed);
 
         // Combine reordered uncompleted with completed items
         const completed = currentListItems.filter((i) => i.isCompleted);
@@ -597,6 +627,7 @@ export default function NoteDetailPage() {
         reorderListItems(id, allReordered);
         setDraggedItemId(null);
         setDragOverItemId(null);
+        setDragOverPosition(null);
     };
 
     if (loading) {
@@ -760,6 +791,7 @@ export default function NoteDetailPage() {
                                 onDragStart={(e) => handleDragStart(e, item.recordID)}
                                 onDragEnd={handleDragEnd}
                                 onDragOver={(e) => handleDragOver(e, item.recordID)}
+                                onDragLeave={handleDragLeave}
                                 onDrop={(e) => handleDrop(e, item.recordID)}
                                 onClick={() => setSelectedItemId(item.recordID)}
                                 secondaryAction={
@@ -777,13 +809,20 @@ export default function NoteDetailPage() {
                                 sx={{
                                     pr: 5,
                                     alignItems: 'flex-start',
-                                    borderTop: dragOverItemId === item.recordID && draggedItemId !== item.recordID
+                                    borderTop: dragOverItemId === item.recordID && dragOverPosition === 'above' && draggedItemId !== item.recordID
                                         ? '2px solid'
                                         : '2px solid transparent',
-                                    borderColor: dragOverItemId === item.recordID && draggedItemId !== item.recordID
+                                    borderBottom: dragOverItemId === item.recordID && dragOverPosition === 'below' && draggedItemId !== item.recordID
+                                        ? '2px solid'
+                                        : '2px solid transparent',
+                                    borderTopColor: dragOverItemId === item.recordID && dragOverPosition === 'above' && draggedItemId !== item.recordID
+                                        ? 'primary.main'
+                                        : 'transparent',
+                                    borderBottomColor: dragOverItemId === item.recordID && dragOverPosition === 'below' && draggedItemId !== item.recordID
                                         ? 'primary.main'
                                         : 'transparent',
                                     transition: 'border-color 0.15s ease',
+                                    opacity: draggedItemId === item.recordID ? 0.5 : 1,
                                 }}
                             >
                                 <ListItemIcon sx={{ minWidth: 28, mt: 1.5, cursor: 'grab', touchAction: 'none' }}>
@@ -857,50 +896,50 @@ export default function NoteDetailPage() {
                                 </Menu>
                             </Box>
                             <Collapse in={!completedCollapsed}>
-                            <List dense disablePadding>
-                                {currentListItems.filter((i) => i.isCompleted).map((item) => (
-                                    <ListItem
-                                        key={item.recordID}
-                                        disablePadding
-                                        onClick={() => setSelectedItemId(item.recordID)}
-                                        secondaryAction={
-                                            selectedItemId === item.recordID ? (
-                                                <IconButton
-                                                    edge="end"
-                                                    size="small"
-                                                    onClick={() => handleDeleteListItem(item.recordID)}
-                                                    aria-label="Delete item"
-                                                >
-                                                    <CloseIcon fontSize="small" />
-                                                </IconButton>
-                                            ) : undefined
-                                        }
-                                        sx={{ pr: 5, alignItems: 'flex-start' }}
-                                    >
-                                        <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
-                                            <Checkbox
-                                                edge="start"
-                                                checked={true}
-                                                onChange={() => handleToggleListItem(item.recordID)}
-                                                size="small"
-                                            />
-                                        </ListItemIcon>
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                textDecoration: 'line-through',
-                                                color: 'text.secondary',
-                                                flex: 1,
-                                                py: 0.5,
-                                                whiteSpace: 'pre-wrap',
-                                                wordBreak: 'break-word',
-                                            }}
+                                <List dense disablePadding>
+                                    {currentListItems.filter((i) => i.isCompleted).map((item) => (
+                                        <ListItem
+                                            key={item.recordID}
+                                            disablePadding
+                                            onClick={() => setSelectedItemId(item.recordID)}
+                                            secondaryAction={
+                                                selectedItemId === item.recordID ? (
+                                                    <IconButton
+                                                        edge="end"
+                                                        size="small"
+                                                        onClick={() => handleDeleteListItem(item.recordID)}
+                                                        aria-label="Delete item"
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                ) : undefined
+                                            }
+                                            sx={{ pr: 5, alignItems: 'flex-start' }}
                                         >
-                                            {item.title}
-                                        </Typography>
-                                    </ListItem>
-                                ))}
-                            </List>
+                                            <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                                                <Checkbox
+                                                    edge="start"
+                                                    checked={true}
+                                                    onChange={() => handleToggleListItem(item.recordID)}
+                                                    size="small"
+                                                />
+                                            </ListItemIcon>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    textDecoration: 'line-through',
+                                                    color: 'text.secondary',
+                                                    flex: 1,
+                                                    py: 0.5,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word',
+                                                }}
+                                            >
+                                                {item.title}
+                                            </Typography>
+                                        </ListItem>
+                                    ))}
+                                </List>
                             </Collapse>
                         </>
                     )}
