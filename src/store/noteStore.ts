@@ -619,6 +619,10 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             };
         });
 
+        // Remove from cache immediately so fetchNotes won't restore it from stale cache
+        removeCachedItem('cachedNotes', id);
+        removeCachedItem('cachedSharedNotes', id);
+
         if (shared) {
             // Shared items: check connectivity first
             if (!useOfflineStore.getState().isOnline) {
@@ -670,10 +674,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             await deleteWithOfflineSupport('note', 'notes', id);
         }
 
-        // Remove from cache for non-shared items
-        if (!shared) {
-            removeCachedItem('cachedNotes', id);
-        }
+
 
         return true;
     },
