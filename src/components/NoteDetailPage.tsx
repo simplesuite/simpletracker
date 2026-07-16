@@ -57,12 +57,20 @@ import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/ind
 function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
     const [localValue, setLocalValue] = useState(value);
     const localRef = useRef(localValue);
+    const inputRef = useRef<HTMLInputElement>(null);
     localRef.current = localValue;
 
     // Sync incoming prop changes (e.g. from toggling completion status)
     useEffect(() => {
         setLocalValue(value);
     }, [value]);
+
+    // Focus the input when autoFocus becomes true (handles both mount and re-render)
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [autoFocus]);
 
     // Save on unmount if changed
     useEffect(() => {
@@ -79,6 +87,7 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
             fullWidth
             multiline
             autoFocus={autoFocus}
+            inputRef={inputRef}
             value={localValue}
             onChange={(e) => {
                 if (e.target.value.length <= 255) {
@@ -857,50 +866,50 @@ export default function NoteDetailPage() {
                                 </Menu>
                             </Box>
                             <Collapse in={!completedCollapsed}>
-                            <List dense disablePadding>
-                                {currentListItems.filter((i) => i.isCompleted).map((item) => (
-                                    <ListItem
-                                        key={item.recordID}
-                                        disablePadding
-                                        onClick={() => setSelectedItemId(item.recordID)}
-                                        secondaryAction={
-                                            selectedItemId === item.recordID ? (
-                                                <IconButton
-                                                    edge="end"
-                                                    size="small"
-                                                    onClick={() => handleDeleteListItem(item.recordID)}
-                                                    aria-label="Delete item"
-                                                >
-                                                    <CloseIcon fontSize="small" />
-                                                </IconButton>
-                                            ) : undefined
-                                        }
-                                        sx={{ pr: 5, alignItems: 'flex-start' }}
-                                    >
-                                        <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
-                                            <Checkbox
-                                                edge="start"
-                                                checked={true}
-                                                onChange={() => handleToggleListItem(item.recordID)}
-                                                size="small"
-                                            />
-                                        </ListItemIcon>
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                textDecoration: 'line-through',
-                                                color: 'text.secondary',
-                                                flex: 1,
-                                                py: 0.5,
-                                                whiteSpace: 'pre-wrap',
-                                                wordBreak: 'break-word',
-                                            }}
+                                <List dense disablePadding>
+                                    {currentListItems.filter((i) => i.isCompleted).map((item) => (
+                                        <ListItem
+                                            key={item.recordID}
+                                            disablePadding
+                                            onClick={() => setSelectedItemId(item.recordID)}
+                                            secondaryAction={
+                                                selectedItemId === item.recordID ? (
+                                                    <IconButton
+                                                        edge="end"
+                                                        size="small"
+                                                        onClick={() => handleDeleteListItem(item.recordID)}
+                                                        aria-label="Delete item"
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                ) : undefined
+                                            }
+                                            sx={{ pr: 5, alignItems: 'flex-start' }}
                                         >
-                                            {item.title}
-                                        </Typography>
-                                    </ListItem>
-                                ))}
-                            </List>
+                                            <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                                                <Checkbox
+                                                    edge="start"
+                                                    checked={true}
+                                                    onChange={() => handleToggleListItem(item.recordID)}
+                                                    size="small"
+                                                />
+                                            </ListItemIcon>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    textDecoration: 'line-through',
+                                                    color: 'text.secondary',
+                                                    flex: 1,
+                                                    py: 0.5,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word',
+                                                }}
+                                            >
+                                                {item.title}
+                                            </Typography>
+                                        </ListItem>
+                                    ))}
+                                </List>
                             </Collapse>
                         </>
                     )}

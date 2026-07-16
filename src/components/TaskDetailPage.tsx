@@ -327,6 +327,9 @@ export default function TaskDetailPage() {
     } else {
       setNetworkError(null);
       if (task.status === "open") {
+        setSnackSev('success');
+        setSnackText(`"${task.title || 'Task'}" completed`);
+        setSnackOpen(true);
         navigate(-1);
       } else {
         setTask({

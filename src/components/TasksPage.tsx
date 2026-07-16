@@ -33,6 +33,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router-dom';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
+import { useGlobalStore } from '../store/globalStore';
 import IconButton from '@mui/material/IconButton';
 import type { Task } from '../types';
 import Paper from "@mui/material/Paper";
@@ -46,7 +47,20 @@ export default function TasksPage() {
     const updateTask = useTaskStore((s) => s.updateTask);
     const fetchTasks = useTaskStore((s) => s.fetchTasks);
     const projects = useProjectStore((s) => s.projects);
+    const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+    const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+    const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
     const navigate = useNavigate();
+
+    const handleCompleteTask = async (taskId: string) => {
+        const task = tasks.find((t) => t.recordID === taskId);
+        const success = await completeTask(taskId);
+        if (success) {
+            setSnackSev('success');
+            setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackOpen(true);
+        }
+    };
 
     // Fetch fresh tasks from server on mount
     React.useEffect(() => {
@@ -278,14 +292,14 @@ export default function TasksPage() {
                     {sortedProjects.map((project) => {
                         const count = tasks.filter((t) => t.projectID === project.recordID).length;
                         return (
-                        <Chip
-                            key={project.recordID}
-                            label={`${project.name} (${count})`}
-                            variant={selectedProjectIDs.has(project.recordID) ? 'filled' : 'outlined'}
-                            color={selectedProjectIDs.has(project.recordID) ? 'primary' : 'default'}
-                            onClick={() => toggleProjectFilter(project.recordID)}
-                            sx={{ flexShrink: 0 }}
-                        />
+                            <Chip
+                                key={project.recordID}
+                                label={`${project.name} (${count})`}
+                                variant={selectedProjectIDs.has(project.recordID) ? 'filled' : 'outlined'}
+                                color={selectedProjectIDs.has(project.recordID) ? 'primary' : 'default'}
+                                onClick={() => toggleProjectFilter(project.recordID)}
+                                sx={{ flexShrink: 0 }}
+                            />
                         );
                     })}
                 </Box>
@@ -314,7 +328,7 @@ export default function TasksPage() {
                                         }}
                                     >
                                         <Box
-                                            onClick={() => { const next = !overdueExpanded; setOverdueExpanded(next); try { localStorage.setItem('tasksOverdueExpanded', String(next)); } catch {} }}
+                                            onClick={() => { const next = !overdueExpanded; setOverdueExpanded(next); try { localStorage.setItem('tasksOverdueExpanded', String(next)); } catch { } }}
                                             sx={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -351,35 +365,35 @@ export default function TasksPage() {
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {overdueTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
-                                                    <ListItem disablePadding divider={index < overdueTasks.length - 1}>
-                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
-                                                                <RadioButtonUncheckedIcon color="action" />
-                                                            </IconButton>
-                                                        </ListItemIcon>
-                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                                            <ListItemText
-                                                                primary={task.title}
-                                                                secondary={
-                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
-                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                                                        {task.dueDate && (() => {
-                                                                            const { label, color } = formatDueDate(task.dueDate);
-                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
-                                                                        })()}
-                                                                        {task.isRecurring && (
-                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
+                                                        <ListItem disablePadding divider={index < overdueTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.dueDate && (() => {
+                                                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                                                    return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                                })()}
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
                                                                         </Box>
-                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
-                                                                    </Box>
-                                                                }
-                                                                secondaryTypographyProps={{ component: 'div' }}
-                                                            />
-                                                        </ListItemButton>
-                                                    </ListItem>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
                                                     </Collapse>
                                                 ))}
                                             </TransitionGroup>
@@ -391,7 +405,7 @@ export default function TasksPage() {
                             {dueTodayTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => { const next = !dueTodayExpanded; setDueTodayExpanded(next); try { localStorage.setItem('tasksDueTodayExpanded', String(next)); } catch {} }}
+                                        onClick={() => { const next = !dueTodayExpanded; setDueTodayExpanded(next); try { localStorage.setItem('tasksDueTodayExpanded', String(next)); } catch { } }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -413,35 +427,35 @@ export default function TasksPage() {
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {dueTodayTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
-                                                    <ListItem disablePadding divider={index < dueTodayTasks.length - 1}>
-                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
-                                                                <RadioButtonUncheckedIcon color="action" />
-                                                            </IconButton>
-                                                        </ListItemIcon>
-                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                                            <ListItemText
-                                                                primary={task.title}
-                                                                secondary={
-                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
-                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                                                        {task.dueDate && (() => {
-                                                                            const { label, color } = formatDueDate(task.dueDate);
-                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
-                                                                        })()}
-                                                                        {task.isRecurring && (
-                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
+                                                        <ListItem disablePadding divider={index < dueTodayTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.dueDate && (() => {
+                                                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                                                    return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                                })()}
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
                                                                         </Box>
-                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
-                                                                    </Box>
-                                                                }
-                                                                secondaryTypographyProps={{ component: 'div' }}
-                                                            />
-                                                        </ListItemButton>
-                                                    </ListItem>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
                                                     </Collapse>
                                                 ))}
                                             </TransitionGroup>
@@ -453,7 +467,7 @@ export default function TasksPage() {
                             {upcomingTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => { const next = !upcomingExpanded; setUpcomingExpanded(next); try { localStorage.setItem('tasksUpcomingExpanded', String(next)); } catch {} }}
+                                        onClick={() => { const next = !upcomingExpanded; setUpcomingExpanded(next); try { localStorage.setItem('tasksUpcomingExpanded', String(next)); } catch { } }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -475,35 +489,35 @@ export default function TasksPage() {
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {upcomingTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
-                                                    <ListItem disablePadding divider={index < upcomingTasks.length - 1}>
-                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
-                                                                <RadioButtonUncheckedIcon color="action" />
-                                                            </IconButton>
-                                                        </ListItemIcon>
-                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                                            <ListItemText
-                                                                primary={task.title}
-                                                                secondary={
-                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
-                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                                                        {task.dueDate && (() => {
-                                                                            const { label, color } = formatDueDate(task.dueDate);
-                                                                            return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
-                                                                        })()}
-                                                                        {task.isRecurring && (
-                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
+                                                        <ListItem disablePadding divider={index < upcomingTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.dueDate && (() => {
+                                                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                                                    return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                                })()}
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
                                                                         </Box>
-                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
-                                                                    </Box>
-                                                                }
-                                                                secondaryTypographyProps={{ component: 'div' }}
-                                                            />
-                                                        </ListItemButton>
-                                                    </ListItem>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
                                                     </Collapse>
                                                 ))}
                                             </TransitionGroup>
@@ -515,7 +529,7 @@ export default function TasksPage() {
                             {noDueDateTasks.length > 0 && (
                                 <Box sx={{ mb: 2 }}>
                                     <Box
-                                        onClick={() => { const next = !noDueDateExpanded; setNoDueDateExpanded(next); try { localStorage.setItem('tasksNoDueDateExpanded', String(next)); } catch {} }}
+                                        onClick={() => { const next = !noDueDateExpanded; setNoDueDateExpanded(next); try { localStorage.setItem('tasksNoDueDateExpanded', String(next)); } catch { } }}
                                         sx={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -537,31 +551,31 @@ export default function TasksPage() {
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {noDueDateTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
-                                                    <ListItem disablePadding divider={index < noDueDateTasks.length - 1}>
-                                                        <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                                            <IconButton edge="start" size="small" onClick={() => completeTask(task.recordID)} aria-label="Complete task">
-                                                                <RadioButtonUncheckedIcon color="action" />
-                                                            </IconButton>
-                                                        </ListItemIcon>
-                                                        <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                                            <ListItemText
-                                                                primary={task.title}
-                                                                secondary={
-                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
-                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                                                        {task.isRecurring && (
-                                                                            <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
+                                                        <ListItem disablePadding divider={index < noDueDateTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
                                                                         </Box>
-                                                                        {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                            <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
-                                                                        )}
-                                                                    </Box>
-                                                                }
-                                                                secondaryTypographyProps={{ component: 'div' }}
-                                                            />
-                                                        </ListItemButton>
-                                                    </ListItem>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
                                                     </Collapse>
                                                 ))}
                                             </TransitionGroup>
@@ -586,7 +600,7 @@ export default function TasksPage() {
                                 }}
                             >
                                 <Box
-                                    onClick={() => { const next = !completedExpanded; setCompletedExpanded(next); try { localStorage.setItem('tasksCompletedExpanded', String(next)); } catch {} }}
+                                    onClick={() => { const next = !completedExpanded; setCompletedExpanded(next); try { localStorage.setItem('tasksCompletedExpanded', String(next)); } catch { } }}
                                     sx={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -623,74 +637,74 @@ export default function TasksPage() {
                                     </MenuItem>
                                 </Menu>
                             </Box>
-                            <Collapse in={completedExpanded} sx={{mb:7}}>
-                            <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                                <TransitionGroup component={List} disablePadding dense>
-                                    {completedTasks.map((task, index) => (
-                                        <Collapse key={task.recordID}>
-                                        <ListItem disablePadding divider={index < completedTasks.length - 1}>
-                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
-                                                <IconButton
-                                                    edge="start"
-                                                    size="small"
-                                                    onClick={() => reopenTask(task.recordID)}
-                                                    aria-label="Reopen task"
-                                                >
-                                                    <CheckCircleIcon color="success" />
-                                                </IconButton>
-                                            </ListItemIcon>
-                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
-                                                <ListItemText
-                                                    primary={task.title}
-                                                    secondary={
-                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
-                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                                            {task.dueDate && (() => {
-                                                                const { label, color } = formatDueDate(task.dueDate);
-                                                                return (
-                                                                    <Chip
-                                                                        label={label}
-                                                                        size="small"
-                                                                        variant="outlined"
-                                                                        color={color}
-                                                                        sx={{ height: 20, fontSize: '0.75rem' }}
-                                                                    />
-                                                                );
-                                                            })()}
-                                                            {task.isRecurring && (
-                                                                <Chip
-                                                                    icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
-                                                                    label="Recurring"
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    color="secondary"
-                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
-                                                                />
-                                                            )}
-                                                            </Box>
-                                                            {task.projectID && projectNameMap.has(task.projectID) && (
-                                                                <Chip
-                                                                    label={projectNameMap.get(task.projectID)}
-                                                                    size="small"
-                                                                    variant="outlined"
-                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
-                                                                />
-                                                            )}
-                                                        </Box>
-                                                    }
-                                                    secondaryTypographyProps={{ component: 'div' }}
-                                                    primaryTypographyProps={{
-                                                        sx: {
-                                                            textDecoration: 'line-through',
-                                                            color: 'text.secondary',
-                                                        },
-                                                    }}
-                                                />
-                                            </ListItemButton>
-                                        </ListItem>
-                                        </Collapse>
-                                    ))}
-                                </TransitionGroup>
+                            <Collapse in={completedExpanded} sx={{ mb: 7 }}>
+                                <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                    <TransitionGroup component={List} disablePadding dense>
+                                        {completedTasks.map((task, index) => (
+                                            <Collapse key={task.recordID}>
+                                                <ListItem disablePadding divider={index < completedTasks.length - 1}>
+                                                    <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                        <IconButton
+                                                            edge="start"
+                                                            size="small"
+                                                            onClick={() => reopenTask(task.recordID)}
+                                                            aria-label="Reopen task"
+                                                        >
+                                                            <CheckCircleIcon color="success" />
+                                                        </IconButton>
+                                                    </ListItemIcon>
+                                                    <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                        <ListItemText
+                                                            primary={task.title}
+                                                            secondary={
+                                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                        {task.dueDate && (() => {
+                                                                            const { label, color } = formatDueDate(task.dueDate);
+                                                                            return (
+                                                                                <Chip
+                                                                                    label={label}
+                                                                                    size="small"
+                                                                                    variant="outlined"
+                                                                                    color={color}
+                                                                                    sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                                />
+                                                                            );
+                                                                        })()}
+                                                                        {task.isRecurring && (
+                                                                            <Chip
+                                                                                icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />}
+                                                                                label="Recurring"
+                                                                                size="small"
+                                                                                variant="outlined"
+                                                                                color="secondary"
+                                                                                sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                            />
+                                                                        )}
+                                                                    </Box>
+                                                                    {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                        <Chip
+                                                                            label={projectNameMap.get(task.projectID)}
+                                                                            size="small"
+                                                                            variant="outlined"
+                                                                            sx={{ height: 20, fontSize: '0.75rem' }}
+                                                                        />
+                                                                    )}
+                                                                </Box>
+                                                            }
+                                                            secondaryTypographyProps={{ component: 'div' }}
+                                                            primaryTypographyProps={{
+                                                                sx: {
+                                                                    textDecoration: 'line-through',
+                                                                    color: 'text.secondary',
+                                                                },
+                                                            }}
+                                                        />
+                                                    </ListItemButton>
+                                                </ListItem>
+                                            </Collapse>
+                                        ))}
+                                    </TransitionGroup>
                                 </Paper>
                             </Collapse>
                         </>
