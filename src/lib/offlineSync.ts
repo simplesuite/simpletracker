@@ -6,7 +6,7 @@
  */
 
 import { supabase, SUPABASE_URL, SUPABASE_KEY } from './supabase';
-import { getAll, dequeue, pendingCount, enqueue, hasPendingInsert } from './offlineQueue';
+import { getAll, dequeue, pendingCount, enqueue, hasPendingInsert, mergeIntoInsert } from './offlineQueue';
 import { withNetworkTimeout } from './networkUtils';
 import { useOfflineStore } from '../store/offlineStore';
 import { ensureSession } from '../components/extras/ensureSession';
@@ -249,7 +249,8 @@ export async function insertWithOfflineSupport(
 
 /**
  * Update a record with offline support.
- * Enqueues the mutation for instant local response, then attempts background sync.
+ * If there's a pending insert for this record, merges the update into it
+ * so the insert carries the latest data. Otherwise enqueues a separate update.
  */
 export async function updateWithOfflineSupport(
     entityType: string,
@@ -257,6 +258,15 @@ export async function updateWithOfflineSupport(
     recordID: string,
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; queued: boolean }> {
+    // Check if there's already a pending insert for this record.
+    // If so, merge the update fields into the insert payload directly
+    // so the insert will carry the latest data when it syncs.
+    const insertPending = await hasPendingInsert(recordID);
+    if (insertPending) {
+        await mergeIntoInsert(recordID, payload);
+        return { success: true, queued: true };
+    }
+
     const mutation: PendingMutation = {
         id: `${entityType}-update-${recordID}-${Date.now()}`,
         entityType: entityType as PendingMutation['entityType'],
@@ -274,16 +284,7 @@ export async function updateWithOfflineSupport(
         return { success: true, queued: true };
     }
 
-    // If there's a pending insert for this record, don't fire the update independently.
-    // The batch syncPendingMutations will process them in FIFO order ensuring
-    // the insert completes before the update.
-    const insertPending = await hasPendingInsert(recordID);
-    if (insertPending) {
-        // Trigger a full queue sync instead, which processes in order
-        syncPendingMutations();
-    } else {
-        syncSingleMutation(mutation);
-    }
+    syncSingleMutation(mutation);
 
     return { success: true, queued: true };
 }
