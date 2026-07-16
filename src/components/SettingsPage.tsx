@@ -1,21 +1,15 @@
 import React from 'react';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Paper from '@mui/material/Paper';
-import { Switch } from "@mui/material";
+import { Switch, alpha } from "@mui/material";
 import { useGlobalStore, dialogPaperStyles } from "../store/globalStore";
 import { useModalStore } from "../store/modalStore";
 import { useNavigate } from "react-router-dom";
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import Divider from "@mui/material/Divider";
+import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import NotificationsIcon from '@mui/icons-material/Notifications';
-import ListItemIcon from '@mui/material/ListItemIcon';
 import LockResetIcon from '@mui/icons-material/LockReset';
 import LogoutIcon from '@mui/icons-material/Logout';
 import LockIcon from '@mui/icons-material/Lock';
@@ -38,11 +32,11 @@ import { useIsOffline } from "./extras/OfflineAlert";
 import CloseIcon from '@mui/icons-material/Close';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import BugReportIcon from '@mui/icons-material/BugReport';
-import ShareIcon from '@mui/icons-material/Share';
 import IconButton from "@mui/material/IconButton";
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
+import Avatar from '@mui/material/Avatar';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
 import { useNoteStore } from '../store/noteStore';
@@ -50,6 +44,14 @@ import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
 import { CSVLink } from 'react-csv';
 import IosShareIcon from '@mui/icons-material/IosShare';
+import Divider from '@mui/material/Divider';
+
+function getInitials(name: string | null): string {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return parts[0][0]?.toUpperCase() || '?';
+}
 
 export default function SettingsPage() {
     const offline = useIsOffline();
@@ -120,7 +122,6 @@ export default function SettingsPage() {
         }));
     }, [projects]);
 
-    // Detect mismatch: app thinks notifications are enabled but system permission is off
     const [permissionMismatch, setPermissionMismatch] = React.useState(false);
     React.useEffect(() => {
         const check = () => {
@@ -163,374 +164,318 @@ export default function SettingsPage() {
         if (navigator.share) {
             try {
                 await navigator.share({ title: 'simpleTracker', url: appUrl });
-            } catch {
-                // User cancelled or share failed silently
-            }
+            } catch { /* cancelled */ }
         } else {
-            await navigator.clipboard
-                .writeText(appUrl)
-                .then(() => {
-                    setSnackSev('success');
-                    setSnackText('App link copied!');
-                    setSnackOpen(true);
-                })
-                .catch(() => {
-                    setSnackSev('error');
-                    setSnackText('Failed to copy link');
-                    setSnackOpen(true);
-                });
+            await navigator.clipboard.writeText(appUrl)
+                .then(() => { setSnackSev('success'); setSnackText('App link copied!'); setSnackOpen(true); })
+                .catch(() => { setSnackSev('error'); setSnackText('Failed to copy link'); setSnackOpen(true); });
         }
     };
 
     const handleUpgrade = async () => {
         setCheckoutLoading(true);
-        try {
-            await redirectToCheckout();
-        } catch (err: any) {
-            setSnackSev('error');
-            setSnackText(err.message || 'Failed to start checkout');
-            setSnackOpen(true);
-            setCheckoutLoading(false);
-        }
+        try { await redirectToCheckout(); }
+        catch (err: any) { setSnackSev('error'); setSnackText(err.message || 'Failed to start checkout'); setSnackOpen(true); setCheckoutLoading(false); }
     };
 
     const handleManageBilling = async () => {
         setBillingLoading(true);
-        try {
-            await redirectToBillingPortal();
-        } catch (err: any) {
-            setSnackSev('error');
-            setSnackText(err.message || 'Failed to open billing portal');
-            setSnackOpen(true);
-            setBillingLoading(false);
-        }
+        try { await redirectToBillingPortal(); }
+        catch (err: any) { setSnackSev('error'); setSnackText(err.message || 'Failed to open billing portal'); setSnackOpen(true); setBillingLoading(false); }
     };
 
-    const handleThemeClick = (event: any) => {
-        setSlideCheck(event.target.checked);
-        if (event.target.checked) {
-            setTheme('dark');
-            localStorage.setItem('userTheme', 'dark');
-            setSnackSev('success');
-            setSnackText('Dark mode activated!');
-            setSnackOpen(true);
-        } else {
-            setTheme('light');
-            localStorage.setItem('userTheme', 'light');
-            setSnackSev('success');
-            setSnackText('Set to light mode.');
-            setSnackOpen(true);
-        }
-    };
-
-    const handleListThemeClick = () => {
-        if (!slideCheck) {
-            setTheme('dark');
-            localStorage.setItem('userTheme', 'dark');
-            setSnackSev('success');
-            setSnackText('Dark mode activated!');
-            setSnackOpen(true);
-        } else {
-            setTheme('light');
-            localStorage.setItem('userTheme', 'light');
-            setSnackSev('success');
-            setSnackText('Set to light mode.');
-            setSnackOpen(true);
-        }
-        setSlideCheck(!slideCheck);
+    const handleThemeToggle = () => {
+        const newDark = !slideCheck;
+        setSlideCheck(newDark);
+        const mode = newDark ? 'dark' : 'light';
+        setTheme(mode);
+        localStorage.setItem('userTheme', mode);
+        setSnackSev('success');
+        setSnackText(newDark ? 'Dark mode activated!' : 'Set to light mode.');
+        setSnackOpen(true);
     };
 
     const handleNotificationsToggle = async () => {
         if (!notificationsEnabled) {
             const granted = await requestNotificationPermission();
-            if (granted) {
-                setNotificationsEnabled(true);
-                setNotificationsPrompted(true);
-                setSnackSev('success');
-                setSnackText('Notifications enabled');
-                setSnackOpen(true);
-            } else {
-                setSnackSev('warning');
-                setSnackText('Notification permission denied by browser');
-                setSnackOpen(true);
-            }
+            if (granted) { setNotificationsEnabled(true); setNotificationsPrompted(true); setSnackSev('success'); setSnackText('Notifications enabled'); setSnackOpen(true); }
+            else { setSnackSev('warning'); setSnackText('Notification permission denied by browser'); setSnackOpen(true); }
         } else {
-            setNotificationsEnabled(false);
-            setSnackSev('success');
-            setSnackText('Notifications disabled');
-            setSnackOpen(true);
+            setNotificationsEnabled(false); setSnackSev('success'); setSnackText('Notifications disabled'); setSnackOpen(true);
         }
     };
 
-    async function supaLogOut() {
-        let { error } = await supabase.auth.signOut();
-    }
+    async function supaLogOut() { await supabase.auth.signOut(); }
 
-    React.useEffect(() => {
-        if (currentTheme === 'dark') {
-            setSlideCheck(true);
-        } else {
-            setSlideCheck(false);
-        }
-    }, [slideCheck, currentTheme]);
+    React.useEffect(() => { setSlideCheck(currentTheme === 'dark'); }, [currentTheme]);
 
     const navigate = useNavigate();
-    const fnLogout = () => {
-        supaLogOut();
-        navigate("/login", { replace: true });
-    };
+    const fnLogout = () => { supaLogOut(); navigate("/login", { replace: true }); };
 
     const copyUserID = async () => {
-        await navigator.clipboard
-            .writeText(currentUserDetails.recordID)
-            .then(() => {
-                setSnackSev('success');
-                setSnackText('User ID copied');
-                setSnackOpen(true);
-            })
-            .catch(() => {
-                setSnackSev('error');
-                setSnackText('Something went wrong');
-                setSnackOpen(true);
-            });
+        await navigator.clipboard.writeText(currentUserDetails.recordID)
+            .then(() => { setSnackSev('success'); setSnackText('User ID copied'); setSnackOpen(true); })
+            .catch(() => { setSnackSev('error'); setSnackText('Something went wrong'); setSnackOpen(true); });
     };
 
-    React.useEffect(() => {
-        window.scrollTo(0, 0);
-    }, []);
+    React.useEffect(() => { window.scrollTo(0, 0); }, []);
 
     if (entitlementLoading) {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" sx={{ mt: 8 }}>
-                <CircularProgress />
-            </Box>
-        );
+        return <Box display="flex" justifyContent="center" alignItems="center" sx={{ mt: 8 }}><CircularProgress /></Box>;
     }
+
+    const subscriptionLabel = subscriptionState === 'active' ? 'Pro'
+        : subscriptionState === 'trialing' ? 'Trial'
+            : subscriptionState === 'canceling' ? 'Canceling' : 'Free';
+    const subscriptionColor: 'success' | 'info' | 'warning' | 'default' =
+        subscriptionState === 'active' ? 'success'
+            : subscriptionState === 'trialing' ? 'info'
+                : subscriptionState === 'canceling' ? 'warning' : 'default';
 
     return (
         <>
-            <Box display='flex' flexDirection='column' alignItems='center'>
-                <Stack spacing={2} alignItems="stretch" sx={{ maxWidth: 600, width: '100%' }}>
+            <Box display="flex" flexDirection="column" alignItems="center" sx={{ pb: 4 }}>
+                <Stack spacing={2.5} alignItems="stretch" sx={{ maxWidth: 560, width: '100%' }}>
 
-                    {/* Account & Subscription */}
-                    <Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
-                            <Typography color='text.secondary' variant='subtitle2' sx={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                {currentUserDetails.fullName}
-                            </Typography>
-                            {!entitlementLoading && (
-                                subscriptionState === 'active' ? (
-                                    <Chip label="Pro" size="small" color="success" />
-                                ) : subscriptionState === 'trialing' ? (
-                                    <Chip label="Trial" size="small" color="info" />
-                                ) : subscriptionState === 'canceling' ? (
-                                    <Chip label="Canceling" size="small" color="warning" />
-                                ) : (
-                                    <Chip label="Free" size="small" variant="outlined" />
-                                )
-                            )}
+                    {/* ─── Profile Card ─── */}
+                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 2.5 }}>
+                            <Avatar sx={{
+                                width: 72,
+                                height: 72,
+                                fontSize: '1.6rem',
+                                fontWeight: 700,
+                                bgcolor: theme.palette.primary.main,
+                                color: theme.palette.primary.contrastText,
+                                boxShadow: `0 4px 14px ${alpha(theme.palette.primary.main, 0.25)}`,
+                            }}>
+                                {getInitials(currentUserDetails.fullName)}
+                            </Avatar>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+                                    {currentUserDetails.fullName || 'User'}
+                                </Typography>
+                            </Box>
                         </Box>
-                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                            <List>
-                                {subscriptionState === 'free' && (
-                                    <>
-                                        <ListItem disablePadding>
-                                            <ListItemButton onClick={handleUpgrade} disabled={offline || checkoutLoading}>
-                                                <ListItemIcon><StarIcon /></ListItemIcon>
-                                                <ListItemText
-                                                    primary="Upgrade to Pro"
-                                                    secondary={checkoutLoading ? "Redirecting to checkout..." : "Unlock premium features"}
-                                                />
-                                            </ListItemButton>
-                                        </ListItem>
-                                        <Divider />
-                                    </>
-                                )}
-                                {subscriptionState === 'canceling' && (
-                                    <>
-                                        <ListItem sx={{ px: 2, py: 1 }}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                Your plan is active until {entitlement?.current_period_end
-                                                    ? new Date(entitlement.current_period_end).toLocaleDateString()
-                                                    : 'end of billing period'}
-                                            </Typography>
-                                        </ListItem>
-                                        <Divider />
-                                    </>
-                                )}
-                                {subscriptionState !== 'free' && (
-                                    <>
-                                        <ListItem disablePadding>
-                                            <ListItemButton onClick={handleManageBilling} disabled={offline || billingLoading}>
-                                                <ListItemIcon><ManageAccountsIcon /></ListItemIcon>
-                                                <ListItemText
-                                                    primary="Manage Subscription"
-                                                    secondary={billingLoading ? "Redirecting to billing portal..." : "Update payment, cancel, or view invoices"}
-                                                />
-                                            </ListItemButton>
-                                        </ListItem>
-                                        <Divider />
-                                    </>
-                                )}
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={() => setQrOpen(true)}>
-                                        <ListItemIcon><QrCodeIcon /></ListItemIcon>
-                                        <ListItemText primary="Show My QR Code" secondary="For sharing" />
-                                    </ListItemButton>
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={() => setOpenChangePassword(true)} disabled={offline}>
-                                        <ListItemIcon><LockResetIcon /></ListItemIcon>
-                                        <ListItemText primary="Change Password" />
-                                    </ListItemButton>
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={fnLogout} disabled={offline}>
-                                        <ListItemIcon><LogoutIcon /></ListItemIcon>
-                                        <ListItemText primary="Logout" />
-                                    </ListItemButton>
-                                </ListItem>
-                            </List>
-                        </Paper>
-                    </Box>
+                        <Divider sx={{ mb: 2 }} />
+                        <Stack direction="row" spacing={1.5}>
+                            <Button
+                                variant="outlined" size="small" startIcon={<QrCodeIcon />}
+                                onClick={() => setQrOpen(true)}
+                                sx={{ textTransform: 'none', borderRadius: 2, flex: 1 }}
+                            >
+                                My QR Code
+                            </Button>
+                            <Button
+                                variant="outlined" size="small" startIcon={<LogoutIcon />}
+                                onClick={fnLogout} disabled={offline}
+                                color="error"
+                                sx={{ textTransform: 'none', borderRadius: 2, flex: 1 }}
+                            >
+                                Log Out
+                            </Button>
+                        </Stack>
+                    </Paper>
 
-                    {/* Preferences */}
-                    <Box>
-                        <Typography color='text.secondary' variant='subtitle2' sx={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+                    {/* ─── Upgrade Banner (free only) ─── */}
+                    {subscriptionState === 'free' && (
+                        <Paper elevation={4} sx={{
+                            borderRadius: 4,
+                            p: 3,
+                            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)}, ${alpha(theme.palette.secondary.main, 0.06)})`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                        }}>
+                            <StarIcon sx={{ color: theme.palette.primary.main, fontSize: 28 }} />
+                            <Box sx={{ flex: 1 }}>
+                                <Typography variant="body1" sx={{ fontWeight: 700 }}>Upgrade to Pro</Typography>
+                                <Typography variant="caption" color="text.secondary">Unlock exports, sharing & more</Typography>
+                            </Box>
+                            <Button
+                                variant="contained" size="small" onClick={handleUpgrade}
+                                disabled={offline || checkoutLoading}
+                                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+                            >
+                                {checkoutLoading ? 'Loading...' : 'Upgrade'}
+                            </Button>
+                        </Paper>
+                    )}
+                    {subscriptionState === 'canceling' && (
+                        <Alert severity="info" sx={{ borderRadius: 3 }}>
+                            Plan active until {entitlement?.current_period_end
+                                ? new Date(entitlement.current_period_end).toLocaleDateString()
+                                : 'end of billing period'}
+                        </Alert>
+                    )}
+
+                    {/* ─── Preferences Card ─── */}
+                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2.5, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
                             Preferences
                         </Typography>
-                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                            <List>
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={handleListThemeClick}>
-                                        <ListItemIcon><DarkModeIcon /></ListItemIcon>
-                                        <ListItemText primary="Dark Mode" />
-                                        <Switch sx={{ ml: 1 }} size='small' checked={slideCheck} onChange={handleThemeClick} />
-                                    </ListItemButton>
-                                </ListItem>
-                                {showNotificationsSetting && (
-                                    <>
-                                        <Divider />
-                                        <ListItem disablePadding>
-                                            <ListItemButton onClick={handleNotificationsToggle}>
-                                                <ListItemIcon><NotificationsIcon /></ListItemIcon>
-                                                <ListItemText primary="Task Notifications" secondary="Daily reminders for due & overdue tasks" />
-                                                <Switch sx={{ ml: 1 }} size='small' checked={notificationsEnabled} onChange={handleNotificationsToggle} />
-                                            </ListItemButton>
-                                        </ListItem>
-                                        {permissionMismatch && (
-                                            <ListItem>
-                                                <Alert
-                                                    severity="warning"
-                                                    sx={{ width: '100%', borderRadius: 2 }}
-                                                    action={
-                                                        <Button color="inherit" size="small" onClick={handleFixPermission}>
-                                                            {Notification.permission === 'denied' ? 'How to fix' : 'Allow'}
-                                                        </Button>
-                                                    }
-                                                >
-                                                    Notifications are blocked at the system level
-                                                </Alert>
-                                            </ListItem>
-                                        )}
-                                    </>
-                                )}
-                            </List>
-                        </Paper>
-                    </Box>
 
-                    {/* Export Data */}
-                    <Box>
-                        <Typography color='text.secondary' variant='subtitle2' sx={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                <DarkModeIcon sx={{ color: theme.palette.mode === 'dark' ? '#90caf9' : '#5c6bc0', fontSize: 22 }} />
+                                <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Dark Mode</Typography>
+                                    <Typography variant="caption" color="text.secondary">Easier on the eyes</Typography>
+                                </Box>
+                            </Box>
+                            <Switch size="small" checked={slideCheck} onChange={handleThemeToggle} />
+                        </Box>
+
+                        {showNotificationsSetting && (
+                            <>
+                                <Divider sx={{ my: 2 }} />
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                        <NotificationsIcon sx={{ color: '#f57c00', fontSize: 22 }} />
+                                        <Box>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Task Notifications</Typography>
+                                            <Typography variant="caption" color="text.secondary">Daily reminders for due tasks</Typography>
+                                        </Box>
+                                    </Box>
+                                    <Switch size="small" checked={notificationsEnabled} onChange={handleNotificationsToggle} />
+                                </Box>
+                                {permissionMismatch && (
+                                    <Alert
+                                        severity="warning"
+                                        sx={{ borderRadius: 2, mt: 2 }}
+                                        action={
+                                            <Button color="inherit" size="small" onClick={handleFixPermission}>
+                                                {Notification.permission === 'denied' ? 'How to fix' : 'Allow'}
+                                            </Button>
+                                        }
+                                    >
+                                        Notifications blocked at system level
+                                    </Alert>
+                                )}
+                            </>
+                        )}
+                    </Paper>
+
+                    {/* ─── Account Card ─── */}
+                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                                Account
+                            </Typography>
+                            <Chip
+                                label={subscriptionLabel}
+                                size="small"
+                                color={subscriptionColor}
+                                variant={subscriptionState === 'free' ? 'outlined' : 'filled'}
+                            />
+                        </Box>
+
+                        <Stack spacing={1.5}>
+                            {subscriptionState !== 'free' && (
+                                <Button
+                                    variant="outlined" fullWidth startIcon={<ManageAccountsIcon />}
+                                    color='primary'
+                                    onClick={handleManageBilling} disabled={offline || billingLoading}
+                                    sx={{ justifyContent: 'flex-start', textTransform: 'none', borderRadius: 2, py: 1.2 }}
+                                >
+                                    {billingLoading ? 'Redirecting...' : 'Manage Subscription'}
+                                </Button>
+                            )}
+                            <Button
+                                color='primary'
+                                variant="outlined" fullWidth startIcon={<LockResetIcon />}
+                                onClick={() => setOpenChangePassword(true)} disabled={offline}
+                                sx={{ justifyContent: 'flex-start', textTransform: 'none', borderRadius: 2, py: 1.2 }}
+                            >
+                                Change Password
+                            </Button>
+                        </Stack>
+                    </Paper>
+
+                    {/* ─── Export Card ─── */}
+                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
                             Export Data
                         </Typography>
-                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                            <List>
-                                <ListItem disablePadding>
-                                    {hasPro ? (
-                                        <ListItemButton component={CSVLink} data={notesCSVData} filename="simpletracker-notes.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
-                                            <ListItemIcon><DownloadIcon /></ListItemIcon>
-                                            <ListItemText primary="Export Notes" secondary={`${notesCSVData.length} notes`} />
-                                        </ListItemButton>
-                                    ) : (
-                                        <ListItemButton disabled>
-                                            <ListItemIcon><LockIcon color="disabled" /></ListItemIcon>
-                                            <ListItemText primary="Export Notes" secondary="Pro feature" />
-                                            <Chip label="Pro" size="small" variant="outlined" sx={{ ml: 1 }} />
-                                        </ListItemButton>
-                                    )}
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    {hasPro ? (
-                                        <ListItemButton component={CSVLink} data={tasksCSVData} filename="simpletracker-tasks.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
-                                            <ListItemIcon><DownloadIcon /></ListItemIcon>
-                                            <ListItemText primary="Export Tasks" secondary={`${tasksCSVData.length} tasks`} />
-                                        </ListItemButton>
-                                    ) : (
-                                        <ListItemButton disabled>
-                                            <ListItemIcon><LockIcon color="disabled" /></ListItemIcon>
-                                            <ListItemText primary="Export Tasks" secondary="Pro feature" />
-                                            <Chip label="Pro" size="small" variant="outlined" sx={{ ml: 1 }} />
-                                        </ListItemButton>
-                                    )}
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    {hasPro ? (
-                                        <ListItemButton component={CSVLink} data={projectsCSVData} filename="simpletracker-projects.csv" target="_blank" sx={{ textDecoration: 'none', color: 'inherit' }}>
-                                            <ListItemIcon><DownloadIcon /></ListItemIcon>
-                                            <ListItemText primary="Export Projects" secondary={`${projectsCSVData.length} projects`} />
-                                        </ListItemButton>
-                                    ) : (
-                                        <ListItemButton disabled>
-                                            <ListItemIcon><LockIcon color="disabled" /></ListItemIcon>
-                                            <ListItemText primary="Export Projects" secondary="Pro feature" />
-                                            <Chip label="Pro" size="small" variant="outlined" sx={{ ml: 1 }} />
-                                        </ListItemButton>
-                                    )}
-                                </ListItem>
-                            </List>
-                        </Paper>
-                    </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2.5 }}>
+                            Download your data as CSV files
+                        </Typography>
 
-                    {/* Support */}
-                    <Box>
-                        <Typography color='text.secondary' variant='subtitle2' sx={{ fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+                        {hasPro ? (
+                            <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+                                <Button
+                                    color='secondary'
+                                    component={CSVLink} data={notesCSVData} filename="simpletracker-notes.csv" target="_blank"
+                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
+                                >
+                                    Notes ({notesCSVData.length})
+                                </Button>
+                                <Button
+                                    color='secondary'
+                                    component={CSVLink} data={tasksCSVData} filename="simpletracker-tasks.csv" target="_blank"
+                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
+                                >
+                                    Tasks ({tasksCSVData.length})
+                                </Button>
+                                <Button
+                                    color='secondary'
+                                    component={CSVLink} data={projectsCSVData} filename="simpletracker-projects.csv" target="_blank"
+                                    variant="outlined" size="small" startIcon={<DownloadIcon />}
+                                    sx={{ textDecoration: 'none', textTransform: 'none', borderRadius: 2 }}
+                                >
+                                    Projects ({projectsCSVData.length})
+                                </Button>
+                            </Stack>
+                        ) : (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, borderRadius: 2, bgcolor: alpha(theme.palette.action.disabled, 0.04) }}>
+                                <LockIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
+                                <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+                                    Exports are a Pro feature
+                                </Typography>
+                                <Chip label="Pro" size="small" variant="outlined" />
+                            </Box>
+                        )}
+                    </Paper>
+
+                    {/* ─── Support Card ─── */}
+                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 2.5, textTransform: 'uppercase', letterSpacing: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
                             Support
                         </Typography>
-                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
-                            <List>
-                                <ListItem disablePadding>
-                                    <ListItemButton component="a" href="https://simplesuite.dev/guides" target="_blank" rel="noopener noreferrer">
-                                        <ListItemIcon><MenuBookIcon /></ListItemIcon>
-                                        <ListItemText primary="Guides" />
-                                    </ListItemButton>
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    <ListItemButton component="a" href="https://github.com/simplesuite/simpletracker/issues" target="_blank" rel="noopener noreferrer">
-                                        <ListItemIcon><BugReportIcon /></ListItemIcon>
-                                        <ListItemText primary="Report a Bug or Request a Feature" />
-                                    </ListItemButton>
-                                </ListItem>
-                                <Divider />
-                                <ListItem disablePadding>
-                                    <ListItemButton onClick={handleShareApp}>
-                                        <ListItemIcon>
-                                            <IosShareIcon />
-                                        </ListItemIcon>
-                                        <ListItemText primary="Share App Link" secondary="Share simpleTracker with others" />
-                                    </ListItemButton>
-                                </ListItem>
-                            </List>
-                        </Paper>
-                    </Box>
+
+                        <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5 }}>
+                            <Button
+                                color='primary'
+                                variant="outlined" size="small" startIcon={<MenuBookIcon />}
+                                component="a" href="https://simplesuite.dev/guides" target="_blank" rel="noopener noreferrer"
+                                sx={{ textTransform: 'none', borderRadius: 2, textDecoration: 'none' }}
+                            >
+                                Guides
+                            </Button>
+                            <Button
+                                color='primary'
+                                variant="outlined" size="small" startIcon={<BugReportIcon />}
+                                component="a" href="https://github.com/simplesuite/simpletracker/issues" target="_blank" rel="noopener noreferrer"
+                                sx={{ textTransform: 'none', borderRadius: 2, textDecoration: 'none' }}
+                            >
+                                Report Bug
+                            </Button>
+                            <Button
+                                color='primary'
+                                variant="outlined" size="small" startIcon={<IosShareIcon />}
+                                onClick={handleShareApp}
+                                sx={{ textTransform: 'none', borderRadius: 2 }}
+                            >
+                                Share App
+                            </Button>
+                        </Stack>
+                    </Paper>
 
                 </Stack>
             </Box>
+
             <ChangePassword />
             <Dialog
                 open={qrOpen}
@@ -538,23 +483,17 @@ export default function SettingsPage() {
                 fullScreen={!bigger}
                 slotProps={{ paper: bigger ? dialogPaperStyles : undefined }}
             >
-                <Box sx={{ bgcolor: 'background.paper', height: '100%' }} component='form' onSubmit={() => { copyUserID(); setQrOpen(false); }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }} component="form" onSubmit={() => { copyUserID(); setQrOpen(false); }}>
                     <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         My User ID<IconButton onClick={() => setQrOpen(false)}><CloseIcon /></IconButton>
                     </DialogTitle>
                     <DialogContent sx={{ textAlign: 'center', pb: 3 }} dividers>
                         <QRCodeSVG value={currentUserDetails.recordID} size={200} />
-                        <Typography variant='body2' color='text.secondary' sx={{ mt: 2, wordBreak: 'break-all' }}>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2, wordBreak: 'break-all' }}>
                             {currentUserDetails.recordID}
                         </Typography>
                         <DialogActions>
-                            <Button
-                                sx={{ mt: 1 }}
-                                fullWidth
-                                variant='contained'
-                                type='submit'
-                                startIcon={<ContentCopyIcon />}
-                            >
+                            <Button sx={{ mt: 1 }} fullWidth variant="contained" type="submit" startIcon={<ContentCopyIcon />}>
                                 Copy to Clipboard
                             </Button>
                         </DialogActions>
