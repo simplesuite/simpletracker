@@ -836,12 +836,15 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         const now = Date.now();
         const recordID = uuidv4();
 
+        // Use max existing indexOrder + 1 to avoid collisions after deletions
+        const maxOrder = existing.reduce((max, item) => Math.max(max, item.indexOrder), 0);
+
         const newItem: NoteListItem = {
             recordID,
             noteID,
             title: title.trim(),
             isCompleted: false,
-            indexOrder: existing.length + 1,
+            indexOrder: maxOrder + 1,
             createdAt: now,
             updatedAt: now,
         };
