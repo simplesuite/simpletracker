@@ -117,7 +117,13 @@ export default function ProjectDetailPage() {
     const [description, setDescription] = useState(project?.description || '');
     const [nameError, setNameError] = useState('');
     const [shareEmail, setShareEmail] = useState('');
-    const [shares, setShares] = useState<(ProjectShared & { fullName?: string; email?: string })[]>([]);
+    const [shares, setShares] = useState<(ProjectShared & { fullName?: string; email?: string })[]>(() => {
+        try {
+            const raw = localStorage.getItem(`cachedProjectShares_${id}`);
+            if (raw) return JSON.parse(raw);
+        } catch { /* ignore */ }
+        return [];
+    });
     const [sharesLoading, setSharesLoading] = useState(false);
     const [searchResults, setSearchResults] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
     const [searchLoading, setSearchLoading] = useState(false);
@@ -162,6 +168,9 @@ export default function ProjectDetailPage() {
             sharesWithNames.push({ ...share, fullName: data?.fullName || share.sharedToID, email: data?.email || '' });
         }
         setShares(sharesWithNames);
+        try {
+            localStorage.setItem(`cachedProjectShares_${id}`, JSON.stringify(sharesWithNames));
+        } catch { /* ignore */ }
         setSharesLoading(false);
     }, [id, isCreator, getSharesForProject]);
 

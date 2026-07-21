@@ -170,8 +170,26 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                         .filter((m) => m.entityType === 'note' && m.operation === 'delete')
                         .map((m) => m.recordID)
                 );
+                const pendingUpdateIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'note' && (m.operation === 'update' || m.operation === 'insert'))
+                        .map((m) => m.recordID)
+                );
                 if (pendingDeleteIDs.size > 0) {
                     filteredNotes = filteredNotes.filter((n) => !pendingDeleteIDs.has(n.recordID));
+                }
+
+                // For notes with pending updates/inserts, prefer the local version
+                // over the stale server data to avoid overwriting offline edits
+                if (pendingUpdateIDs.size > 0) {
+                    const currentNotes = get().notes;
+                    const localNoteMap = new Map(currentNotes.map((n) => [n.recordID, n]));
+                    filteredNotes = filteredNotes.map((n) => {
+                        if (pendingUpdateIDs.has(n.recordID) && localNoteMap.has(n.recordID)) {
+                            return localNoteMap.get(n.recordID)!;
+                        }
+                        return n;
+                    });
                 }
 
                 // Merge in any locally-created notes not present in the server response.

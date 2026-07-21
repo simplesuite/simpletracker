@@ -63,20 +63,12 @@ import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/ind
 function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
     const [localValue, setLocalValue] = useState(value);
     const localRef = useRef(localValue);
-    const inputRef = useRef<HTMLInputElement>(null);
     localRef.current = localValue;
 
     // Sync incoming prop changes (e.g. from toggling completion status)
     useEffect(() => {
         setLocalValue(value);
     }, [value]);
-
-    // Focus the input when autoFocus becomes true (handles both mount and re-render)
-    useEffect(() => {
-        if (autoFocus && inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, [autoFocus]);
 
     // Save on unmount if changed
     useEffect(() => {
@@ -92,8 +84,11 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
             variant="standard"
             fullWidth
             multiline
-            autoFocus={autoFocus}
-            inputRef={inputRef}
+            inputRef={(el) => {
+                if (el && autoFocus) {
+                    el.focus();
+                }
+            }}
             value={localValue}
             onChange={(e) => {
                 if (e.target.value.length <= 255) {
@@ -158,7 +153,13 @@ export default function NoteDetailPage() {
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
     // Share management state
-    const [shares, setShares] = useState<(NoteShared & { fullName?: string; email?: string })[]>([]);
+    const [shares, setShares] = useState<(NoteShared & { fullName?: string; email?: string })[]>(() => {
+        try {
+            const raw = localStorage.getItem(`cachedNoteShares_${id}`);
+            if (raw) return JSON.parse(raw);
+        } catch { /* ignore */ }
+        return [];
+    });
     const [shareEmail, setShareEmail] = useState('');
     const [shareError, setShareError] = useState<string | null>(null);
     const [shareLoading, setShareLoading] = useState(false);
@@ -359,6 +360,9 @@ export default function NoteDetailPage() {
                 });
             }
             setShares(sharesWithDetails);
+            try {
+                localStorage.setItem(`cachedNoteShares_${id}`, JSON.stringify(sharesWithDetails));
+            } catch { /* ignore */ }
         };
 
         loadShares();

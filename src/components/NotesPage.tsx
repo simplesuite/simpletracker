@@ -70,6 +70,16 @@ export default function NotesPage() {
   const fetchListItems = useNoteStore((s) => s.fetchListItems);
   const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
   const projects = useProjectStore((s) => s.projects);
+  const sharedProjectIDs = useProjectStore((s) => s.sharedProjectIDs);
+
+  // Map projectID -> sharedToID for showing shared-via-project avatar
+  const sharedByMeProjectUserMap = React.useMemo<Map<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem('cachedSharedByMeProjectUserMap');
+      if (raw) return new Map(JSON.parse(raw) as [string, string][]);
+    } catch { /* ignore */ }
+    return new Map();
+  }, []);
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedProjectIDs, setSelectedProjectIDs] = React.useState<Set<string>>(new Set());
@@ -84,7 +94,15 @@ export default function NotesPage() {
     },
   );
   // Map noteID -> first sharedToID for showing the avatar
-  const [sharedByMeNoteUserMap, setSharedByMeNoteUserMap] = React.useState<Map<string, string>>(new Map());
+  const [sharedByMeNoteUserMap, setSharedByMeNoteUserMap] = React.useState<Map<string, string>>(
+    () => {
+      try {
+        const cached = localStorage.getItem("sharedByMeNoteUserMap");
+        if (cached) return new Map(JSON.parse(cached) as [string, string][]);
+      } catch { }
+      return new Map();
+    },
+  );
 
   // Fetch which of my notes are shared with others
   React.useEffect(() => {
@@ -114,6 +132,9 @@ export default function NotesPage() {
           }
         }
         setSharedByMeNoteUserMap(userMap);
+        try {
+          localStorage.setItem("sharedByMeNoteUserMap", JSON.stringify([...userMap.entries()]));
+        } catch { /* ignore */ }
       }
     };
     fetchSharedByMe();
@@ -287,34 +308,40 @@ export default function NotesPage() {
                   display: "flex",
                   gap: 0.5,
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
                   mt: "auto",
                 }}
               >
                 <Typography variant="caption" color="text.secondary">
                   {formatTimestamp(note.updatedAt)}
                 </Typography>
-                {isSharedNote(note) && (
-                  <Avatar
-                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${note.creatorID}`}
-                    sx={{ width: 22, height: 22 }}
-                  />
-                )}
-                {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
-                  <Avatar
-                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeNoteUserMap.get(note.recordID) || ''}`}
-                    sx={{ width: 22, height: 22 }}
-                  />
-                )}
-                {note.projectID && projectNameMap.has(note.projectID) && (
-                  <Chip
-                    label={projectNameMap.get(note.projectID)}
-                    size="small"
-                    variant="outlined"
-                    sx={{ height: 18, fontSize: "0.65rem" }}
-                  />
-                )}
+                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", ml: "auto" }}>
+                  {isSharedNote(note) && (
+                    <Avatar
+                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${note.creatorID}`}
+                      sx={{ width: 22, height: 22 }}
+                    />
+                  )}
+                  {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
+                    <Avatar
+                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeNoteUserMap.get(note.recordID) || ''}`}
+                      sx={{ width: 22, height: 22 }}
+                    />
+                  )}
+                  {!isSharedNote(note) && !sharedByMeNoteIDs.has(note.recordID) && note.projectID && sharedProjectIDs.has(note.projectID) && (
+                    <Avatar
+                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeProjectUserMap.get(note.projectID) || note.projectID}`}
+                      sx={{ width: 22, height: 22 }}
+                    />
+                  )}
+                  {note.projectID && projectNameMap.has(note.projectID) && (
+                    <Chip
+                      label={projectNameMap.get(note.projectID)}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 18, fontSize: "0.65rem" }}
+                    />
+                  )}
+                </Box>
               </Box>
             </Box>
           </Paper>

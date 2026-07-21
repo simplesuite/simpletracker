@@ -36,9 +36,30 @@ export default function ProjectsPage() {
 
   const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<
     Set<string>
-  >(new Set());
+  >(() => {
+    try {
+      const raw = localStorage.getItem('cachedSharedByMeProjectIDs');
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* ignore */ }
+    return new Set();
+  });
   // Map projectID -> first sharedToID for showing the avatar
-  const [sharedByMeProjectUserMap, setSharedByMeProjectUserMap] = React.useState<Map<string, string>>(new Map());
+  const [sharedByMeProjectUserMap, setSharedByMeProjectUserMap] = React.useState<Map<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem('cachedSharedByMeProjectUserMap');
+      if (raw) return new Map(JSON.parse(raw) as [string, string][]);
+    } catch { /* ignore */ }
+    return new Map();
+  });
+  // Track whether the page is ready to display (initial fetch + shared info loaded)
+  const [pageReady, setPageReady] = React.useState(false);
+  const hasFetchedShared = React.useRef(
+    (() => {
+      try {
+        return localStorage.getItem('cachedSharedByMeProjectIDs') !== null;
+      } catch { return false; }
+    })()
+  );
 
   const { subscriptionState, loading: entitlementLoading } = useEntitlement();
   const hasPro = entitlementLoading || subscriptionState !== "free";
@@ -59,6 +80,12 @@ export default function ProjectsPage() {
       if (ownedProjectIDs.length === 0) {
         setSharedByMeProjectIDs(new Set());
         setSharedByMeProjectUserMap(new Map());
+        try {
+          localStorage.setItem('cachedSharedByMeProjectIDs', '[]');
+          localStorage.setItem('cachedSharedByMeProjectUserMap', '[]');
+        } catch { /* ignore */ }
+        hasFetchedShared.current = true;
+        if (!loading) setPageReady(true);
         return;
       }
       const { data } = await supabase
@@ -66,18 +93,32 @@ export default function ProjectsPage() {
         .select("projectID, sharedToID")
         .in("projectID", ownedProjectIDs);
       if (data) {
-        setSharedByMeProjectIDs(new Set(data.map((r) => r.projectID)));
+        const ids = new Set(data.map((r) => r.projectID));
         const userMap = new Map<string, string>();
         for (const r of data) {
           if (!userMap.has(r.projectID)) {
             userMap.set(r.projectID, r.sharedToID);
           }
         }
+        setSharedByMeProjectIDs(ids);
         setSharedByMeProjectUserMap(userMap);
+        try {
+          localStorage.setItem('cachedSharedByMeProjectIDs', JSON.stringify([...ids]));
+          localStorage.setItem('cachedSharedByMeProjectUserMap', JSON.stringify([...userMap.entries()]));
+        } catch { /* ignore */ }
       }
+      hasFetchedShared.current = true;
+      if (!loading) setPageReady(true);
     };
     fetchSharedByMe();
   }, [projects, currentUserID]);
+
+  // Mark page ready once loading finishes and shared data has been fetched at least once
+  React.useEffect(() => {
+    if (!loading && hasFetchedShared.current) {
+      setPageReady(true);
+    }
+  }, [loading]);
 
   // Sort projects by total associated objects (notes + tasks) descending
   const sortedProjects = React.useMemo(() => {
@@ -101,25 +142,25 @@ export default function ProjectsPage() {
 
   return (
     <Box sx={{ maxWidth: 600, mx: "auto" }}>
-      {loading && projects.length === 0 && (
+      {!pageReady && (
         <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
           <CircularProgress />
         </Box>
       )}
 
-      {error && (
+      {pageReady && error && (
         <Typography color="error" variant="body2" sx={{ mt: 1 }}>
           {error}
         </Typography>
       )}
 
-      {!loading && sortedProjects.length === 0 && (
+      {pageReady && sortedProjects.length === 0 && (
         <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
           No projects yet. Create one to get started.
         </Typography>
       )}
 
-      {sortedProjects.length > 0 && (
+      {pageReady && sortedProjects.length > 0 && (
         <Fade in timeout={300}>
           <Box
             sx={{

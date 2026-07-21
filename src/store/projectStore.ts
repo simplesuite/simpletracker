@@ -132,8 +132,26 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
                         .filter((m) => m.entityType === 'project' && m.operation === 'delete')
                         .map((m) => m.recordID)
                 );
+                const pendingUpdateIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'project' && (m.operation === 'update' || m.operation === 'insert'))
+                        .map((m) => m.recordID)
+                );
                 if (pendingDeleteIDs.size > 0) {
                     filteredProjects = filteredProjects.filter((p) => !pendingDeleteIDs.has(p.recordID));
+                }
+
+                // For projects with pending updates/inserts, prefer the local version
+                // over the stale server data to avoid overwriting offline edits
+                if (pendingUpdateIDs.size > 0) {
+                    const currentProjects = get().projects;
+                    const localProjectMap = new Map(currentProjects.map((p) => [p.recordID, p]));
+                    filteredProjects = filteredProjects.map((p) => {
+                        if (pendingUpdateIDs.has(p.recordID) && localProjectMap.has(p.recordID)) {
+                            return localProjectMap.get(p.recordID)!;
+                        }
+                        return p;
+                    });
                 }
 
                 // Merge in any locally-created projects not present in the server response.
@@ -156,11 +174,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
             set({ projects: filteredProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
 
-            // Cache only non-shared projects (projects the user created that aren't shared)
-            const ownedNonSharedProjects = filteredProjects.filter(
-                (p) => p.creatorID === currentUserID && !allSharedProjectIDs.has(p.recordID)
-            );
-            setCachedProjects(ownedNonSharedProjects);
+            // Cache all projects for instant render on next load
+            setCachedProjects(filteredProjects);
         } catch (err: any) {
             set({ error: err.message || 'Failed to fetch projects', loading: false });
         }

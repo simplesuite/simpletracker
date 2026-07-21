@@ -15,6 +15,7 @@ function makeNote(overrides: Partial<Note> = {}): Note {
         projectID: null,
         archived: false,
         pinned: false,
+        noteType: 'text',
         ...overrides,
     };
 }
