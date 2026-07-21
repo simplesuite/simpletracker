@@ -41,6 +41,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
             projectID: fc.option(fc.uuid(), { nil: null }),
             archived: fc.boolean(),
             pinned: fc.boolean(),
+            noteType: fc.constantFrom<'text' | 'list'>('text', 'list'),
         });
 
     const taskArb = (creatorID: string): fc.Arbitrary<Task> =>
@@ -110,6 +111,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             projectID: null,
                             archived: false,
                             pinned: false,
+                            noteType: 'text',
                         });
                     }
 
@@ -227,6 +229,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             projectID: null,
                             archived: false,
                             pinned: false,
+                            noteType: 'text',
                         });
                     }
 
@@ -294,6 +297,7 @@ describe('Property 14: Shared Items Excluded from Offline Cache', () => {
                             projectID: null,
                             archived: false,
                             pinned: false,
+                            noteType: 'text',
                         });
                     }
 

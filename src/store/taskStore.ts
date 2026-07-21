@@ -147,8 +147,26 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
                         .filter((m) => m.entityType === 'task' && m.operation === 'delete')
                         .map((m) => m.recordID)
                 );
+                const pendingUpdateIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'task' && (m.operation === 'update' || m.operation === 'insert'))
+                        .map((m) => m.recordID)
+                );
                 if (pendingDeleteIDs.size > 0) {
                     filteredTasks = allTasks.filter((t) => !pendingDeleteIDs.has(t.recordID));
+                }
+
+                // For tasks with pending updates/inserts, prefer the local version
+                // over the stale server data to avoid overwriting offline edits
+                if (pendingUpdateIDs.size > 0) {
+                    const currentTasks = get().tasks;
+                    const localTaskMap = new Map(currentTasks.map((t) => [t.recordID, t]));
+                    filteredTasks = filteredTasks.map((t) => {
+                        if (pendingUpdateIDs.has(t.recordID) && localTaskMap.has(t.recordID)) {
+                            return localTaskMap.get(t.recordID)!;
+                        }
+                        return t;
+                    });
                 }
 
                 // Merge in any locally-created tasks not present in the server response.
@@ -704,10 +722,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
     },
 
     addSubtask: async (taskID, title) => {
-        const validation = validateSubtaskTitle(title);
-        if (!validation.valid) {
-            set({ error: validation.error || 'Invalid subtask title' });
-            return null;
+        // Skip validation for empty titles (inline creation flow — user types afterward)
+        if (title.trim().length > 0) {
+            const validation = validateSubtaskTitle(title);
+            if (!validation.valid) {
+                set({ error: validation.error || 'Invalid subtask title' });
+                return null;
+            }
         }
 
         // Enforce max 50 subtasks per task

@@ -660,7 +660,7 @@ export default function TaskDetailPage() {
             />
           }
           label=" Recurring"
-          sx={{ mb: 1, display: "block" }}
+          sx={{ mb: 1, pl: 1, display: "block" }}
         />
 
         {isRecurring && (
@@ -793,10 +793,13 @@ export default function TaskDetailPage() {
               <TextField
                 variant="standard"
                 fullWidth
-                autoFocus={st.recordID === focusedSubtaskId}
-                onFocus={() => {
-                  if (st.recordID === focusedSubtaskId)
+                inputRef={(el) => {
+                  if (el && st.recordID === focusedSubtaskId) {
+                    el.focus();
                     setFocusedSubtaskId(null);
+                  }
+                }}
+                onFocus={() => {
                   setSelectedSubtaskId(st.recordID);
                 }}
                 onBlur={() => {

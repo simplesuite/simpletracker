@@ -228,6 +228,7 @@ describe('Property 5: List Ordering', () => {
                         projectID: fc.constant(null),
                         archived: fc.constant(false),
                         pinned: fc.constant(false),
+                        noteType: fc.constant('text' as const),
                     }),
                     { minLength: 2, maxLength: 20 }
                 ),
@@ -260,6 +261,7 @@ describe('Property 5: List Ordering', () => {
                         projectID: fc.constant(null),
                         archived: fc.boolean(),
                         pinned: fc.constant(false),
+                        noteType: fc.constant('text' as const),
                     }),
                     { minLength: 1, maxLength: 20 }
                 ),
@@ -309,6 +311,7 @@ describe('Property 5: List Ordering', () => {
                         projectID: fc.constant(null),
                         archived: fc.constant(true),
                         pinned: fc.constant(false),
+                        noteType: fc.constant('text' as const),
                     }),
                     { minLength: 2, maxLength: 20 }
                 ),
@@ -352,6 +355,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -390,6 +394,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -425,6 +430,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         projectID: null,
                         archived: true,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });
@@ -463,6 +469,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         projectID: null,
                         archived: true,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });
@@ -498,6 +505,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -544,6 +552,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
@@ -579,6 +588,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
@@ -610,6 +620,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         projectID: null,
                         archived: false,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -641,6 +652,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         projectID: null,
                         archived: true,
                         pinned: false,
+                        noteType: 'text',
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });
