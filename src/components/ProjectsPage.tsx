@@ -19,6 +19,7 @@ import { useTaskStore } from "../store/taskStore";
 import { useGlobalStore } from "../store/globalStore";
 import { useEntitlement } from "../lib/checkout";
 import { supabase } from "../lib/supabase";
+import Fade from "@mui/material/Fade";
 import Paper from "@mui/material/Paper";
 
 export default function ProjectsPage() {
@@ -109,149 +110,151 @@ export default function ProjectsPage() {
       )}
 
       {sortedProjects.length > 0 && (
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 1.5,
-            pt: 0.5,
-            pb: 1,
-            px: 1,
-          }}
-        >
-          {sortedProjects.map((project) => {
-            const allNotes = [...notes, ...sharedNotes];
-            const noteCount = allNotes.filter(
-              (n) => n.projectID === project.recordID,
-            ).length;
-            const taskCount = tasks.filter(
-              (t) => t.projectID === project.recordID,
-            ).length;
-            const completedTaskCount = tasks.filter(
-              (t) =>
-                t.projectID === project.recordID && t.status === "completed",
-            ).length;
-            const overdueTaskCount = (() => {
-              const now = new Date();
-              const todayStart = new Date(
-                now.getFullYear(),
-                now.getMonth(),
-                now.getDate(),
-              ).getTime();
-              return tasks.filter(
-                (t) =>
-                  t.projectID === project.recordID &&
-                  t.status === "open" &&
-                  t.dueDate != null &&
-                  t.dueDate < todayStart,
+        <Fade in timeout={300}>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 1.5,
+              pt: 0.5,
+              pb: 1,
+              px: 1,
+            }}
+          >
+            {sortedProjects.map((project) => {
+              const allNotes = [...notes, ...sharedNotes];
+              const noteCount = allNotes.filter(
+                (n) => n.projectID === project.recordID,
               ).length;
-            })();
-            const isSharedToMe = currentUserID ? project.creatorID !== currentUserID : false;
-            const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
+              const taskCount = tasks.filter(
+                (t) => t.projectID === project.recordID,
+              ).length;
+              const completedTaskCount = tasks.filter(
+                (t) =>
+                  t.projectID === project.recordID && t.status === "completed",
+              ).length;
+              const overdueTaskCount = (() => {
+                const now = new Date();
+                const todayStart = new Date(
+                  now.getFullYear(),
+                  now.getMonth(),
+                  now.getDate(),
+                ).getTime();
+                return tasks.filter(
+                  (t) =>
+                    t.projectID === project.recordID &&
+                    t.status === "open" &&
+                    t.dueDate != null &&
+                    t.dueDate < todayStart,
+                ).length;
+              })();
+              const isSharedToMe = currentUserID ? project.creatorID !== currentUserID : false;
+              const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
 
-            return (
-              <Badge
-                badgeContent={overdueTaskCount}
-                color="error"
-                key={project.recordID}
-                sx={{
-                  display: "block",
-                  width: "100%",
-                  minWidth: 0,
-                  "& .MuiBadge-badge": {
-                    top: 6,
-                    right: 6,
-                  },
-                }}
-              >
-                <Paper
-                  elevation={4}
+              return (
+                <Badge
+                  badgeContent={overdueTaskCount}
+                  color="error"
+                  key={project.recordID}
                   sx={{
-                    borderRadius: 5,
+                    display: "block",
                     width: "100%",
-                    height: 120,
-                    cursor: "pointer",
-                    textAlign: "center",
-                    overflow: "hidden",
-                    borderColor:
-                      isSharedToMe || isSharedByMe ? "info.main" : "divider",
+                    minWidth: 0,
+                    "& .MuiBadge-badge": {
+                      top: 6,
+                      right: 6,
+                    },
                   }}
-                  onClick={() => navigate(`/projects/${project.recordID}`)}
                 >
-                  <Stack
+                  <Paper
+                    elevation={4}
                     sx={{
+                      borderRadius: 5,
                       width: "100%",
-                      height: "100%",
-                      p: 1.5,
-                      justifyContent: "space-between",
+                      height: 120,
+                      cursor: "pointer",
+                      textAlign: "center",
                       overflow: "hidden",
+                      borderColor:
+                        isSharedToMe || isSharedByMe ? "info.main" : "divider",
                     }}
+                    onClick={() => navigate(`/projects/${project.recordID}`)}
                   >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 0.5,
-                          mb: 1,
-                          minWidth: 0,
-                        }}
-                      >
-                        <Typography variant="subtitle2" noWrap sx={{ flex: 1, minWidth: 0 }}>
-                          {project.name}
-                        </Typography>
-                        {isSharedToMe && (
-                          <Tooltip title="Shared with you">
-                            <PeopleIcon sx={{ fontSize: 16 }} color="info" />
-                          </Tooltip>
-                        )}
-                        {isSharedByMe && (
-                          <Tooltip title="Shared with others">
-                            <PeopleIcon sx={{ fontSize: 16 }} color="action" />
-                          </Tooltip>
-                        )}
-                      </Box>
-
-                      {project.description && (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
+                    <Stack
+                      sx={{
+                        width: "100%",
+                        height: "100%",
+                        p: 1.5,
+                        justifyContent: "space-between",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box
                           sx={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            fontSize: "0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
+                            mb: 1,
+                            minWidth: 0,
                           }}
                         >
-                          {project.description}
-                        </Typography>
-                      )}
-                    </Box>
-                    <Stack
-                      direction="row"
-                      spacing={0.75}
-                      justifyContent="center"
-                    >
-                      <Chip
-                        icon={<NotesIcon />}
-                        label={noteCount}
-                        size="small"
-                        variant="outlined"
-                      />
-                      <Chip
-                        icon={<TaskAltIcon />}
-                        label={`${completedTaskCount}/${taskCount}`}
-                        size="small"
-                        variant="outlined"
-                      />
+                          <Typography variant="subtitle2" noWrap sx={{ flex: 1, minWidth: 0 }}>
+                            {project.name}
+                          </Typography>
+                          {isSharedToMe && (
+                            <Tooltip title="Shared with you">
+                              <PeopleIcon sx={{ fontSize: 16 }} color="info" />
+                            </Tooltip>
+                          )}
+                          {isSharedByMe && (
+                            <Tooltip title="Shared with others">
+                              <PeopleIcon sx={{ fontSize: 16 }} color="action" />
+                            </Tooltip>
+                          )}
+                        </Box>
+
+                        {project.description && (
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              fontSize: "0.75rem",
+                            }}
+                          >
+                            {project.description}
+                          </Typography>
+                        )}
+                      </Box>
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        justifyContent="center"
+                      >
+                        <Chip
+                          icon={<NotesIcon />}
+                          label={noteCount}
+                          size="small"
+                          variant="outlined"
+                        />
+                        <Chip
+                          icon={<TaskAltIcon />}
+                          label={`${completedTaskCount}/${taskCount}`}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </Stack>
                     </Stack>
-                  </Stack>
-                </Paper>
-              </Badge>
-            );
-          })}
-        </Box>
+                  </Paper>
+                </Badge>
+              );
+            })}
+          </Box>
+        </Fade>
       )}
 
       {atProjectLimit && (
