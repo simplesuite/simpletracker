@@ -122,7 +122,8 @@ export default function SignUpPage() {
                     .insert({
                         recordID: userId,
                         fullName: fullName,
-                        userType: 'free'
+                        userType: 'free',
+                        email: email
                     })
                 if (signupErr1) {
                     signupErr1.code === "23503" ? setErrorText("User with this email already exists") : setErrorText(signupErr1.message)
