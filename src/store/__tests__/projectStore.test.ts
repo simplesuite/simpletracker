@@ -43,6 +43,36 @@ vi.mock('../../lib/cache', () => ({
 
 vi.mock('../../lib/sharing', () => ({
     lookupUserByID: vi.fn().mockResolvedValue(null),
+    isProjectSharedLocally: vi.fn().mockReturnValue(false),
+}));
+
+// Mock offlineQueue
+vi.mock('../../lib/offlineQueue', () => ({
+    getAll: vi.fn().mockResolvedValue([]),
+    enqueue: vi.fn().mockResolvedValue(undefined),
+    dequeue: vi.fn().mockResolvedValue(undefined),
+    pendingCount: vi.fn().mockResolvedValue(0),
+    hasPendingInsert: vi.fn().mockResolvedValue(false),
+    mergeIntoInsert: vi.fn().mockResolvedValue(undefined),
+    removeByRecordID: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock offlineStore
+vi.mock('../offlineStore', () => ({
+    useOfflineStore: {
+        getState: () => ({
+            isOnline: true,
+            setIsOnline: vi.fn(),
+            pendingCount: 0,
+            setPendingCount: vi.fn(),
+            isSyncing: false,
+            setIsSyncing: vi.fn(),
+            lastVerifiedAt: 0,
+            setLastVerifiedAt: vi.fn(),
+            lastSyncError: null,
+            setLastSyncError: vi.fn(),
+        }),
+    },
 }));
 
 // Mock ensureSession

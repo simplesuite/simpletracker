@@ -53,6 +53,8 @@ vi.mock('../../lib/offlineSync', () => ({
 vi.mock('../../lib/cache', () => ({
     getCachedNotes: vi.fn().mockReturnValue([]),
     setCachedNotes: vi.fn(),
+    getCachedSharedNotes: vi.fn().mockReturnValue([]),
+    setCachedSharedNotes: vi.fn(),
     removeCachedItem: vi.fn(),
 }));
 
@@ -64,6 +66,7 @@ vi.mock('../../components/extras/ensureSession', () => ({
 // Mock sharing utility
 vi.mock('../../lib/sharing', () => ({
     isSharedItem: vi.fn().mockReturnValue(false),
+    isNoteSharedLocally: vi.fn().mockReturnValue(false),
     lookupUserByID: vi.fn().mockResolvedValue(null),
 }));
 
@@ -80,6 +83,44 @@ vi.mock('../globalStore', () => ({
             currentUser: { recordID: TEST_USER_ID, fullName: 'Test User', userType: 'free' },
         }),
     },
+}));
+
+// Mock offlineStore
+vi.mock('../offlineStore', () => ({
+    useOfflineStore: {
+        getState: () => ({
+            isOnline: true,
+            setIsOnline: vi.fn(),
+            pendingCount: 0,
+            setPendingCount: vi.fn(),
+            isSyncing: false,
+            setIsSyncing: vi.fn(),
+            lastVerifiedAt: 0,
+            setLastVerifiedAt: vi.fn(),
+            lastSyncError: null,
+            setLastSyncError: vi.fn(),
+        }),
+    },
+}));
+
+// Mock projectStore
+vi.mock('../projectStore', () => ({
+    useProjectStore: {
+        getState: () => ({
+            sharedProjectIDs: new Set(),
+        }),
+    },
+}));
+
+// Mock offlineQueue
+vi.mock('../../lib/offlineQueue', () => ({
+    getAll: vi.fn().mockResolvedValue([]),
+    enqueue: vi.fn().mockResolvedValue(undefined),
+    dequeue: vi.fn().mockResolvedValue(undefined),
+    pendingCount: vi.fn().mockResolvedValue(0),
+    hasPendingInsert: vi.fn().mockResolvedValue(false),
+    mergeIntoInsert: vi.fn().mockResolvedValue(undefined),
+    removeByRecordID: vi.fn().mockResolvedValue(undefined),
 }));
 
 const NUM_RUNS = 100;
@@ -310,7 +351,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         updatedAt: now - 5000,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -348,7 +389,7 @@ pinned: false,
                         updatedAt: previousUpdatedAt,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -383,7 +424,7 @@ pinned: false,
                         updatedAt: now - 5000,
                         projectID: null,
                         archived: true,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });
@@ -421,7 +462,7 @@ pinned: false,
                         updatedAt: archiveUpdatedAt,
                         projectID: null,
                         archived: true,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });
@@ -456,7 +497,7 @@ pinned: false,
                         updatedAt: now - 5000,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -502,7 +543,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         updatedAt: previousUpdatedAt,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
@@ -537,7 +578,7 @@ pinned: false,
                         updatedAt: previousUpdatedAt,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
@@ -568,7 +609,7 @@ pinned: false,
                         updatedAt: previousUpdatedAt,
                         projectID: null,
                         archived: false,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [note], archivedNotes: [] });
@@ -599,7 +640,7 @@ pinned: false,
                         updatedAt: previousUpdatedAt,
                         projectID: null,
                         archived: true,
-pinned: false,
+                        pinned: false,
                     };
 
                     useNoteStore.setState({ notes: [], archivedNotes: [note] });

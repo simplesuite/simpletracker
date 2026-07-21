@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
@@ -88,6 +88,7 @@ describe('Integration: Note Lifecycle (create → edit → archive → unarchive
         vi.clearAllMocks();
         uuidCounter = 0;
         globalThis.indexedDB = new IDBFactory();
+        globalThis.IDBKeyRange = IDBKeyRange;
 
         // Reset stores
         useGlobalStore.setState({
@@ -198,6 +199,7 @@ describe('Integration: Task with Recurrence (create → complete → verify spaw
         vi.clearAllMocks();
         uuidCounter = 0;
         globalThis.indexedDB = new IDBFactory();
+        globalThis.IDBKeyRange = IDBKeyRange;
 
         useGlobalStore.setState({
             currentUser: { recordID: 'user-1', fullName: 'Test User', userType: 'free' },
@@ -347,6 +349,7 @@ describe('Integration: Project Sharing (create → share → verify access)', ()
         vi.clearAllMocks();
         uuidCounter = 0;
         globalThis.indexedDB = new IDBFactory();
+        globalThis.IDBKeyRange = IDBKeyRange;
 
         useGlobalStore.setState({
             currentUser: { recordID: 'user-1', fullName: 'Test User', userType: 'free' },
@@ -440,6 +443,7 @@ describe('Integration: Offline Queue Sync (queue → go online → drain)', () =
         vi.clearAllMocks();
         uuidCounter = 0;
         globalThis.indexedDB = new IDBFactory();
+        globalThis.IDBKeyRange = IDBKeyRange;
 
         useGlobalStore.setState({
             currentUser: { recordID: 'user-1', fullName: 'Test User', userType: 'free' },
