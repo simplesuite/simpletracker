@@ -15,6 +15,18 @@ import type { PendingMutation } from '../types';
 let syncInProgress = false;
 let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
+/** Set of mutation IDs currently being synced by syncSingleMutation (prevents double-execution) */
+const inFlightMutationIDs = new Set<string>();
+
+/**
+ * Reset internal sync state for testing purposes.
+ * NOT for production use.
+ */
+export function _resetSyncStateForTesting(): void {
+    syncInProgress = false;
+    inFlightMutationIDs.clear();
+}
+
 /** How long to wait for a network request before assuming we're offline (ms) */
 const NETWORK_TIMEOUT = 8000;
 
@@ -144,6 +156,11 @@ export async function syncPendingMutations(): Promise<{ synced: number; failed: 
         const pending = await getAll(); // Already sorted by _queuedAt ascending (FIFO)
 
         for (const mutation of pending) {
+            // Skip mutations currently being synced by syncSingleMutation
+            if (inFlightMutationIDs.has(mutation.id)) {
+                continue;
+            }
+
             try {
                 // Ensure session is valid before each mutation
                 const sessionValid = await ensureSession();
@@ -264,6 +281,12 @@ export async function updateWithOfflineSupport(
     const insertPending = await hasPendingInsert(recordID);
     if (insertPending) {
         await mergeIntoInsert(recordID, payload);
+
+        // If online, trigger a sync attempt so the merged insert gets pushed
+        if (navigator.onLine) {
+            syncPendingMutations();
+        }
+
         return { success: true, queued: true };
     }
 
@@ -322,6 +345,12 @@ export async function deleteWithOfflineSupport(
 
 /** Background attempt to sync a single mutation, removing it from the queue on success */
 async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
+    // Guard against concurrent execution of the same mutation
+    if (inFlightMutationIDs.has(mutation.id)) {
+        return;
+    }
+    inFlightMutationIDs.add(mutation.id);
+
     try {
         const sessionValid = await ensureSession();
         if (!sessionValid) {
@@ -370,6 +399,8 @@ async function syncSingleMutation(mutation: PendingMutation): Promise<void> {
         const msg = err?.message || 'network failure';
         useOfflineStore.getState().setLastSyncError(`Sync timeout: ${msg}`);
         console.error(`syncSingleMutation failed for ${mutation.entityType} ${mutation.recordID}:`, msg);
+    } finally {
+        inFlightMutationIDs.delete(mutation.id);
     }
 }
 

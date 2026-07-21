@@ -147,21 +147,22 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
                         .filter((m) => m.entityType === 'task' && m.operation === 'delete')
                         .map((m) => m.recordID)
                 );
-                const pendingInsertIDs = new Set(
-                    pendingMutations
-                        .filter((m) => m.entityType === 'task' && m.operation === 'insert')
-                        .map((m) => m.recordID)
-                );
                 if (pendingDeleteIDs.size > 0) {
                     filteredTasks = allTasks.filter((t) => !pendingDeleteIDs.has(t.recordID));
                 }
-                // Merge in any locally-created tasks that haven't synced yet
-                if (pendingInsertIDs.size > 0) {
-                    const currentTasks = get().tasks;
-                    const serverTaskIDs = new Set(filteredTasks.map((t) => t.recordID));
-                    const localOnlyTasks = currentTasks.filter(
-                        (t) => pendingInsertIDs.has(t.recordID) && !serverTaskIDs.has(t.recordID)
-                    );
+
+                // Merge in any locally-created tasks not present in the server response.
+                // This covers both:
+                // 1. Tasks with a pending insert still in the queue
+                // 2. Tasks whose insert synced but the server response was captured before it arrived
+                const currentTasks = get().tasks;
+                const serverTaskIDs = new Set(filteredTasks.map((t) => t.recordID));
+                const localOnlyTasks = currentTasks.filter(
+                    (t) => t.creatorID === currentUserID
+                        && !serverTaskIDs.has(t.recordID)
+                        && !pendingDeleteIDs.has(t.recordID)
+                );
+                if (localOnlyTasks.length > 0) {
                     filteredTasks = [...localOnlyTasks, ...filteredTasks];
                 }
             } catch {

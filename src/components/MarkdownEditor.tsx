@@ -511,6 +511,11 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
     onChangeRef.current = onChange;
     const currentTheme = useGlobalStore((s) => s.themeAtom);
 
+    // Track whether the last doc change originated from the editor (user typing)
+    // vs an external prop update. This prevents the sync effect from overwriting
+    // text the user just typed.
+    const isLocalChangeRef = useRef(false);
+
     // Track editor focus for mobile toolbar visibility
     const [editorFocused, setEditorFocused] = useState(false);
     const [toolbarBottom, setToolbarBottom] = useState(0);
@@ -581,6 +586,7 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
 
         const updateListener = EditorView.updateListener.of((update: ViewUpdate) => {
             if (update.docChanged) {
+                isLocalChangeRef.current = true;
                 onChangeRef.current(update.state.doc.toString());
             }
             if (update.focusChanged) {
@@ -634,6 +640,16 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
     useEffect(() => {
         const view = viewRef.current;
         if (!view) return;
+
+        // If this value update was triggered by the editor's own onChange,
+        // skip the sync — the editor already has the correct content.
+        // This prevents a race where React's batched state update delivers
+        // a stale value back to the editor, overwriting text the user just typed.
+        if (isLocalChangeRef.current) {
+            isLocalChangeRef.current = false;
+            return;
+        }
+
         const currentDoc = view.state.doc.toString();
         if (currentDoc !== value) {
             view.dispatch({

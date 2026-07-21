@@ -8,6 +8,7 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
+import { getAll as getAllPendingMutations } from '../lib/offlineQueue';
 import { lookupUserByID, isProjectSharedLocally } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
@@ -122,17 +123,41 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             const allProjects = Array.from(projectMap.values())
                 .sort((a, b) => b.updatedAt - a.updatedAt);
 
-            // Merge: preserve any locally-created projects not yet on the server (pending sync)
-            const serverIDs = new Set(allProjects.map(p => p.recordID));
-            const localOnly = get().projects.filter(
-                (p) => p.creatorID === currentUserID && !serverIDs.has(p.recordID)
-            );
-            const mergedProjects = [...localOnly, ...allProjects];
+            // Filter out projects with pending deletes and preserve locally-created projects
+            let filteredProjects = allProjects;
+            try {
+                const pendingMutations = await getAllPendingMutations();
+                const pendingDeleteIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'project' && m.operation === 'delete')
+                        .map((m) => m.recordID)
+                );
+                if (pendingDeleteIDs.size > 0) {
+                    filteredProjects = filteredProjects.filter((p) => !pendingDeleteIDs.has(p.recordID));
+                }
 
-            set({ projects: mergedProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
+                // Merge in any locally-created projects not present in the server response.
+                // This covers both:
+                // 1. Projects with a pending insert still in the queue
+                // 2. Projects whose insert synced but the server response was captured before it arrived
+                const currentProjects = get().projects;
+                const serverProjectIDs = new Set(filteredProjects.map((p) => p.recordID));
+                const localOnlyProjects = currentProjects.filter(
+                    (p) => p.creatorID === currentUserID
+                        && !serverProjectIDs.has(p.recordID)
+                        && !pendingDeleteIDs.has(p.recordID)
+                );
+                if (localOnlyProjects.length > 0) {
+                    filteredProjects = [...localOnlyProjects, ...filteredProjects];
+                }
+            } catch {
+                // If we can't read the queue, proceed without filtering
+            }
+
+            set({ projects: filteredProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
 
             // Cache only non-shared projects (projects the user created that aren't shared)
-            const ownedNonSharedProjects = mergedProjects.filter(
+            const ownedNonSharedProjects = filteredProjects.filter(
                 (p) => p.creatorID === currentUserID && !allSharedProjectIDs.has(p.recordID)
             );
             setCachedProjects(ownedNonSharedProjects);
@@ -167,9 +192,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             error: null,
         }));
 
-        // Update cache
-        const currentUserProjects = get().projects.filter((p) => p.creatorID === currentUserID);
-        setCachedProjects(currentUserProjects);
+        // Update cache (exclude shared projects to match fetchProjects caching logic)
+        const sharedProjectIDs = get().sharedProjectIDs;
+        const ownedNonShared = get().projects.filter(
+            (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
+        );
+        setCachedProjects(ownedNonShared);
 
         // Persist via offline support
         await insertWithOfflineSupport('project', 'task_projects', project as unknown as Record<string, unknown>);
@@ -197,9 +225,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             error: null,
         }));
 
-        // Update cache so the project persists across fetchProjects reloads
-        const currentUserProjects = get().projects.filter((p) => p.creatorID === currentUserID);
-        setCachedProjects(currentUserProjects);
+        // Update cache (exclude shared projects to match fetchProjects caching logic)
+        const sharedProjectIDs = get().sharedProjectIDs;
+        const ownedNonShared = get().projects.filter(
+            (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
+        );
+        setCachedProjects(ownedNonShared);
 
         // Persist via offline support
         await insertWithOfflineSupport('project', 'task_projects', project as unknown as Record<string, unknown>);

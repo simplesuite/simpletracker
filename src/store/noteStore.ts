@@ -7,6 +7,7 @@ import {
     updateWithOfflineSupport,
     deleteWithOfflineSupport,
 } from '../lib/offlineSync';
+import { getAll as getAllPendingMutations } from '../lib/offlineQueue';
 import { isNoteSharedLocally, lookupUserByID } from '../lib/sharing';
 import { validateNoteTitle } from '../lib/validation';
 import { useGlobalStore } from './globalStore';
@@ -159,8 +160,40 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             setCachedNotes(nonSharedOwn);
             setCachedSharedNotes(uniqueSharedNotes);
 
+            // Filter out notes that have a pending delete in the offline queue
+            // and preserve notes that have a pending insert (not yet on server)
+            let filteredNotes = [...(ownNotes || [])];
+            try {
+                const pendingMutations = await getAllPendingMutations();
+                const pendingDeleteIDs = new Set(
+                    pendingMutations
+                        .filter((m) => m.entityType === 'note' && m.operation === 'delete')
+                        .map((m) => m.recordID)
+                );
+                if (pendingDeleteIDs.size > 0) {
+                    filteredNotes = filteredNotes.filter((n) => !pendingDeleteIDs.has(n.recordID));
+                }
+
+                // Merge in any locally-created notes not present in the server response.
+                // This covers both:
+                // 1. Notes with a pending insert still in the queue
+                // 2. Notes whose insert synced but the server response was captured before it arrived
+                const currentNotes = get().notes;
+                const serverNoteIDs = new Set(filteredNotes.map((n) => n.recordID));
+                const localOnlyNotes = currentNotes.filter(
+                    (n) => n.creatorID === currentUserID
+                        && !serverNoteIDs.has(n.recordID)
+                        && !pendingDeleteIDs.has(n.recordID)
+                );
+                if (localOnlyNotes.length > 0) {
+                    filteredNotes = [...localOnlyNotes, ...filteredNotes];
+                }
+            } catch {
+                // If we can't read the queue, proceed without filtering
+            }
+
             // Set state: notes = own non-archived, sharedNotes = shared non-archived
-            const allNotes = [...(ownNotes || [])].sort((a, b) => b.updatedAt - a.updatedAt);
+            const allNotes = filteredNotes.sort((a, b) => b.updatedAt - a.updatedAt);
             set({
                 notes: allNotes,
                 sharedNotes: uniqueSharedNotes,
@@ -274,9 +307,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 noteType: newNote.noteType,
             });
 
-            // Update cache
-            const cached = getCachedNotes();
-            setCachedNotes([newNote, ...cached]);
+            // Update cache from current state (not stale getCachedNotes)
+            const currentUserID = useGlobalStore.getState().currentUser.recordID;
+            const nonSharedNotes = get().notes.filter(
+                (n) => n.creatorID === currentUserID && !n.archived
+                    && !(n.projectID && sharedProjectIDs.has(n.projectID))
+            );
+            setCachedNotes(nonSharedNotes);
         }
 
         return newNote;
