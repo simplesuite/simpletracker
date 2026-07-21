@@ -390,6 +390,24 @@ export default function ProjectDetailPage() {
                 <IconButton onClick={handleBack} aria-label="Back to projects">
                     <ArrowBackIcon />
                 </IconButton>
+                {/* Shared indicator avatars */}
+                {!isCreator && (
+                    <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${project.creatorID}`}
+                        sx={{ width: 28, height: 28, mt: 0.75, mr: 0.75 }}
+                    />
+                )}
+                {isCreator && shares.length > 0 && (
+                    <Box sx={{ display: 'flex', mt: 0.75, mr: 0.75 }}>
+                        {shares.slice(0, 3).map((share) => (
+                            <Avatar
+                                key={share.sharedToID}
+                                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                sx={{ width: 28, height: 28, ml: -0.5, '&:first-of-type': { ml: 0 } }}
+                            />
+                        ))}
+                    </Box>
+                )}
                 {/* Search bar */}
                 <TextField
                     size="small"

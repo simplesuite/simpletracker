@@ -9,7 +9,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Alert from "@mui/material/Alert";
 import Badge from "@mui/material/Badge";
-import PeopleIcon from "@mui/icons-material/People";
+import Avatar from "@mui/material/Avatar";
 import NotesIcon from "@mui/icons-material/Notes";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +37,8 @@ export default function ProjectsPage() {
   const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<
     Set<string>
   >(new Set());
+  // Map projectID -> first sharedToID for showing the avatar
+  const [sharedByMeProjectUserMap, setSharedByMeProjectUserMap] = React.useState<Map<string, string>>(new Map());
 
   const { subscriptionState, loading: entitlementLoading } = useEntitlement();
   const hasPro = entitlementLoading || subscriptionState !== "free";
@@ -56,14 +58,22 @@ export default function ProjectsPage() {
         .map((p) => p.recordID);
       if (ownedProjectIDs.length === 0) {
         setSharedByMeProjectIDs(new Set());
+        setSharedByMeProjectUserMap(new Map());
         return;
       }
       const { data } = await supabase
         .from("task_projects_shared")
-        .select("projectID")
+        .select("projectID, sharedToID")
         .in("projectID", ownedProjectIDs);
       if (data) {
         setSharedByMeProjectIDs(new Set(data.map((r) => r.projectID)));
+        const userMap = new Map<string, string>();
+        for (const r of data) {
+          if (!userMap.has(r.projectID)) {
+            userMap.set(r.projectID, r.sharedToID);
+          }
+        }
+        setSharedByMeProjectUserMap(userMap);
       }
     };
     fetchSharedByMe();
@@ -204,12 +214,18 @@ export default function ProjectsPage() {
                           </Typography>
                           {isSharedToMe && (
                             <Tooltip title="Shared with you">
-                              <PeopleIcon sx={{ fontSize: 16 }} color="info" />
+                              <Avatar
+                                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${project.creatorID}`}
+                                sx={{ width: 20, height: 20 }}
+                              />
                             </Tooltip>
                           )}
                           {isSharedByMe && (
                             <Tooltip title="Shared with others">
-                              <PeopleIcon sx={{ fontSize: 16 }} color="action" />
+                              <Avatar
+                                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeProjectUserMap.get(project.recordID) || ''}`}
+                                sx={{ width: 20, height: 20 }}
+                              />
                             </Tooltip>
                           )}
                         </Box>
