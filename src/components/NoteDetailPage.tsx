@@ -51,6 +51,12 @@ import { useOfflineStore } from '../store/offlineStore';
 import { supabase } from '../lib/supabase';
 import { ensureSession } from './extras/ensureSession';
 import { useEntitlement } from '../lib/checkout';
+import { searchUsers, getRecentlySharedWithUsers } from '../lib/sharing';
+import Avatar from '@mui/material/Avatar';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemButton from '@mui/material/ListItemButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
 
 /** Inline editable text field that only persists on blur (not on every keystroke). */
@@ -152,10 +158,14 @@ export default function NoteDetailPage() {
     const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
 
     // Share management state
-    const [shares, setShares] = useState<NoteShared[]>([]);
+    const [shares, setShares] = useState<(NoteShared & { fullName?: string; email?: string })[]>([]);
     const [shareEmail, setShareEmail] = useState('');
     const [shareError, setShareError] = useState<string | null>(null);
     const [shareLoading, setShareLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [pendingShareUser, setPendingShareUser] = useState<{ recordID: string; fullName: string; email: string } | null>(null);
+    const [recentUsers, setRecentUsers] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
 
     // Delete confirmation dialog
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -334,11 +344,31 @@ export default function NoteDetailPage() {
 
         const loadShares = async () => {
             const noteShares = await getSharesForNote(id);
-            setShares(noteShares);
+            // Fetch user details for each share
+            const sharesWithDetails: (NoteShared & { fullName?: string; email?: string })[] = [];
+            for (const share of noteShares) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('fullName, email')
+                    .eq('recordID', share.sharedToID)
+                    .single();
+                sharesWithDetails.push({
+                    ...share,
+                    fullName: data?.fullName || share.sharedToID,
+                    email: data?.email || '',
+                });
+            }
+            setShares(sharesWithDetails);
         };
 
         loadShares();
     }, [id, isCreator, getSharesForNote]);
+
+    // Load recently shared-with users when share dialog opens
+    useEffect(() => {
+        if (!shareDialogOpen || !currentUserID) return;
+        getRecentlySharedWithUsers(currentUserID).then(setRecentUsers);
+    }, [shareDialogOpen, currentUserID]);
 
     // Load list items for list-type notes
     useEffect(() => {
@@ -493,22 +523,51 @@ export default function NoteDetailPage() {
         }
     };
 
-    const handleShare = async () => {
-        if (!id || !shareEmail.trim()) return;
+    const handleShare = async (userID?: string) => {
+        const targetID = userID || shareEmail.trim();
+        if (!id || !targetID) return;
         setShareLoading(true);
         setShareError(null);
 
-        const success = await shareNote(id, shareEmail.trim());
+        const success = await shareNote(id, targetID);
         if (success) {
             setShareEmail('');
-            // Reload shares
+            setSearchResults([]);
+            // Reload shares with user details
             const updatedShares = await getSharesForNote(id);
-            setShares(updatedShares);
+            const sharesWithDetails: (NoteShared & { fullName?: string; email?: string })[] = [];
+            for (const share of updatedShares) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('fullName, email')
+                    .eq('recordID', share.sharedToID)
+                    .single();
+                sharesWithDetails.push({
+                    ...share,
+                    fullName: data?.fullName || share.sharedToID,
+                    email: data?.email || '',
+                });
+            }
+            setShares(sharesWithDetails);
             setIsShared(true);
         } else {
             setShareError(useNoteStore.getState().error || 'Failed to share note.');
         }
         setShareLoading(false);
+    };
+
+    const handleSearchUsers = async (query: string) => {
+        setShareEmail(query);
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearchLoading(true);
+        const results = await searchUsers(query, currentUserID);
+        // Filter out already-shared users
+        const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+        setSearchResults(results.filter((u) => !sharedIDs.has(u.recordID)));
+        setSearchLoading(false);
     };
 
     const handleUnshare = async (sharedToID: string) => {
@@ -955,51 +1014,143 @@ export default function NoteDetailPage() {
                         <DialogContent>
                             {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
 
-                            <Box display="flex" gap={1} sx={{ mt: 1, mb: 2 }}>
-                                <TextField
-                                    size="small"
-                                    placeholder="Paste User ID to share"
-                                    value={shareEmail}
-                                    onChange={(e) => setShareEmail(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleShare();
-                                    }}
-                                    sx={{ flex: 1 }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={handleShare}
-                                    disabled={shareLoading || !shareEmail.trim()}
-                                >
-                                    {shareLoading ? <CircularProgress size={20} /> : 'Share'}
-                                </Button>
-                            </Box>
+                            <TextField
+                                size="small"
+                                placeholder="Search by name or email"
+                                value={shareEmail}
+                                onChange={(e) => handleSearchUsers(e.target.value)}
+                                fullWidth
+                                sx={{ mt: 1, mb: 1 }}
+                                slotProps={{
+                                    input: {
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon fontSize="small" />
+                                            </InputAdornment>
+                                        ),
+                                    },
+                                }}
+                            />
+
+                            {/* Recent users (shown when not searching) */}
+                            {!shareEmail.trim() && !pendingShareUser && (() => {
+                                const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+                                const filtered = recentUsers.filter((u) => !sharedIDs.has(u.recordID));
+                                if (filtered.length === 0) return null;
+                                return (
+                                    <>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                            Recently shared with
+                                        </Typography>
+                                        <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                            {filtered.map((user) => (
+                                                <ListItemButton
+                                                    key={user.recordID}
+                                                    onClick={() => setPendingShareUser(user)}
+                                                    disabled={shareLoading}
+                                                >
+                                                    <ListItemAvatar>
+                                                        <Avatar
+                                                            src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                            sx={{ width: 32, height: 32 }}
+                                                        />
+                                                    </ListItemAvatar>
+                                                    <ListItemText
+                                                        primary={user.fullName || 'Unnamed'}
+                                                        secondary={user.email}
+                                                    />
+                                                </ListItemButton>
+                                            ))}
+                                        </List>
+                                    </>
+                                );
+                            })()}
+
+                            {/* Search results */}
+                            {searchResults.length > 0 && !pendingShareUser && (
+                                <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                    {searchResults.map((user) => (
+                                        <ListItemButton
+                                            key={user.recordID}
+                                            onClick={() => setPendingShareUser(user)}
+                                            disabled={shareLoading}
+                                        >
+                                            <ListItemAvatar>
+                                                <Avatar
+                                                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                    sx={{ width: 32, height: 32 }}
+                                                />
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={user.fullName || 'Unnamed'}
+                                                secondary={user.email}
+                                            />
+                                        </ListItemButton>
+                                    ))}
+                                </List>
+                            )}
+                            {searchLoading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', mb: 2 }} />}
+
+                            {/* Confirm share prompt */}
+                            {pendingShareUser && (
+                                <Box sx={{ mb: 2, p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+                                    <Typography variant="body2" sx={{ mb: 1.5 }}>
+                                        Share this note with <strong>{pendingShareUser.fullName || pendingShareUser.email}</strong>?
+                                    </Typography>
+                                    <Stack direction="row" spacing={1}>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            onClick={() => {
+                                                handleShare(pendingShareUser.recordID);
+                                                setPendingShareUser(null);
+                                            }}
+                                            disabled={shareLoading}
+                                        >
+                                            {shareLoading ? <CircularProgress size={16} /> : 'Confirm'}
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            onClick={() => setPendingShareUser(null)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </Stack>
+                                </Box>
+                            )}
 
                             {shares.length > 0 && (
                                 <Box>
                                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                                         Shared with:
                                     </Typography>
-                                    <Stack spacing={1}>
+                                    <List dense>
                                         {shares.map((share) => (
-                                            <Box
+                                            <ListItem
                                                 key={share.recordID}
-                                                display="flex"
-                                                alignItems="center"
-                                                justifyContent="space-between"
+                                                secondaryAction={
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleUnshare(share.sharedToID)}
+                                                        aria-label="Remove share"
+                                                    >
+                                                        <PersonRemoveIcon fontSize="small" />
+                                                    </IconButton>
+                                                }
                                             >
-                                                <Chip label={share.sharedToID} size="small" />
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleUnshare(share.sharedToID)}
-                                                    aria-label="Remove share"
-                                                >
-                                                    <PersonRemoveIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
+                                                <ListItemAvatar>
+                                                    <Avatar
+                                                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                                        sx={{ width: 32, height: 32 }}
+                                                    />
+                                                </ListItemAvatar>
+                                                <ListItemText
+                                                    primary={share.fullName || share.sharedToID}
+                                                    secondary={share.email}
+                                                />
+                                            </ListItem>
                                         ))}
-                                    </Stack>
+                                    </List>
                                 </Box>
                             )}
                         </DialogContent>
