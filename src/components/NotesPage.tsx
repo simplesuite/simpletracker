@@ -5,7 +5,6 @@ import Paper from "@mui/material/Paper";
 import Fab from "@mui/material/Fab";
 import AddIcon from "@mui/icons-material/Add";
 import Chip from "@mui/material/Chip";
-import PeopleIcon from "@mui/icons-material/People";
 import FolderIcon from "@mui/icons-material/Folder";
 import SearchIcon from "@mui/icons-material/Search";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -80,10 +79,12 @@ export default function NotesPage() {
       try {
         const cached = localStorage.getItem("sharedByMeNoteIDs");
         if (cached) return new Set(JSON.parse(cached) as string[]);
-      } catch {}
+      } catch { }
       return new Set();
     },
   );
+  // Map noteID -> first sharedToID for showing the avatar
+  const [sharedByMeNoteUserMap, setSharedByMeNoteUserMap] = React.useState<Map<string, string>>(new Map());
 
   // Fetch which of my notes are shared with others
   React.useEffect(() => {
@@ -93,17 +94,26 @@ export default function NotesPage() {
         .map((n) => n.recordID);
       if (ownedNoteIDs.length === 0) {
         setSharedByMeNoteIDs(new Set());
+        setSharedByMeNoteUserMap(new Map());
         localStorage.setItem("sharedByMeNoteIDs", "[]");
         return;
       }
       const { data } = await supabase
         .from("notes_shared")
-        .select("noteID")
+        .select("noteID, sharedToID")
         .in("noteID", ownedNoteIDs);
       if (data) {
         const ids = data.map((r) => r.noteID);
         setSharedByMeNoteIDs(new Set(ids));
         localStorage.setItem("sharedByMeNoteIDs", JSON.stringify(ids));
+        // Build map of noteID -> first sharedToID
+        const userMap = new Map<string, string>();
+        for (const r of data) {
+          if (!userMap.has(r.noteID)) {
+            userMap.set(r.noteID, r.sharedToID);
+          }
+        }
+        setSharedByMeNoteUserMap(userMap);
       }
     };
     fetchSharedByMe();
@@ -204,108 +214,110 @@ export default function NotesPage() {
     <Grid container spacing={1.5}>
       {noteList.map((note) => (
         <Grid size={6} key={note.recordID}>
-        <Paper
-          key={note.recordID}
-          elevation={4}
-          sx={{
-            borderColor: note.pinned ? "primary.main" : "divider",
-            borderRadius: 5,
-            cursor: "pointer",
-            height: "100%",
-          }}
-          onClick={() => navigate(`/notes/${note.recordID}`)}
-        >
-          <Box sx={{ p: 1, py: 1.5, display: "flex", flexDirection: "column", height: "100%" }}>
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}
-            >
-              {note.pinned && (
-                <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
-              )}
-              {note.noteType === "list" && (
-                <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
-              )}
-              <Typography
-                variant="subtitle2"
-                noWrap
-                sx={{
-                  flex: 1,
-                  fontStyle: note.title ? "normal" : "italic",
-                  color: note.title ? "text.primary" : "text.secondary",
-                }}
+          <Paper
+            key={note.recordID}
+            elevation={4}
+            sx={{
+              borderColor: note.pinned ? "primary.main" : "divider",
+              borderRadius: 5,
+              cursor: "pointer",
+              height: "100%",
+            }}
+            onClick={() => navigate(`/notes/${note.recordID}`)}
+          >
+            <Box sx={{ p: 1, py: 1.5, display: "flex", flexDirection: "column", height: "100%" }}>
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}
               >
-                {note.title || "Untitled"}
-              </Typography>
-            </Box>
-            {note.noteType !== "list" && note.body && (
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                  mb: 0.5,
-                  fontSize: "0.75rem",
-                }}
-              >
-                {note.body}
-              </Typography>
-            )}
-            {note.noteType === "list" && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
-              <Box sx={{ mb: 0.5 }}>
-                {listItems[note.recordID].slice(0, 2).map((item) => (
-                  <Typography
-                    key={item.recordID}
-                    variant="body2"
-                    color="text.secondary"
-                    noWrap
-                    sx={{
-                      fontSize: "0.75rem",
-                      textDecoration: item.isCompleted ? "line-through" : "none",
-                      opacity: item.isCompleted ? 0.6 : 1,
-                    }}
-                  >
-                    {item.isCompleted ? "☑" : "☐"} {item.title || "Untitled"}
-                  </Typography>
-                ))}
+                {note.pinned && (
+                  <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
+                )}
+                {note.noteType === "list" && (
+                  <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
+                )}
+                <Typography
+                  variant="subtitle2"
+                  noWrap
+                  sx={{
+                    flex: 1,
+                    fontStyle: note.title ? "normal" : "italic",
+                    color: note.title ? "text.primary" : "text.secondary",
+                  }}
+                >
+                  {note.title || "Untitled"}
+                </Typography>
               </Box>
-            )}
-            <Box
-              sx={{
-                display: "flex",
-                gap: 0.5,
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                mt: "auto",
-              }}
-            >
-              <Typography variant="caption" color="text.secondary">
-                {formatTimestamp(note.updatedAt)}
-              </Typography>
-              {isSharedNote(note) && (
-                <Avatar sx={{ width: 30, height: 30, fontSize: "0.6rem" }}>
-                  <PeopleIcon fontSize="small" />
-                </Avatar>
+              {note.noteType !== "list" && note.body && (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    mb: 0.5,
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  {note.body}
+                </Typography>
               )}
-              {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
-                <Avatar sx={{ width: 30, height: 30, fontSize: "0.6rem" }}>
-                  <PeopleIcon fontSize="small" />
-                </Avatar>
+              {note.noteType === "list" && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
+                <Box sx={{ mb: 0.5 }}>
+                  {listItems[note.recordID].slice(0, 2).map((item) => (
+                    <Typography
+                      key={item.recordID}
+                      variant="body2"
+                      color="text.secondary"
+                      noWrap
+                      sx={{
+                        fontSize: "0.75rem",
+                        textDecoration: item.isCompleted ? "line-through" : "none",
+                        opacity: item.isCompleted ? 0.6 : 1,
+                      }}
+                    >
+                      {item.isCompleted ? "☑" : "☐"} {item.title || "Untitled"}
+                    </Typography>
+                  ))}
+                </Box>
               )}
-              {note.projectID && projectNameMap.has(note.projectID) && (
-                <Chip
-                  label={projectNameMap.get(note.projectID)}
-                  size="small"
-                  variant="outlined"
-                  sx={{ height: 18, fontSize: "0.65rem" }}
-                />
-              )}
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 0.5,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  mt: "auto",
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {formatTimestamp(note.updatedAt)}
+                </Typography>
+                {isSharedNote(note) && (
+                  <Avatar
+                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${note.creatorID}`}
+                    sx={{ width: 22, height: 22 }}
+                  />
+                )}
+                {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
+                  <Avatar
+                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeNoteUserMap.get(note.recordID) || ''}`}
+                    sx={{ width: 22, height: 22 }}
+                  />
+                )}
+                {note.projectID && projectNameMap.has(note.projectID) && (
+                  <Chip
+                    label={projectNameMap.get(note.projectID)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ height: 18, fontSize: "0.65rem" }}
+                  />
+                )}
+              </Box>
             </Box>
-          </Box>
-        </Paper>
+          </Paper>
         </Grid>
       ))}
     </Grid>
@@ -376,14 +388,14 @@ export default function NotesPage() {
           {sortedProjects.map((project) => {
             const count = activeNotes.filter((n) => n.projectID === project.recordID).length;
             return (
-            <Chip
-              key={project.recordID}
-              label={`${project.name} (${count})`}
-              variant={selectedProjectIDs.has(project.recordID) ? "filled" : "outlined"}
-              color={selectedProjectIDs.has(project.recordID) ? "primary" : "default"}
-              onClick={() => toggleProjectFilter(project.recordID)}
-              sx={{ flexShrink: 0 }}
-            />
+              <Chip
+                key={project.recordID}
+                label={`${project.name} (${count})`}
+                variant={selectedProjectIDs.has(project.recordID) ? "filled" : "outlined"}
+                color={selectedProjectIDs.has(project.recordID) ? "primary" : "default"}
+                onClick={() => toggleProjectFilter(project.recordID)}
+                sx={{ flexShrink: 0 }}
+              />
             );
           })}
         </Box>

@@ -52,6 +52,9 @@ import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '../lib/validation';
 import { supabase } from '../lib/supabase';
 import { useEntitlement } from '../lib/checkout';
+import { searchUsers, getRecentlySharedWithUsers } from '../lib/sharing';
+import Avatar from '@mui/material/Avatar';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
 import type { Task, ProjectShared } from '../types/index';
 
 export default function ProjectDetailPage() {
@@ -114,8 +117,12 @@ export default function ProjectDetailPage() {
     const [description, setDescription] = useState(project?.description || '');
     const [nameError, setNameError] = useState('');
     const [shareEmail, setShareEmail] = useState('');
-    const [shares, setShares] = useState<(ProjectShared & { fullName?: string })[]>([]);
+    const [shares, setShares] = useState<(ProjectShared & { fullName?: string; email?: string })[]>([]);
     const [sharesLoading, setSharesLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [pendingShareUser, setPendingShareUser] = useState<{ recordID: string; fullName: string; email: string } | null>(null);
+    const [recentUsers, setRecentUsers] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
     const [error, setError] = useState('');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
@@ -144,15 +151,15 @@ export default function ProjectDetailPage() {
         if (!id || !isCreator) return;
         setSharesLoading(true);
         const shareRecords = await getSharesForProject(id);
-        // Fetch names for each shared user
-        const sharesWithNames: (ProjectShared & { fullName?: string })[] = [];
+        // Fetch names and emails for each shared user
+        const sharesWithNames: (ProjectShared & { fullName?: string; email?: string })[] = [];
         for (const share of shareRecords) {
             const { data } = await supabase
                 .from('users')
-                .select('fullName')
+                .select('fullName, email')
                 .eq('recordID', share.sharedToID)
                 .single();
-            sharesWithNames.push({ ...share, fullName: data?.fullName || share.sharedToID });
+            sharesWithNames.push({ ...share, fullName: data?.fullName || share.sharedToID, email: data?.email || '' });
         }
         setShares(sharesWithNames);
         setSharesLoading(false);
@@ -161,6 +168,12 @@ export default function ProjectDetailPage() {
     useEffect(() => {
         loadShares();
     }, [loadShares]);
+
+    // Load recently shared-with users when share dialog opens
+    useEffect(() => {
+        if (!shareDialogOpen || !currentUserID) return;
+        getRecentlySharedWithUsers(currentUserID).then(setRecentUsers);
+    }, [shareDialogOpen, currentUserID]);
 
     // Clear error when store error changes
     useEffect(() => {
@@ -274,16 +287,31 @@ export default function ProjectDetailPage() {
         }
     };
 
-    const handleShare = async () => {
-        const trimmedEmail = shareEmail.trim();
-        if (!trimmedEmail) return;
+    const handleShare = async (userID?: string) => {
+        const targetID = userID || shareEmail.trim();
+        if (!targetID) return;
         setError('');
-        const success = await shareProject(project.recordID, trimmedEmail);
+        const success = await shareProject(project.recordID, targetID);
         if (success) {
             setShareEmail('');
+            setSearchResults([]);
             await loadShares();
         }
         // Error is set by the store if it fails
+    };
+
+    const handleSearchUsers = async (query: string) => {
+        setShareEmail(query);
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearchLoading(true);
+        const results = await searchUsers(query, currentUserID);
+        // Filter out already-shared users
+        const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+        setSearchResults(results.filter((u) => !sharedIDs.has(u.recordID)));
+        setSearchLoading(false);
     };
 
     const handleUnshare = async (sharedToID: string) => {
@@ -362,6 +390,24 @@ export default function ProjectDetailPage() {
                 <IconButton onClick={handleBack} aria-label="Back to projects">
                     <ArrowBackIcon />
                 </IconButton>
+                {/* Shared indicator avatars */}
+                {!isCreator && (
+                    <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${project.creatorID}`}
+                        sx={{ width: 28, height: 28, mt: 0.75, mr: 0.75 }}
+                    />
+                )}
+                {isCreator && shares.length > 0 && (
+                    <Box sx={{ display: 'flex', mt: 0.75, mr: 0.75 }}>
+                        {shares.slice(0, 3).map((share) => (
+                            <Avatar
+                                key={share.sharedToID}
+                                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                sx={{ width: 28, height: 28, ml: -0.5, '&:first-of-type': { ml: 0 } }}
+                            />
+                        ))}
+                    </Box>
+                )}
                 {/* Search bar */}
                 <TextField
                     size="small"
@@ -767,50 +813,144 @@ export default function ProjectDetailPage() {
                     <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
                         <DialogTitle>Share Project</DialogTitle>
                         <DialogContent>
-                            <Box sx={{ display: 'flex', gap: 1, mt: 1, mb: 2 }}>
-                                <TextField
-                                    size="small"
-                                    label="User ID"
-                                    placeholder="Paste User ID to share"
-                                    value={shareEmail}
-                                    onChange={(e) => setShareEmail(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleShare();
-                                    }}
-                                    sx={{ flex: 1 }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    size="small"
-                                    onClick={handleShare}
-                                    disabled={!shareEmail.trim()}
-                                >
-                                    Share
-                                </Button>
-                            </Box>
+                            <TextField
+                                size="small"
+                                placeholder="Search by name or email"
+                                value={shareEmail}
+                                onChange={(e) => handleSearchUsers(e.target.value)}
+                                fullWidth
+                                sx={{ mt: 1, mb: 1 }}
+                                slotProps={{
+                                    input: {
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon fontSize="small" />
+                                            </InputAdornment>
+                                        ),
+                                    },
+                                }}
+                            />
+
+                            {/* Recent users (shown when not searching) */}
+                            {!shareEmail.trim() && !pendingShareUser && (() => {
+                                const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+                                const filtered = recentUsers.filter((u) => !sharedIDs.has(u.recordID));
+                                if (filtered.length === 0) return null;
+                                return (
+                                    <>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                            Recently shared with
+                                        </Typography>
+                                        <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                            {filtered.map((user) => (
+                                                <ListItemButton
+                                                    key={user.recordID}
+                                                    onClick={() => setPendingShareUser(user)}
+                                                >
+                                                    <ListItemAvatar>
+                                                        <Avatar
+                                                            src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                            sx={{ width: 32, height: 32 }}
+                                                        />
+                                                    </ListItemAvatar>
+                                                    <ListItemText
+                                                        primary={user.fullName || 'Unnamed'}
+                                                        secondary={user.email}
+                                                    />
+                                                </ListItemButton>
+                                            ))}
+                                        </List>
+                                    </>
+                                );
+                            })()}
+
+                            {/* Search results */}
+                            {searchResults.length > 0 && !pendingShareUser && (
+                                <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                    {searchResults.map((user) => (
+                                        <ListItemButton
+                                            key={user.recordID}
+                                            onClick={() => setPendingShareUser(user)}
+                                        >
+                                            <ListItemAvatar>
+                                                <Avatar
+                                                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                    sx={{ width: 32, height: 32 }}
+                                                />
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={user.fullName || 'Unnamed'}
+                                                secondary={user.email}
+                                            />
+                                        </ListItemButton>
+                                    ))}
+                                </List>
+                            )}
+                            {searchLoading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', mb: 2 }} />}
+
+                            {/* Confirm share prompt */}
+                            {pendingShareUser && (
+                                <Box sx={{ mb: 2, p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+                                    <Typography variant="body2" sx={{ mb: 1.5 }}>
+                                        Share this project with <strong>{pendingShareUser.fullName || pendingShareUser.email}</strong>?
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            onClick={() => {
+                                                handleShare(pendingShareUser.recordID);
+                                                setPendingShareUser(null);
+                                            }}
+                                        >
+                                            Confirm
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            onClick={() => setPendingShareUser(null)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </Box>
+                                </Box>
+                            )}
 
                             {sharesLoading ? (
                                 <CircularProgress size={20} sx={{ mb: 2 }} />
                             ) : shares.length > 0 ? (
-                                <List dense sx={{ mb: 1 }}>
-                                    {shares.map((share) => (
-                                        <ListItem
-                                            key={share.recordID}
-                                            secondaryAction={
-                                                <IconButton
-                                                    edge="end"
-                                                    aria-label="remove share"
-                                                    onClick={() => handleUnshare(share.sharedToID)}
-                                                    size="small"
-                                                >
-                                                    <PersonRemoveIcon fontSize="small" />
-                                                </IconButton>
-                                            }
-                                        >
-                                            <ListItemText primary={share.fullName} />
-                                        </ListItem>
-                                    ))}
-                                </List>
+                                <>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                        Shared with:
+                                    </Typography>
+                                    <List dense sx={{ mb: 1 }}>
+                                        {shares.map((share) => (
+                                            <ListItem
+                                                key={share.recordID}
+                                                secondaryAction={
+                                                    <IconButton
+                                                        edge="end"
+                                                        aria-label="remove share"
+                                                        onClick={() => handleUnshare(share.sharedToID)}
+                                                        size="small"
+                                                    >
+                                                        <PersonRemoveIcon fontSize="small" />
+                                                    </IconButton>
+                                                }
+                                            >
+                                                <ListItemAvatar>
+                                                    <Avatar
+                                                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                                        sx={{ width: 32, height: 32 }}
+                                                    />
+                                                </ListItemAvatar>
+                                                <ListItemText
+                                                    primary={share.fullName || share.sharedToID}
+                                                    secondary={share.email}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </>
                             ) : (
                                 <Typography variant="body2" color="text.secondary">
                                     Not shared with anyone.

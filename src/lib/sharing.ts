@@ -138,13 +138,13 @@ export function isProjectSharedLocally(
  */
 export async function lookupUserByID(
     userID: string
-): Promise<{ recordID: string; fullName: string } | null> {
+): Promise<{ recordID: string; fullName: string; email: string } | null> {
     const trimmedID = userID.trim();
     if (!trimmedID) return null;
 
     const { data, error } = await supabase
         .from('users')
-        .select('recordID, fullName')
+        .select('recordID, fullName, email')
         .eq('recordID', trimmedID)
         .single();
 
@@ -152,5 +152,73 @@ export async function lookupUserByID(
         return null;
     }
 
-    return { recordID: data.recordID, fullName: data.fullName };
+    return { recordID: data.recordID, fullName: data.fullName, email: data.email || '' };
+}
+
+/**
+ * Searches public.users by name or email (case-insensitive, partial match).
+ * Returns up to 10 matching users excluding the current user.
+ */
+export async function searchUsers(
+    query: string,
+    currentUserID: string
+): Promise<{ recordID: string; fullName: string; email: string }[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
+    const { data, error } = await supabase
+        .from('users')
+        .select('recordID, fullName, email')
+        .neq('recordID', currentUserID)
+        .or(`fullName.ilike.%${trimmed}%,email.ilike.%${trimmed}%`)
+        .limit(10);
+
+    if (error || !data) {
+        return [];
+    }
+
+    return data.map((u) => ({
+        recordID: u.recordID,
+        fullName: u.fullName || '',
+        email: u.email || '',
+    }));
+}
+
+/**
+ * Returns users the current user has previously shared notes or projects with.
+ * Deduplicates across both tables and fetches user details.
+ */
+export async function getRecentlySharedWithUsers(
+    currentUserID: string
+): Promise<{ recordID: string; fullName: string; email: string }[]> {
+    // Fetch distinct sharedToIDs from notes_shared
+    const { data: noteShares } = await supabase
+        .from('notes_shared')
+        .select('sharedToID')
+        .eq('creatorID', currentUserID);
+
+    // Fetch distinct sharedToIDs from task_projects_shared
+    const { data: projectShares } = await supabase
+        .from('task_projects_shared')
+        .select('sharedToID')
+        .eq('creatorID', currentUserID);
+
+    const ids = new Set<string>();
+    noteShares?.forEach((s) => ids.add(s.sharedToID));
+    projectShares?.forEach((s) => ids.add(s.sharedToID));
+
+    if (ids.size === 0) return [];
+
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('recordID, fullName, email')
+        .in('recordID', Array.from(ids));
+
+    if (error || !users) return [];
+
+    return users.map((u) => ({
+        recordID: u.recordID,
+        fullName: u.fullName || '',
+        email: u.email || '',
+    }));
 }
