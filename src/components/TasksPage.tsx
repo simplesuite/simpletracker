@@ -152,13 +152,17 @@ export default function TasksPage() {
     }, [filteredBySearch]);
 
     // Group open tasks into due date categories
-    const { overdueTasks, dueTodayTasks, upcomingTasks, noDueDateTasks } = useMemo(() => {
+    const { overdueTasks, dueTodayTasks, dueTomorrowTasks, dueThisWeekTasks, upcomingTasks, noDueDateTasks } = useMemo(() => {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
         const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
+        const tomorrowEnd = todayStart + 2 * 24 * 60 * 60 * 1000 - 1;
+        const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000 - 1;
 
         const overdue: Task[] = [];
         const dueToday: Task[] = [];
+        const dueTomorrow: Task[] = [];
+        const dueThisWeek: Task[] = [];
         const upcoming: Task[] = [];
         const noDueDate: Task[] = [];
 
@@ -169,12 +173,16 @@ export default function TasksPage() {
                 overdue.push(task);
             } else if (task.dueDate <= todayEnd) {
                 dueToday.push(task);
+            } else if (task.dueDate <= tomorrowEnd) {
+                dueTomorrow.push(task);
+            } else if (task.dueDate <= weekEnd) {
+                dueThisWeek.push(task);
             } else {
                 upcoming.push(task);
             }
         }
 
-        return { overdueTasks: overdue, dueTodayTasks: dueToday, upcomingTasks: upcoming, noDueDateTasks: noDueDate };
+        return { overdueTasks: overdue, dueTodayTasks: dueToday, dueTomorrowTasks: dueTomorrow, dueThisWeekTasks: dueThisWeek, upcomingTasks: upcoming, noDueDateTasks: noDueDate };
     }, [openTasks]);
 
     const [overdueExpanded, setOverdueExpanded] = useState(() => {
@@ -182,6 +190,12 @@ export default function TasksPage() {
     });
     const [dueTodayExpanded, setDueTodayExpanded] = useState(() => {
         try { return localStorage.getItem('tasksDueTodayExpanded') !== 'false'; } catch { return true; }
+    });
+    const [dueTomorrowExpanded, setDueTomorrowExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksDueTomorrowExpanded') !== 'false'; } catch { return true; }
+    });
+    const [dueThisWeekExpanded, setDueThisWeekExpanded] = useState(() => {
+        try { return localStorage.getItem('tasksDueThisWeekExpanded') !== 'false'; } catch { return true; }
     });
     const [upcomingExpanded, setUpcomingExpanded] = useState(() => {
         try { return localStorage.getItem('tasksUpcomingExpanded') !== 'false'; } catch { return true; }
@@ -428,6 +442,130 @@ export default function TasksPage() {
                                                 {dueTodayTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
                                                         <ListItem disablePadding divider={index < dueTodayTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.dueDate && (() => {
+                                                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                                                    return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                                })()}
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
+                                                                        </Box>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
+                                                    </Collapse>
+                                                ))}
+                                            </TransitionGroup>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+
+                            {dueTomorrowTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => { const next = !dueTomorrowExpanded; setDueTomorrowExpanded(next); try { localStorage.setItem('tasksDueTomorrowExpanded', String(next)); } catch { } }}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {dueTomorrowExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            Tomorrow ({dueTomorrowTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={dueTomorrowExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <TransitionGroup component={List} disablePadding dense>
+                                                {dueTomorrowTasks.map((task, index) => (
+                                                    <Collapse key={task.recordID}>
+                                                        <ListItem disablePadding divider={index < dueTomorrowTasks.length - 1}>
+                                                            <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
+                                                                <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
+                                                                    <RadioButtonUncheckedIcon color="action" />
+                                                                </IconButton>
+                                                            </ListItemIcon>
+                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                                <ListItemText
+                                                                    primary={task.title}
+                                                                    secondary={
+                                                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 0.5, justifyContent: 'space-between' }}>
+                                                                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                                                                {task.dueDate && (() => {
+                                                                                    const { label, color } = formatDueDate(task.dueDate);
+                                                                                    return <Chip label={label} size="small" variant="outlined" color={color} sx={{ height: 20, fontSize: '0.75rem' }} />;
+                                                                                })()}
+                                                                                {task.isRecurring && (
+                                                                                    <Chip icon={<RepeatIcon sx={{ fontSize: '0.85rem' }} />} label="Recurring" size="small" variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                                )}
+                                                                            </Box>
+                                                                            {task.projectID && projectNameMap.has(task.projectID) && (
+                                                                                <Chip label={projectNameMap.get(task.projectID)} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.75rem' }} />
+                                                                            )}
+                                                                        </Box>
+                                                                    }
+                                                                    secondaryTypographyProps={{ component: 'div' }}
+                                                                />
+                                                            </ListItemButton>
+                                                        </ListItem>
+                                                    </Collapse>
+                                                ))}
+                                            </TransitionGroup>
+                                        </Paper>
+                                    </Collapse>
+                                </Box>
+                            )}
+
+                            {dueThisWeekTasks.length > 0 && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Box
+                                        onClick={() => { const next = !dueThisWeekExpanded; setDueThisWeekExpanded(next); try { localStorage.setItem('tasksDueThisWeekExpanded', String(next)); } catch { } }}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            cursor: 'pointer',
+                                            mb: 0.5,
+                                            px: 1,
+                                            py: 0.5,
+                                            borderRadius: 1,
+                                            '&:hover': { opacity: 0.7 },
+                                        }}
+                                    >
+                                        {dueThisWeekExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5, fontWeight: 600 }}>
+                                            This Week ({dueThisWeekTasks.length})
+                                        </Typography>
+                                    </Box>
+                                    <Collapse in={dueThisWeekExpanded}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                            <TransitionGroup component={List} disablePadding dense>
+                                                {dueThisWeekTasks.map((task, index) => (
+                                                    <Collapse key={task.recordID}>
+                                                        <ListItem disablePadding divider={index < dueThisWeekTasks.length - 1}>
                                                             <ListItemIcon sx={{ minWidth: 36, ml: 1 }}>
                                                                 <IconButton edge="start" size="small" onClick={() => handleCompleteTask(task.recordID)} aria-label="Complete task">
                                                                     <RadioButtonUncheckedIcon color="action" />
