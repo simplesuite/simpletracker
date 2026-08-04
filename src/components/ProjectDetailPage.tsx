@@ -74,6 +74,8 @@ export default function ProjectDetailPage() {
 
     const notes = useNoteStore((s) => s.notes);
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
+    const archivedNotes = useNoteStore((s) => s.archivedNotes);
+    const fetchArchivedNotes = useNoteStore((s) => s.fetchArchivedNotes);
     const createNote = useNoteStore((s) => s.createNote);
     const listItems = useNoteStore((s) => s.listItems);
     const fetchListItems = useNoteStore((s) => s.fetchListItems);
@@ -143,6 +145,7 @@ export default function ProjectDetailPage() {
         return state?.editing ?? false;
     });
     const [searchQuery, setSearchQuery] = useState('');
+    const [archivedNotesExpanded, setArchivedNotesExpanded] = useState(false);
 
     // Sync local state when project changes
     useEffect(() => {
@@ -203,6 +206,21 @@ export default function ProjectDetailPage() {
         );
     }, [notes, sharedNotes, id, searchQuery]);
 
+    // Fetch archived notes for the project
+    useEffect(() => {
+        fetchArchivedNotes();
+    }, [fetchArchivedNotes]);
+
+    // Filter archived notes belonging to this project
+    const archivedProjectNotes = useMemo(() => {
+        const filtered = archivedNotes.filter((n) => n.projectID === id);
+        if (!searchQuery.trim()) return filtered;
+        const q = searchQuery.toLowerCase();
+        return filtered.filter(
+            (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
+        );
+    }, [archivedNotes, id, searchQuery]);
+
     // Fetch list items for checklist-type notes (for card previews)
     useEffect(() => {
         const listNotes = projectNotes.filter((n) => n.noteType === 'list');
@@ -212,6 +230,17 @@ export default function ProjectDetailPage() {
             }
         }
     }, [projectNotes]);
+
+    // Fetch list items for archived checklist notes when expanded
+    useEffect(() => {
+        if (!archivedNotesExpanded) return;
+        const listNotes = archivedProjectNotes.filter((n) => n.noteType === 'list');
+        for (const note of listNotes) {
+            if (!listItems[note.recordID]) {
+                fetchListItems(note.recordID);
+            }
+        }
+    }, [archivedNotesExpanded, archivedProjectNotes]);
 
     const projectTasks = useMemo(() => {
         const all = tasks.filter((t) => t.projectID === id);
@@ -369,19 +398,25 @@ export default function ProjectDetailPage() {
         const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+        // Check if a specific time is set (not midnight)
+        const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+        const timeSuffix = hasTime
+            ? ` ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+            : '';
+
         if (diffDays < 0) {
             const label = date.toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric',
                 year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
             });
-            return { label: `Overdue · ${label}`, color: 'error' };
+            return { label: `Overdue · ${label}${timeSuffix}`, color: 'error' };
         }
-        if (diffDays === 0) return { label: 'Today', color: 'warning' };
-        if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
+        if (diffDays === 0) return { label: `Today${timeSuffix}`, color: 'warning' };
+        if (diffDays === 1) return { label: `Tomorrow${timeSuffix}`, color: 'default' };
         if (diffDays <= 7) {
             const dayName = date.toLocaleDateString(undefined, { weekday: 'short' });
-            return { label: dayName, color: 'default' };
+            return { label: `${dayName}${timeSuffix}`, color: 'default' };
         }
 
         const label = date.toLocaleDateString(undefined, {
@@ -389,7 +424,7 @@ export default function ProjectDetailPage() {
             day: 'numeric',
             year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
         });
-        return { label, color: 'default' };
+        return { label: `${label}${timeSuffix}`, color: 'default' };
     };
 
     return (
@@ -624,6 +659,107 @@ export default function ProjectDetailPage() {
                         </Grid>
                     ))}
                 </Grid>
+            )}
+
+            {/* Archived notes in this project (collapsed) */}
+            {archivedProjectNotes.length > 0 && (
+                <>
+                    <Box
+                        onClick={() => setArchivedNotesExpanded(!archivedNotesExpanded)}
+                        sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                            mt: projectNotes.length > 0 ? 1 : 0,
+                            mb: 1,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 1,
+                            '&:hover': { bgcolor: 'action.hover' },
+                        }}
+                    >
+                        {archivedNotesExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                            Archived ({archivedProjectNotes.length})
+                        </Typography>
+                    </Box>
+                    <Collapse in={archivedNotesExpanded}>
+                        <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                            {archivedProjectNotes.map((note) => (
+                                <Grid size={6} key={note.recordID}>
+                                    <Paper
+                                        elevation={4}
+                                        sx={{
+                                            borderRadius: 5,
+                                            cursor: 'pointer',
+                                            height: '100%',
+                                            opacity: 0.7,
+                                        }}
+                                        onClick={() => navigate(`/notes/${note.recordID}`)}
+                                    >
+                                        <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                                                {note.noteType === 'list'
+                                                    ? <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
+                                                    : <NotesIcon color="action" sx={{ fontSize: 14 }} />
+                                                }
+                                                <Typography
+                                                    variant="subtitle2"
+                                                    noWrap
+                                                    sx={{
+                                                        flex: 1,
+                                                        fontStyle: note.title ? 'normal' : 'italic',
+                                                        color: note.title ? 'text.primary' : 'text.secondary',
+                                                    }}
+                                                >
+                                                    {note.title || 'Untitled'}
+                                                </Typography>
+                                            </Box>
+                                            {note.noteType !== 'list' && note.body && (
+                                                <Typography
+                                                    variant="body2"
+                                                    color="text.secondary"
+                                                    sx={{
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                        overflow: 'hidden',
+                                                        fontSize: '0.75rem',
+                                                        mb: 0.5,
+                                                    }}
+                                                >
+                                                    {note.body}
+                                                </Typography>
+                                            )}
+                                            {note.noteType === 'list' && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
+                                                <Box sx={{ mb: 0.5 }}>
+                                                    {listItems[note.recordID].slice(0, 2).map((item) => (
+                                                        <Typography
+                                                            key={item.recordID}
+                                                            variant="body2"
+                                                            color="text.secondary"
+                                                            noWrap
+                                                            sx={{
+                                                                fontSize: '0.75rem',
+                                                                textDecoration: item.isCompleted ? 'line-through' : 'none',
+                                                                opacity: item.isCompleted ? 0.6 : 1,
+                                                            }}
+                                                        >
+                                                            {item.isCompleted ? '☑' : '☐'} {item.title || 'Untitled'}
+                                                        </Typography>
+                                                    ))}
+                                                </Box>
+                                            )}
+                                            <Typography variant="caption" color="text.secondary" sx={{ mt: 'auto' }}>
+                                                {new Date(note.updatedAt).toLocaleDateString()}
+                                            </Typography>
+                                        </Box>
+                                    </Paper>
+                                </Grid>
+                            ))}
+                        </Grid>
+                    </Collapse>
+                </>
             )}
 
             {/* Tasks in this project */}

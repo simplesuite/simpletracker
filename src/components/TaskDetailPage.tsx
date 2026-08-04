@@ -38,6 +38,7 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import Grid from "@mui/material/Grid";
 import Menu from "@mui/material/Menu";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
@@ -79,6 +80,7 @@ export default function TaskDetailPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
+  const [dueTime, setDueTime] = useState<dayjs.Dayjs | null>(null);
   const [projectID, setProjectID] = useState<string | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
@@ -201,6 +203,17 @@ export default function TaskDetailPage() {
     setTitle(t.title);
     setBody(t.body);
     setDueDate(t.dueDate ? dayjs(t.dueDate) : null);
+    // Set time only if the stored timestamp has a non-midnight time component
+    if (t.dueDate) {
+      const d = dayjs(t.dueDate);
+      if (d.hour() !== 0 || d.minute() !== 0) {
+        setDueTime(d);
+      } else {
+        setDueTime(null);
+      }
+    } else {
+      setDueTime(null);
+    }
     setProjectID(t.projectID);
     setIsRecurring(t.isRecurring);
     setRecurrenceInterval(t.recurrenceInterval || 1);
@@ -293,10 +306,39 @@ export default function TaskDetailPage() {
   const handleDueDateChange = async (newDate: dayjs.Dayjs | null) => {
     if (!id) return;
     setDueDate(newDate);
-    const dueDateValue = newDate ? newDate.valueOf() : null;
+    let dueDateValue: number | null = null;
+    if (newDate) {
+      // Combine with existing time if set
+      if (dueTime) {
+        dueDateValue = newDate.hour(dueTime.hour()).minute(dueTime.minute()).second(0).millisecond(0).valueOf();
+      } else {
+        dueDateValue = newDate.startOf('day').valueOf();
+      }
+    } else {
+      // Clearing the date also clears time
+      setDueTime(null);
+    }
     const success = await updateTask(id, { dueDate: dueDateValue });
     if (!success) {
       setNetworkError("Failed to save due date");
+    } else {
+      setNetworkError(null);
+    }
+  };
+
+  const handleDueTimeChange = async (newTime: dayjs.Dayjs | null) => {
+    if (!id || !dueDate) return;
+    setDueTime(newTime);
+    let dueDateValue: number;
+    if (newTime) {
+      dueDateValue = dueDate.hour(newTime.hour()).minute(newTime.minute()).second(0).millisecond(0).valueOf();
+    } else {
+      // Clearing time resets to midnight
+      dueDateValue = dueDate.startOf('day').valueOf();
+    }
+    const success = await updateTask(id, { dueDate: dueDateValue });
+    if (!success) {
+      setNetworkError("Failed to save due time");
     } else {
       setNetworkError(null);
     }
@@ -616,7 +658,7 @@ export default function TaskDetailPage() {
           disabled={isShared && !isOnline}
         />
 
-        {/* Due date picker and Complete/Reopen button */}
+        {/* Due date picker, time picker, and Complete/Reopen button */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <DatePicker
@@ -632,6 +674,18 @@ export default function TaskDetailPage() {
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
+            <TimePicker
+              label="Due Time"
+              value={dueTime}
+              onChange={handleDueTimeChange}
+              slotProps={{
+                textField: { fullWidth: true },
+                field: { clearable: true },
+              }}
+              disabled={(isShared && !isOnline) || !dueDate}
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
             <Button
               fullWidth
               variant="contained"
