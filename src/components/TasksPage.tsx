@@ -227,7 +227,17 @@ export default function TasksPage() {
         todayStart.setHours(0, 0, 0, 0);
         const todayTimestamp = todayStart.getTime();
         for (const task of overdueTasks) {
-            await updateTask(task.recordID, { dueDate: todayTimestamp });
+            // Preserve any existing time component when rescheduling to today
+            let newDueDate = todayTimestamp;
+            if (task.dueDate != null) {
+                const oldDate = new Date(task.dueDate);
+                if (oldDate.getHours() !== 0 || oldDate.getMinutes() !== 0) {
+                    const withTime = new Date(todayStart);
+                    withTime.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
+                    newDueDate = withTime.getTime();
+                }
+            }
+            await updateTask(task.recordID, { dueDate: newDueDate });
         }
         setRescheduling(false);
     };
@@ -239,6 +249,12 @@ export default function TasksPage() {
         const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+        // Check if a specific time is set (not midnight)
+        const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+        const timeSuffix = hasTime
+            ? ` ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+            : '';
+
         if (diffDays < 0) {
             // Overdue
             const label = date.toLocaleDateString(undefined, {
@@ -246,13 +262,13 @@ export default function TasksPage() {
                 day: 'numeric',
                 year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
             });
-            return { label: `${label}`, color: 'error' };
+            return { label: `${label}${timeSuffix}`, color: 'error' };
         }
-        if (diffDays === 0) return { label: 'Today', color: 'warning' };
-        if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
+        if (diffDays === 0) return { label: `Today${timeSuffix}`, color: 'warning' };
+        if (diffDays === 1) return { label: `Tomorrow${timeSuffix}`, color: 'default' };
         if (diffDays <= 7) {
             const dayName = date.toLocaleDateString(undefined, { weekday: 'short' });
-            return { label: dayName, color: 'default' };
+            return { label: `${dayName}${timeSuffix}`, color: 'default' };
         }
 
         const label = date.toLocaleDateString(undefined, {
@@ -260,7 +276,7 @@ export default function TasksPage() {
             day: 'numeric',
             year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
         });
-        return { label, color: 'default' };
+        return { label: `${label}${timeSuffix}`, color: 'default' };
     };
 
     return (

@@ -398,19 +398,25 @@ export default function ProjectDetailPage() {
         const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
         const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+        // Check if a specific time is set (not midnight)
+        const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+        const timeSuffix = hasTime
+            ? ` ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+            : '';
+
         if (diffDays < 0) {
             const label = date.toLocaleDateString(undefined, {
                 month: 'short',
                 day: 'numeric',
                 year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
             });
-            return { label: `Overdue · ${label}`, color: 'error' };
+            return { label: `Overdue · ${label}${timeSuffix}`, color: 'error' };
         }
-        if (diffDays === 0) return { label: 'Today', color: 'warning' };
-        if (diffDays === 1) return { label: 'Tomorrow', color: 'default' };
+        if (diffDays === 0) return { label: `Today${timeSuffix}`, color: 'warning' };
+        if (diffDays === 1) return { label: `Tomorrow${timeSuffix}`, color: 'default' };
         if (diffDays <= 7) {
             const dayName = date.toLocaleDateString(undefined, { weekday: 'short' });
-            return { label: dayName, color: 'default' };
+            return { label: `${dayName}${timeSuffix}`, color: 'default' };
         }
 
         const label = date.toLocaleDateString(undefined, {
@@ -418,7 +424,7 @@ export default function ProjectDetailPage() {
             day: 'numeric',
             year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
         });
-        return { label, color: 'default' };
+        return { label: `${label}${timeSuffix}`, color: 'default' };
     };
 
     return (
