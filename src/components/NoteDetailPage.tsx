@@ -480,17 +480,45 @@ export default function NoteDetailPage() {
         if (!id) return;
         const newType: 'text' | 'list' = noteType === 'text' ? 'list' : 'text';
 
-        // Use the store's updateNote which handles offline sync properly
-        const success = await updateNote(id, { noteType: newType });
-        if (!success) {
-            setError('Failed to change note type.');
-            return;
-        }
-
-        setNoteType(newType);
-
         if (newType === 'list') {
-            fetchListItems(id);
+            // Text → List: split body by lines into list items
+            const lines = body.split('\n').filter((line) => line.trim().length > 0);
+
+            // Create list items BEFORE switching the view so the list isn't empty on render
+            for (const line of lines) {
+                const trimmed = line.trim().slice(0, 255);
+                await addListItem(id, trimmed);
+            }
+
+            // Now update note type and clear body
+            const success = await updateNote(id, { noteType: newType, body: '' });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            // Switch the UI only after items are ready
+            setBody('');
+            setNoteType(newType);
+        } else {
+            // List → Text: combine list items into body lines
+            const items = currentListItems;
+            const combinedBody = items.map((item) => item.title).join('\n');
+
+            // Update note type and set body
+            const success = await updateNote(id, { noteType: newType, body: combinedBody });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            setNoteType(newType);
+            setBody(combinedBody);
+
+            // Delete all list items
+            for (const item of items) {
+                await deleteListItem(item.recordID);
+            }
         }
     };
 
