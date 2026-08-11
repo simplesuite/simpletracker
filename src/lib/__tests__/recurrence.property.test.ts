@@ -21,7 +21,7 @@ describe('Property 10: Recurring Task Field Copying', () => {
     const bodyArb = fc.string({ minLength: 0, maxLength: 1000 });
     const projectIDArb = fc.option(fc.string({ minLength: 1, maxLength: 50 }), { nil: null });
     const intervalArb = fc.integer({ min: 1, max: 365 });
-    const unitArb = fc.constantFrom<'days' | 'weeks' | 'months'>('days', 'weeks', 'months');
+    const unitArb = fc.constantFrom<'minutes' | 'hours' | 'days' | 'weeks' | 'months'>('minutes', 'hours', 'days', 'weeks', 'months');
     const anchorArb = fc.constantFrom<'due_date' | 'completed_date'>('due_date', 'completed_date');
     const timestampArb = fc.integer({ min: 1_000_000_000_000, max: 2_000_000_000_000 });
 

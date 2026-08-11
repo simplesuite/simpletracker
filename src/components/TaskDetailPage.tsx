@@ -86,7 +86,7 @@ export default function TaskDetailPage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
   const [recurrenceUnit, setRecurrenceUnit] = useState<
-    "days" | "weeks" | "months"
+    "minutes" | "hours" | "days" | "weeks" | "months"
   >("days");
   const [recurrenceAnchor, setRecurrenceAnchor] = useState<
     "due_date" | "completed_date"
@@ -336,6 +336,11 @@ export default function TaskDetailPage() {
     } else {
       // Clearing time resets to midnight
       dueDateValue = dueDate.startOf('day').valueOf();
+      // If recurrence unit was time-based, reset to "days"
+      if (recurrenceUnit === "minutes" || recurrenceUnit === "hours") {
+        setRecurrenceUnit("days");
+        await updateTask(id, { recurrenceUnit: "days" });
+      }
     }
     const success = await updateTask(id, { dueDate: dueDateValue });
     if (!success) {
@@ -413,7 +418,7 @@ export default function TaskDetailPage() {
   };
 
   const handleRecurrenceUnitChange = async (
-    value: "days" | "weeks" | "months",
+    value: "minutes" | "hours" | "days" | "weeks" | "months",
   ) => {
     if (!id) return;
     setRecurrenceUnit(value);
@@ -790,7 +795,7 @@ export default function TaskDetailPage() {
                 </Box>
               </Grid>
               {/* Unit as button group */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: dueTime ? 8 : 4 }}>
                 <Typography
                   variant="caption"
                   color="text.secondary"
@@ -808,6 +813,8 @@ export default function TaskDetailPage() {
                   fullWidth
                   disabled={isShared && !isOnline}
                 >
+                  {dueTime && <ToggleButton value="minutes">Mins</ToggleButton>}
+                  {dueTime && <ToggleButton value="hours">Hours</ToggleButton>}
                   <ToggleButton value="days">Days</ToggleButton>
                   <ToggleButton value="weeks">Weeks</ToggleButton>
                   <ToggleButton value="months">Months</ToggleButton>
@@ -832,7 +839,7 @@ export default function TaskDetailPage() {
                   fullWidth
                   disabled={isShared && !isOnline}
                 >
-                  <ToggleButton value="due_date">Due Date</ToggleButton>
+                  <ToggleButton value="due_date">Due</ToggleButton>
                   <ToggleButton value="completed_date">Completed</ToggleButton>
                 </ToggleButtonGroup>
               </Grid>

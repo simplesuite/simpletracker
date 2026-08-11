@@ -38,7 +38,7 @@ export interface Task {
     dueDate: number | null;
     isRecurring: boolean;
     recurrenceInterval: number | null;
-    recurrenceUnit: 'days' | 'weeks' | 'months' | null;
+    recurrenceUnit: 'minutes' | 'hours' | 'days' | 'weeks' | 'months' | null;
     recurrenceAnchor: 'due_date' | 'completed_date';
     completedAt: number | null;
     createdAt: number;
