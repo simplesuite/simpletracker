@@ -14,7 +14,7 @@ export function calculateNextDueDate(
     originalDueDate: number | null,
     completedAt: number,
     interval: number,
-    unit: 'days' | 'weeks' | 'months'
+    unit: 'minutes' | 'hours' | 'days' | 'weeks' | 'months'
 ): number {
     let baseDate: number;
 

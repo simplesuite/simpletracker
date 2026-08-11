@@ -6,9 +6,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
+import Autocomplete from '@mui/material/Autocomplete';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
@@ -480,17 +478,45 @@ export default function NoteDetailPage() {
         if (!id) return;
         const newType: 'text' | 'list' = noteType === 'text' ? 'list' : 'text';
 
-        // Use the store's updateNote which handles offline sync properly
-        const success = await updateNote(id, { noteType: newType });
-        if (!success) {
-            setError('Failed to change note type.');
-            return;
-        }
-
-        setNoteType(newType);
-
         if (newType === 'list') {
-            fetchListItems(id);
+            // Text → List: split body by lines into list items
+            const lines = body.split('\n').filter((line) => line.trim().length > 0);
+
+            // Create list items BEFORE switching the view so the list isn't empty on render
+            for (const line of lines) {
+                const trimmed = line.trim().slice(0, 255);
+                await addListItem(id, trimmed);
+            }
+
+            // Now update note type and clear body
+            const success = await updateNote(id, { noteType: newType, body: '' });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            // Switch the UI only after items are ready
+            setBody('');
+            setNoteType(newType);
+        } else {
+            // List → Text: combine list items into body lines
+            const items = currentListItems;
+            const combinedBody = items.map((item) => item.title).join('\n');
+
+            // Update note type and set body
+            const success = await updateNote(id, { noteType: newType, body: combinedBody });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            setNoteType(newType);
+            setBody(combinedBody);
+
+            // Delete all list items
+            for (const item of items) {
+                await deleteListItem(item.recordID);
+            }
         }
     };
 
@@ -738,25 +764,19 @@ export default function NoteDetailPage() {
                     </Box>
                 )}
                 {/* Project assignment */}
-                <FormControl fullWidth size="small">
-                    <InputLabel id="project-select-label">Project</InputLabel>
-                    <Select
-                        labelId="project-select-label"
-                        value={projectID || ''}
-                        onChange={(e) => handleProjectChange(e.target.value)}
-                        label="Project"
-                        disabled={!!offlineMessage && isShared}
-                    >
-                        <MenuItem value="">
-                            <em>None</em>
-                        </MenuItem>
-                        {projects.map((project) => (
-                            <MenuItem key={project.recordID} value={project.recordID}>
-                                {project.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                {/* Project assignment */}
+                <Autocomplete
+                    size="small"
+                    options={projects}
+                    getOptionLabel={(option) => option.name}
+                    value={projects.find((p) => p.recordID === projectID) || null}
+                    onChange={(_, newValue) => handleProjectChange(newValue?.recordID || '')}
+                    disabled={!!offlineMessage && isShared}
+                    sx={{ flex: 1, minWidth: 0 }}
+                    renderInput={(params) => (
+                        <TextField {...params} placeholder="Project" variant="outlined" />
+                    )}
+                />
                 <IconButton
                     onClick={(e) => setMenuAnchorEl(e.currentTarget)}
                     aria-label="More options"
@@ -822,7 +842,7 @@ export default function NoteDetailPage() {
                 helperText={titleError || (createdAt ? `${new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : '')}
                 disabled={!!offlineMessage && isShared}
                 inputProps={{ maxLength: 255 }}
-                sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
+                sx={{ my: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
             />
 
             {/* Markdown live-preview editor (text notes only) */}
