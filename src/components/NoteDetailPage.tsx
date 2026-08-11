@@ -6,9 +6,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
+import Autocomplete from '@mui/material/Autocomplete';
 import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
@@ -766,25 +764,19 @@ export default function NoteDetailPage() {
                     </Box>
                 )}
                 {/* Project assignment */}
-                <FormControl fullWidth size="small">
-                    <InputLabel id="project-select-label">Project</InputLabel>
-                    <Select
-                        labelId="project-select-label"
-                        value={projectID || ''}
-                        onChange={(e) => handleProjectChange(e.target.value)}
-                        label="Project"
-                        disabled={!!offlineMessage && isShared}
-                    >
-                        <MenuItem value="">
-                            <em>None</em>
-                        </MenuItem>
-                        {projects.map((project) => (
-                            <MenuItem key={project.recordID} value={project.recordID}>
-                                {project.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
-                </FormControl>
+                {/* Project assignment */}
+                <Autocomplete
+                    size="small"
+                    options={projects}
+                    getOptionLabel={(option) => option.name}
+                    value={projects.find((p) => p.recordID === projectID) || null}
+                    onChange={(_, newValue) => handleProjectChange(newValue?.recordID || '')}
+                    disabled={!!offlineMessage && isShared}
+                    sx={{ flex: 1, minWidth: 0 }}
+                    renderInput={(params) => (
+                        <TextField {...params} placeholder="Project" variant="outlined" />
+                    )}
+                />
                 <IconButton
                     onClick={(e) => setMenuAnchorEl(e.currentTarget)}
                     aria-label="More options"
@@ -850,7 +842,7 @@ export default function NoteDetailPage() {
                 helperText={titleError || (createdAt ? `${new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : '')}
                 disabled={!!offlineMessage && isShared}
                 inputProps={{ maxLength: 255 }}
-                sx={{ mb: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
+                sx={{ my: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
             />
 
             {/* Markdown live-preview editor (text notes only) */}

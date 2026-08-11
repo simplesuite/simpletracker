@@ -10,10 +10,8 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
-import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
+import Autocomplete from "@mui/material/Autocomplete";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import Alert from "@mui/material/Alert";
@@ -557,24 +555,18 @@ export default function TaskDetailPage() {
             <ArrowBackIcon />
           </IconButton>
           {/* Project assignment */}
-          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-            <InputLabel>Project</InputLabel>
-            <Select
-              value={projectID || ""}
-              onChange={(e) => handleProjectChange(e.target.value)}
-              label="Project"
-              disabled={isShared && !isOnline}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {projects.map((p) => (
-                <MenuItem key={p.recordID} value={p.recordID}>
-                  {p.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Autocomplete
+            size="small"
+            options={projects}
+            getOptionLabel={(option) => option.name}
+            value={projects.find((p) => p.recordID === projectID) || null}
+            onChange={(_, newValue) => handleProjectChange(newValue?.recordID || "")}
+            disabled={isShared && !isOnline}
+            sx={{ flex: 1, minWidth: 0 }}
+            renderInput={(params) => (
+              <TextField {...params} placeholder="Project" variant="outlined" />
+            )}
+          />
           {isCreator && (
             <>
               <IconButton
@@ -645,7 +637,7 @@ export default function TaskDetailPage() {
           error={!!titleError}
           helperText={titleError || `${title.trim().length}/255`}
           sx={{
-            mb: 2,
+            my: 2,
             "& .MuiInput-input": { fontSize: "1.5rem", fontWeight: 500 },
           }}
           disabled={isShared && !isOnline}
