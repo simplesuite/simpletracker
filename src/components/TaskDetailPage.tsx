@@ -31,6 +31,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -661,17 +662,35 @@ export default function TaskDetailPage() {
         {/* Due date picker, time picker, and Complete/Reopen button */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <DatePicker
-              label="Due Date"
-              value={dueDate}
-              onChange={handleDueDateChange}
-              slotProps={{
-                textField: { fullWidth: true },
-                field: { clearable: true },
-                actionBar: { actions: ['today', 'clear'] },
-              }}
-              disabled={isShared && !isOnline}
-            />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <IconButton
+                size="small"
+                onClick={() => handleDueDateChange(dueDate ? dueDate.subtract(1, "day") : dayjs().subtract(1, "day"))}
+                disabled={isShared && !isOnline}
+                aria-label="Decrease due date by one day"
+              >
+                <RemoveIcon />
+              </IconButton>
+              <DatePicker
+                label="Due Date"
+                value={dueDate}
+                onChange={handleDueDateChange}
+                slotProps={{
+                  textField: { fullWidth: true },
+                  field: { clearable: true },
+                  actionBar: { actions: ['today', 'clear'] },
+                }}
+                disabled={isShared && !isOnline}
+              />
+              <IconButton
+                size="small"
+                onClick={() => handleDueDateChange(dueDate ? dueDate.add(1, "day") : dayjs().add(1, "day"))}
+                disabled={isShared && !isOnline}
+                aria-label="Increase due date by one day"
+              >
+                <AddIcon />
+              </IconButton>
+            </Box>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TimePicker
