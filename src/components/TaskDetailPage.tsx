@@ -635,7 +635,7 @@ export default function TaskDetailPage() {
           }}
           autoFocus={task.title.trim().length === 0}
           error={!!titleError}
-          helperText={titleError || `${title.trim().length}/255`}
+          helperText={titleError || undefined}
           sx={{
             my: 2,
             "& .MuiInput-input": { fontSize: "1.5rem", fontWeight: 500 },
@@ -652,7 +652,7 @@ export default function TaskDetailPage() {
           multiline
           minRows={3}
           maxRows={10}
-          sx={{ mb: 2 }}
+          sx={{ mb: 2, mt: 1 }}
           disabled={isShared && !isOnline}
         />
 
@@ -844,7 +844,7 @@ export default function TaskDetailPage() {
         {/* Subtasks section */}
         <Typography variant="h6">Subtasks</Typography>
         <Typography variant="caption" gutterBottom color="textSecondary">
-          ({taskSubtasks.length}/50)
+          ({taskSubtasks.filter((st) => st.isCompleted).length}/{taskSubtasks.length})
         </Typography>
 
         <List dense>
