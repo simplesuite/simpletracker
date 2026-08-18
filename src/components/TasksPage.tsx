@@ -50,6 +50,7 @@ export default function TasksPage() {
     const setSnackText = useGlobalStore((s) => s.setSnackBarText);
     const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
     const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
+    const setSnackAction = useGlobalStore((s) => s.setSnackBarAction);
     const navigate = useNavigate();
 
     const handleCompleteTask = async (taskId: string) => {
@@ -58,6 +59,7 @@ export default function TasksPage() {
         if (success) {
             setSnackSev('success');
             setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackAction(() => { reopenTask(taskId); });
             setSnackOpen(true);
         }
     };

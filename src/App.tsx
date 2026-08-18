@@ -18,6 +18,7 @@ import MuiAlert, { AlertProps } from '@mui/material/Alert';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import Paper from '@mui/material/Paper';
+import Button from '@mui/material/Button';
 import SettingsIcon from '@mui/icons-material/Settings';
 import NotesIcon from '@mui/icons-material/Notes';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -54,6 +55,8 @@ export default function App() {
   const snackSev = useGlobalStore(s => s.snackBarSeverity);
   const snackOpen = useGlobalStore(s => s.snackBarOpen);
   const setSnackOpen = useGlobalStore(s => s.setSnackBarOpen);
+  const snackAction = useGlobalStore(s => s.snackBarAction);
+  const setSnackAction = useGlobalStore(s => s.setSnackBarAction);
   const [actTheme, setTheme] = React.useState(themes.darkTheme);
   const [tabValue, setTabValue] = React.useState(location.pathname);
   const needRefresh = usePwaStore(s => s.needRefresh);
@@ -194,9 +197,13 @@ export default function App() {
 
   if (location.pathname === '/') { return <Navigate to="/notes" /> }
 
+  // Hide app chrome (toolbar + bottom nav) on detail pages
+  const isDetailPage = /^\/(notes|tasks|projects)\/.+/.test(location.pathname);
+
   const snackClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') { return }
     setSnackOpen(false);
+    setSnackAction(null);
   };
 
   return (
@@ -209,11 +216,12 @@ export default function App() {
           backgroundImage: (currentTheme === 'dark' ? 'linear-gradient(to bottom right, #161616, #252525)' : 'linear-gradient(to bottom right,#eee,#fff)'),
           bgcolor: (currentTheme === 'dark' ? '#171717' : 'grey.100')
         }}>
-          <Box sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}><AppToolbar /></Box>
+          <Box sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>{!isDetailPage && <AppToolbar />}</Box>
           <Box component="main"
-            sx={{ width: '100%', p: 2, mb: 8, height: '100%', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))' }}>
-            <Toolbar /><Outlet />
+            sx={{ width: '100%', p: 2, mb: isDetailPage ? 0 : 8, height: '100%', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))' }}>
+            {!isDetailPage && <Toolbar />}<Outlet />
           </Box>
+          {!isDetailPage && (
           <Paper sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: (theme) => theme.zIndex.appBar }} elevation={3}>
             <BottomNavigation
               showLabels
@@ -228,10 +236,15 @@ export default function App() {
               <BottomNavigationAction label="Settings" value='/settings' component={RouterLink} to="settings" icon={<SettingsIcon />} />
             </BottomNavigation>
           </Paper>
+          )}
         </Box>
-        <Snackbar open={snackOpen} autoHideDuration={2000} onClose={snackClose} sx={{ mb: 8 }}>
+        <Snackbar open={snackOpen} autoHideDuration={snackAction ? 5000 : 2000} onClose={snackClose} sx={{ mb: 8 }}>
           {/*@ts-ignore*/}
-          <Alert onClose={snackClose} severity={snackSev} sx={{ width: '100%' }}>
+          <Alert onClose={snackClose} severity={snackSev} sx={{ width: '100%' }} action={snackAction && (
+            <Button color="inherit" size="small" onClick={() => { snackAction(); snackClose(); }}>
+              Undo
+            </Button>
+          )}>
             {snackText}
           </Alert>
         </Snackbar>

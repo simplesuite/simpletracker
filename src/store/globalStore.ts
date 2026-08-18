@@ -110,6 +110,8 @@ interface GlobalState {
     setSnackBarSeverity: (val: string) => void;
     snackBarOpen: boolean;
     setSnackBarOpen: (val: boolean) => void;
+    snackBarAction: (() => void) | null;
+    setSnackBarAction: (val: (() => void) | null) => void;
     authAtom: string;
     setAuthAtom: (val: string) => void;
     currentUser: { recordID: string; fullName: string | null; userType: string };
@@ -133,6 +135,8 @@ export const useGlobalStore = create<GlobalState>((set) => ({
     setSnackBarSeverity: (val) => set({ snackBarSeverity: val }),
     snackBarOpen: false,
     setSnackBarOpen: (val) => set({ snackBarOpen: val }),
+    snackBarAction: null,
+    setSnackBarAction: (val) => set({ snackBarAction: val }),
     authAtom: auth,
     setAuthAtom: (val) => set({ authAtom: val }),
     currentUser: {

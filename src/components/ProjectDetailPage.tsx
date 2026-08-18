@@ -88,6 +88,7 @@ export default function ProjectDetailPage() {
     const setSnackText = useGlobalStore((s) => s.setSnackBarText);
     const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
     const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
+    const setSnackAction = useGlobalStore((s) => s.setSnackBarAction);
 
     const project = projects.find((p) => p.recordID === id);
     const isCreator = project?.creatorID === currentUserID;
@@ -100,6 +101,7 @@ export default function ProjectDetailPage() {
         if (success) {
             setSnackSev('success');
             setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackAction(() => { reopenTask(taskId); });
             setSnackOpen(true);
         }
     };
