@@ -39,6 +39,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Avatar from '@mui/material/Avatar';
 import { useNotificationStore } from '../store/notificationStore';
 import { notificationsSupported, requestNotificationPermission } from '../lib/notifications';
+import { pushSupported, subscribeToPush, unsubscribeFromPush } from '../lib/pushSubscription';
 import { useNoteStore } from '../store/noteStore';
 import { useTaskStore } from '../store/taskStore';
 import { useProjectStore } from '../store/projectStore';
@@ -196,12 +197,46 @@ export default function SettingsPage() {
     };
 
     const handleNotificationsToggle = async () => {
+        console.log('[DEBUG] handleNotificationsToggle called, notificationsEnabled:', notificationsEnabled);
+        console.log('[DEBUG] Notification.permission:', Notification.permission);
         if (!notificationsEnabled) {
+            console.log('[DEBUG] about to call requestNotificationPermission');
             const granted = await requestNotificationPermission();
-            if (granted) { setNotificationsEnabled(true); setNotificationsPrompted(true); setSnackSev('success'); setSnackText('Notifications enabled'); setSnackOpen(true); }
-            else { setSnackSev('warning'); setSnackText('Notification permission denied by browser'); setSnackOpen(true); }
+            console.log('[DEBUG] granted:', granted);
+            if (granted) {
+                setNotificationsEnabled(true);
+                setNotificationsPrompted(true);
+                // Also subscribe to server-side push notifications
+                console.log('[DEBUG] pushSupported:', pushSupported());
+                if (pushSupported()) {
+                    console.log('[DEBUG] calling subscribeToPush...');
+                    const pushOk = await subscribeToPush();
+                    console.log('[DEBUG] subscribeToPush returned:', pushOk);
+                    if (pushOk) {
+                        useNotificationStore.getState().setPushEnabled(true);
+                    }
+                } else {
+                    console.log('[DEBUG] push not supported, skipping');
+                }
+                console.log('[DEBUG] showing snackbar');
+                setSnackSev('success');
+                setSnackText('Notifications enabled');
+                setSnackOpen(true);
+            } else {
+                setSnackSev('warning');
+                setSnackText('Notification permission denied by browser');
+                setSnackOpen(true);
+            }
         } else {
-            setNotificationsEnabled(false); setSnackSev('success'); setSnackText('Notifications disabled'); setSnackOpen(true);
+            setNotificationsEnabled(false);
+            // Also unsubscribe from server-side push
+            if (pushSupported()) {
+                await unsubscribeFromPush();
+                useNotificationStore.getState().setPushEnabled(false);
+            }
+            setSnackSev('success');
+            setSnackText('Notifications disabled');
+            setSnackOpen(true);
         }
     };
 
