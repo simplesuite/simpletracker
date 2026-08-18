@@ -372,10 +372,39 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             sharedProjectIDs
         );
 
+        // Optimistically update local state BEFORE async operations
+        // so navigating away immediately still shows the updated data
+        const updateInList = (notes: Note[]) =>
+            notes.map((n) => (n.recordID === id ? { ...n, ...updatePayload } : n));
+
+        set((state) => ({
+            notes: updateInList(state.notes),
+            sharedNotes: updateInList(state.sharedNotes),
+            archivedNotes: updateInList(state.archivedNotes),
+            error: null,
+        }));
+
+        // Update cache for non-shared items immediately
+        if (!shared) {
+            const cached = getCachedNotes();
+            const updatedCache = cached.map((n) =>
+                n.recordID === id ? { ...n, ...updatePayload } : n
+            );
+            setCachedNotes(updatedCache);
+        }
+
         if (shared) {
             // Shared items: check connectivity first
             if (!useOfflineStore.getState().isOnline) {
-                set({ error: 'Shared items require an internet connection' });
+                // Rollback optimistic update
+                const rollbackInList = (notes: Note[]) =>
+                    notes.map((n) => (n.recordID === id ? { ...n, ...note } : n));
+                set((state) => ({
+                    notes: rollbackInList(state.notes),
+                    sharedNotes: rollbackInList(state.sharedNotes),
+                    archivedNotes: rollbackInList(state.archivedNotes),
+                    error: 'Shared items require an internet connection',
+                }));
                 return false;
             }
 
@@ -388,36 +417,32 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                     .eq('recordID', id);
 
                 if (error) {
-                    set({ error: error.message });
+                    // Rollback optimistic update
+                    const rollbackInList = (notes: Note[]) =>
+                        notes.map((n) => (n.recordID === id ? { ...n, ...note } : n));
+                    set((state) => ({
+                        notes: rollbackInList(state.notes),
+                        sharedNotes: rollbackInList(state.sharedNotes),
+                        archivedNotes: rollbackInList(state.archivedNotes),
+                        error: error.message,
+                    }));
                     return false;
                 }
             } catch (err: any) {
-                set({ error: err.message || 'Failed to update note' });
+                // Rollback optimistic update
+                const rollbackInList = (notes: Note[]) =>
+                    notes.map((n) => (n.recordID === id ? { ...n, ...note } : n));
+                set((state) => ({
+                    notes: rollbackInList(state.notes),
+                    sharedNotes: rollbackInList(state.sharedNotes),
+                    archivedNotes: rollbackInList(state.archivedNotes),
+                    error: err.message || 'Failed to update note',
+                }));
                 return false;
             }
         } else {
             // Non-shared items: use offline support
             await updateWithOfflineSupport('note', 'notes', id, updatePayload);
-        }
-
-        // Optimistically update local state
-        const updateInList = (notes: Note[]) =>
-            notes.map((n) => (n.recordID === id ? { ...n, ...updatePayload } : n));
-
-        set((state) => ({
-            notes: updateInList(state.notes),
-            sharedNotes: updateInList(state.sharedNotes),
-            archivedNotes: updateInList(state.archivedNotes),
-            error: null,
-        }));
-
-        // Update cache for non-shared items
-        if (!shared) {
-            const cached = getCachedNotes();
-            const updatedCache = cached.map((n) =>
-                n.recordID === id ? { ...n, ...updatePayload } : n
-            );
-            setCachedNotes(updatedCache);
         }
 
         return true;
