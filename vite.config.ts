@@ -7,18 +7,13 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'prompt',
+            strategies: 'injectManifest',
+            srcDir: 'src',
+            filename: 'sw.ts',
             includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'android-chrome-192x192.png', 'android-chrome-512x512.png'],
-            workbox: {
+            injectManifest: {
                 // Don't cache-bust URLs that already have hashes (Vite assets)
                 dontCacheBustURLsMatching: /\.[a-f0-9]{8}\./,
-                // Skip waiting so the new SW activates immediately when user accepts
-                skipWaiting: false, // We control this via the prompt
-                clientsClaim: true,
-                // Ensure navigation requests always get index.html even if the
-                // new SW hasn't fully populated its cache yet (prevents black
-                // screen on Android standalone PWA after update reload).
-                navigateFallback: 'index.html',
-                navigateFallbackDenylist: [/^\/api/, /\.[a-z]+$/i],
             },
             manifest: {
                 short_name: 'simpleTracker',
