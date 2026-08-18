@@ -650,7 +650,7 @@ export default function TaskDetailPage() {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           multiline
-          minRows={3}
+          minRows={body ? 3 : 1}
           maxRows={10}
           sx={{ mb: 2, mt: 1 }}
           disabled={isShared && !isOnline}
@@ -690,16 +690,34 @@ export default function TaskDetailPage() {
             </Box>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TimePicker
-              label="Due Time"
-              value={dueTime}
-              onChange={handleDueTimeChange}
-              slotProps={{
-                textField: { fullWidth: true },
-                field: { clearable: true },
-              }}
-              disabled={(isShared && !isOnline) || !dueDate}
-            />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <IconButton
+                size="small"
+                onClick={() => handleDueTimeChange(dueTime ? dueTime.subtract(1, "hour") : dayjs().startOf("hour").subtract(1, "hour"))}
+                disabled={(isShared && !isOnline) || !dueDate}
+                aria-label="Decrease due time by one hour"
+              >
+                <RemoveIcon />
+              </IconButton>
+              <TimePicker
+                label="Due Time"
+                value={dueTime}
+                onChange={handleDueTimeChange}
+                slotProps={{
+                  textField: { fullWidth: true },
+                  field: { clearable: true },
+                }}
+                disabled={(isShared && !isOnline) || !dueDate}
+              />
+              <IconButton
+                size="small"
+                onClick={() => handleDueTimeChange(dueTime ? dueTime.add(1, "hour") : dayjs().startOf("hour").add(1, "hour"))}
+                disabled={(isShared && !isOnline) || !dueDate}
+                aria-label="Increase due time by one hour"
+              >
+                <AddIcon />
+              </IconButton>
+            </Box>
           </Grid>
           <Grid size={{ xs: 12 }}>
             <Button
@@ -720,132 +738,26 @@ export default function TaskDetailPage() {
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Recurrence settings */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isRecurring}
-              onChange={(e) => handleRecurrenceToggle(e.target.checked)}
-              disabled={isShared && !isOnline}
-            />
-          }
-          label=" Recurring"
-          sx={{ mb: 1, pl: 1, display: "block" }}
-        />
-
-        {isRecurring && (
-          <Box sx={{ pl: 2, mb: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              {/* Interval with up/down buttons */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, display: "block" }}
-                >
-                  Interval
-                </Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      if (recurrenceInterval > 1) {
-                        handleRecurrenceIntervalChange(
-                          String(recurrenceInterval - 1),
-                        );
-                      }
-                    }}
-                    disabled={
-                      (isShared && !isOnline) || recurrenceInterval <= 1
-                    }
-                    aria-label="Decrease interval"
-                  >
-                    <KeyboardArrowDownIcon />
-                  </IconButton>
-                  <Typography
-                    variant="h6"
-                    sx={{ minWidth: 32, textAlign: "center" }}
-                  >
-                    {recurrenceInterval}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      if (recurrenceInterval < 365) {
-                        handleRecurrenceIntervalChange(
-                          String(recurrenceInterval + 1),
-                        );
-                      }
-                    }}
-                    disabled={
-                      (isShared && !isOnline) || recurrenceInterval >= 365
-                    }
-                    aria-label="Increase interval"
-                  >
-                    <KeyboardArrowUpIcon />
-                  </IconButton>
-                </Box>
-              </Grid>
-              {/* Unit as button group */}
-              <Grid size={{ xs: 12, sm: dueTime ? 8 : 4 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, display: "block" }}
-                >
-                  Unit
-                </Typography>
-                <ToggleButtonGroup
-                  value={recurrenceUnit}
-                  exclusive
-                  onChange={(_, val) => {
-                    if (val) handleRecurrenceUnitChange(val);
-                  }}
-                  size="small"
-                  fullWidth
-                  disabled={isShared && !isOnline}
-                >
-                  {dueTime && <ToggleButton value="minutes">Mins</ToggleButton>}
-                  {dueTime && <ToggleButton value="hours">Hours</ToggleButton>}
-                  <ToggleButton value="days">Days</ToggleButton>
-                  <ToggleButton value="weeks">Weeks</ToggleButton>
-                  <ToggleButton value="months">Months</ToggleButton>
-                </ToggleButtonGroup>
-              </Grid>
-              {/* Anchor as button group */}
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ mb: 0.5, display: "block" }}
-                >
-                  Repeated from
-                </Typography>
-                <ToggleButtonGroup
-                  value={recurrenceAnchor}
-                  exclusive
-                  onChange={(_, val) => {
-                    if (val) handleRecurrenceAnchorChange(val);
-                  }}
-                  size="small"
-                  fullWidth
-                  disabled={isShared && !isOnline}
-                >
-                  <ToggleButton value="due_date">Due</ToggleButton>
-                  <ToggleButton value="completed_date">Completed</ToggleButton>
-                </ToggleButtonGroup>
-              </Grid>
-            </Grid>
-          </Box>
-        )}
-
-        <Divider sx={{ my: 2 }} />
 
         {/* Subtasks section */}
-        <Typography variant="h6">Subtasks</Typography>
-        <Typography variant="caption" gutterBottom color="textSecondary">
-          ({taskSubtasks.filter((st) => st.isCompleted).length}/{taskSubtasks.length})
-        </Typography>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="baseline" gap={1}>
+            <Typography variant="h6">Subtasks</Typography>
+            <Typography variant="caption" color="textSecondary">
+              ({taskSubtasks.filter((st) => st.isCompleted).length}/{taskSubtasks.length})
+            </Typography>
+          </Box>
+          {taskSubtasks.length < 50 && (
+            <IconButton
+              size="small"
+              onClick={handleAddSubtask}
+              disabled={isShared && !isOnline}
+              aria-label="Add subtask"
+            >
+              <AddIcon />
+            </IconButton>
+          )}
+        </Box>
 
         <List dense>
           {taskSubtasks.map((st: Subtask) => (
@@ -865,6 +777,7 @@ export default function TaskDetailPage() {
               <TextField
                 variant="standard"
                 fullWidth
+                multiline
                 inputRef={(el) => {
                   if (el && st.recordID === focusedSubtaskId) {
                     el.focus();
@@ -908,18 +821,124 @@ export default function TaskDetailPage() {
           ))}
         </List>
 
-        {/* Add subtask */}
-        {taskSubtasks.length < 50 && (
-          <Button
-            fullWidth
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={handleAddSubtask}
-            disabled={isShared && !isOnline}
-            sx={{ mt: 1, ml: 1, textTransform: "none" }}
-          >
-            Add Subtask
-          </Button>
+        <Divider sx={{ my: 2 }} />
+
+        {/* Recurrence settings */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={isRecurring}
+              onChange={(e) => handleRecurrenceToggle(e.target.checked)}
+              disabled={isShared && !isOnline}
+              sx={{ mr: 1 }}
+            />
+          }
+          label=" Recurring"
+          sx={{ mb: 1, pl: 1, display: "block" }}
+        />
+
+        {isRecurring && (
+          <Grid container spacing={2} alignItems="center" sx={{ pl: 2, mb: 2 }}>
+            {/* Interval with up/down buttons */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mb: 0.5, display: "block" }}
+              >
+                Interval
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    if (recurrenceInterval > 1) {
+                      handleRecurrenceIntervalChange(
+                        String(recurrenceInterval - 1),
+                      );
+                    }
+                  }}
+                  disabled={
+                    (isShared && !isOnline) || recurrenceInterval <= 1
+                  }
+                  aria-label="Decrease interval"
+                >
+                  <KeyboardArrowDownIcon />
+                </IconButton>
+                <Typography
+                  variant="h6"
+                  sx={{ minWidth: 32, textAlign: "center" }}
+                >
+                  {recurrenceInterval}
+                </Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    if (recurrenceInterval < 365) {
+                      handleRecurrenceIntervalChange(
+                        String(recurrenceInterval + 1),
+                      );
+                    }
+                  }}
+                  disabled={
+                    (isShared && !isOnline) || recurrenceInterval >= 365
+                  }
+                  aria-label="Increase interval"
+                >
+                  <KeyboardArrowUpIcon />
+                </IconButton>
+              </Box>
+            </Grid>
+            {/* Unit as button group */}
+            <Grid size={{ xs: 12, sm: dueTime ? 8 : 4 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mb: 0.5, display: "block" }}
+              >
+                Unit
+              </Typography>
+              <ToggleButtonGroup
+                value={recurrenceUnit}
+                exclusive
+                onChange={(_, val) => {
+                  if (val) handleRecurrenceUnitChange(val);
+                }}
+                size="small"
+                fullWidth
+                disabled={isShared && !isOnline}
+              >
+                {dueTime && <ToggleButton value="minutes">Mins</ToggleButton>}
+                {dueTime && <ToggleButton value="hours">Hours</ToggleButton>}
+                <ToggleButton value="days">Days</ToggleButton>
+                <ToggleButton value="weeks">Weeks</ToggleButton>
+                <ToggleButton value="months">Months</ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+            {/* Anchor as button group */}
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mb: 0.5, display: "block" }}
+              >
+                Repeated from
+              </Typography>
+              <ToggleButtonGroup
+                value={recurrenceAnchor}
+                exclusive
+                onChange={(_, val) => {
+                  if (val) handleRecurrenceAnchorChange(val);
+                }}
+                size="small"
+                fullWidth
+                disabled={isShared && !isOnline}
+              >
+                <ToggleButton value="due_date">Due</ToggleButton>
+                <ToggleButton value="completed_date">Completed</ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+          </Grid>
         )}
 
         {/* Delete confirmation dialog */}
