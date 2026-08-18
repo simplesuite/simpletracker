@@ -12,8 +12,6 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import MenuItem from "@mui/material/MenuItem";
 import Autocomplete from "@mui/material/Autocomplete";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch from "@mui/material/Switch";
 import Alert from "@mui/material/Alert";
 import Divider from "@mui/material/Divider";
 import Dialog from "@mui/material/Dialog";
@@ -29,7 +27,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import AddIcon from "@mui/icons-material/Add";
-import RemoveIcon from "@mui/icons-material/Remove";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -637,7 +634,8 @@ export default function TaskDetailPage() {
           error={!!titleError}
           helperText={titleError || undefined}
           sx={{
-            my: 2,
+            mt: 2,
+            mb: 1,
             "& .MuiInput-input": { fontSize: "1.5rem", fontWeight: 500 },
           }}
           disabled={isShared && !isOnline}
@@ -650,9 +648,15 @@ export default function TaskDetailPage() {
           value={body}
           onChange={(e) => setBody(e.target.value)}
           multiline
-          minRows={body ? 3 : 1}
+          minRows={2}
           maxRows={10}
-          sx={{ mb: 2, mt: 1 }}
+          sx={{
+            mb: 2,
+            mt: 1,
+            "& .MuiInput-underline:before": { display: "none" },
+            "& .MuiInput-underline:after": { display: "none" },
+          }}
+          variant='standard'
           disabled={isShared && !isOnline}
         />
 
@@ -666,7 +670,7 @@ export default function TaskDetailPage() {
                 disabled={isShared && !isOnline}
                 aria-label="Decrease due date by one day"
               >
-                <RemoveIcon />
+                <KeyboardArrowDownIcon />
               </IconButton>
               <DatePicker
                 label="Due Date"
@@ -685,7 +689,7 @@ export default function TaskDetailPage() {
                 disabled={isShared && !isOnline}
                 aria-label="Increase due date by one day"
               >
-                <AddIcon />
+                <KeyboardArrowUpIcon />
               </IconButton>
             </Box>
           </Grid>
@@ -697,7 +701,7 @@ export default function TaskDetailPage() {
                 disabled={(isShared && !isOnline) || !dueDate}
                 aria-label="Decrease due time by one hour"
               >
-                <RemoveIcon />
+                <KeyboardArrowDownIcon />
               </IconButton>
               <TimePicker
                 label="Due Time"
@@ -715,7 +719,7 @@ export default function TaskDetailPage() {
                 disabled={(isShared && !isOnline) || !dueDate}
                 aria-label="Increase due time by one hour"
               >
-                <AddIcon />
+                <KeyboardArrowUpIcon />
               </IconButton>
             </Box>
           </Grid>
@@ -735,8 +739,6 @@ export default function TaskDetailPage() {
             </Button>
           </Grid>
         </Grid>
-
-        <Divider sx={{ my: 2 }} />
 
 
         {/* Subtasks section */}
@@ -821,21 +823,18 @@ export default function TaskDetailPage() {
           ))}
         </List>
 
-        <Divider sx={{ my: 2 }} />
-
         {/* Recurrence settings */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={isRecurring}
-              onChange={(e) => handleRecurrenceToggle(e.target.checked)}
-              disabled={isShared && !isOnline}
-              sx={{ mr: 1 }}
-            />
-          }
-          label=" Recurring"
-          sx={{ mb: 1, pl: 1, display: "block" }}
-        />
+        <ToggleButton
+          value="recurring"
+          selected={isRecurring}
+          onChange={() => handleRecurrenceToggle(!isRecurring)}
+          disabled={isShared && !isOnline}
+          size="small"
+          sx={{ mb: 1, textTransform: "none", gap: 0.5 }}
+        >
+          <Checkbox checked={isRecurring} size="small" sx={{ p: 0 }} tabIndex={-1} />
+          Recurring
+        </ToggleButton>
 
         {isRecurring && (
           <Grid container spacing={2} alignItems="center" sx={{ pl: 2, mb: 2 }}>
