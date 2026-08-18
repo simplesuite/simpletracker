@@ -197,28 +197,18 @@ export default function SettingsPage() {
     };
 
     const handleNotificationsToggle = async () => {
-        console.log('[DEBUG] handleNotificationsToggle called, notificationsEnabled:', notificationsEnabled);
-        console.log('[DEBUG] Notification.permission:', Notification.permission);
         if (!notificationsEnabled) {
-            console.log('[DEBUG] about to call requestNotificationPermission');
             const granted = await requestNotificationPermission();
-            console.log('[DEBUG] granted:', granted);
             if (granted) {
                 setNotificationsEnabled(true);
                 setNotificationsPrompted(true);
                 // Also subscribe to server-side push notifications
-                console.log('[DEBUG] pushSupported:', pushSupported());
                 if (pushSupported()) {
-                    console.log('[DEBUG] calling subscribeToPush...');
                     const pushOk = await subscribeToPush();
-                    console.log('[DEBUG] subscribeToPush returned:', pushOk);
                     if (pushOk) {
                         useNotificationStore.getState().setPushEnabled(true);
                     }
-                } else {
-                    console.log('[DEBUG] push not supported, skipping');
                 }
-                console.log('[DEBUG] showing snackbar');
                 setSnackSev('success');
                 setSnackText('Notifications enabled');
                 setSnackOpen(true);

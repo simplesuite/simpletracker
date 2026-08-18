@@ -125,10 +125,16 @@ export async function subscribeToPush(): Promise<boolean> {
         }
 
         // Subscribe (or get existing subscription)
-        const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
+        // Some browsers (Chromium forks without FCM) hang on subscribe(), so add a timeout
+        const subscription = await Promise.race([
+            registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidKey),
+            }),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Push subscription timed out — your browser may not support push notifications')), 10000)
+            ),
+        ]);
 
         console.log('[push] Browser subscription created, saving to database...');
 
