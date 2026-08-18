@@ -70,6 +70,7 @@ export default function TaskDetailPage() {
   const setSnackText = useGlobalStore((s) => s.setSnackBarText);
   const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
   const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
+  const setSnackAction = useGlobalStore((s) => s.setSnackBarAction);
   const isOnline = useOfflineStore((s) => s.isOnline);
 
   const [task, setTask] = useState<Task | null>(null);
@@ -372,6 +373,7 @@ export default function TaskDetailPage() {
       if (task.status === "open") {
         setSnackSev('success');
         setSnackText(`"${task.title || 'Task'}" completed`);
+        setSnackAction(() => { reopenTask(id); });
         setSnackOpen(true);
         navigate(-1);
       } else {
