@@ -17,7 +17,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import StarIcon from '@mui/icons-material/Star';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import Chip from '@mui/material/Chip';
-import { supabase } from "../lib/supabase";
+import { supabase, getSupabaseStorageKey } from "../lib/supabase";
 import { redirectToCheckout, redirectToBillingPortal, useEntitlement } from "../lib/checkout";
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import QrCodeIcon from '@mui/icons-material/QrCode';
@@ -240,7 +240,11 @@ export default function SettingsPage() {
         }
     };
 
-    async function supaLogOut() { await supabase.auth.signOut(); }
+    async function supaLogOut() {
+        try { await supabase.auth.signOut(); } catch { /* ignore network errors */ }
+        // Always clear local session so logout works even when offline
+        localStorage.removeItem(getSupabaseStorageKey());
+    }
 
     React.useEffect(() => { setSlideCheck(currentTheme === 'dark'); }, [currentTheme]);
 
@@ -305,7 +309,7 @@ export default function SettingsPage() {
                             </Button>
                             <Button
                                 variant="outlined" startIcon={<LogoutIcon />}
-                                onClick={fnLogout} disabled={offline}
+                                onClick={fnLogout}
                                 color="error"
                                 sx={{ textTransform: 'none', borderRadius: 2, flex: 1 }}
                             >
