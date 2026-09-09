@@ -8,7 +8,7 @@ import {
 } from 'react-native-paper';
 import { NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 // Safe to import from the barrel here: index.ts imports ./src/initCore first,
 // so configureCore has already run before this module (and the stores) load.
 import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -97,7 +97,24 @@ export default function App() {
             <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
             <NavigationContainer theme={navigationTheme}>
                 {isAuthenticated ? (
-                    <Tab.Navigator screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.colors.background } }}>
+                    <Tab.Navigator
+                        screenOptions={{
+                            headerShown: false,
+                            sceneStyle: { backgroundColor: theme.colors.background },
+                            tabBarActiveTintColor: theme.colors.primary,
+                            tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
+                            tabBarHideOnKeyboard: true,
+                            tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+                            tabBarItemStyle: { paddingVertical: 4 },
+                            tabBarStyle: {
+                                backgroundColor: theme.colors.surface,
+                                borderTopColor: theme.colors.outlineVariant,
+                                borderTopWidth: StyleSheet.hairlineWidth,
+                                paddingTop: 4,
+                                paddingBottom: 4,
+                            },
+                        }}
+                    >
                         <Tab.Screen
                             name="Notes"
                             component={NotesStack}

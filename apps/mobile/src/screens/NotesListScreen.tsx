@@ -1,19 +1,31 @@
 import { useState } from 'react';
-import { SectionList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
-import { List, FAB, Text, Chip } from 'react-native-paper';
+import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Card, Chip, FAB, List, Searchbar, Text, useTheme } from 'react-native-paper';
 import { refreshAllData, useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<NotesStackParamList, 'NotesList'>;
 
+type NoteSection = {
+    title: string;
+    data: ReturnType<typeof useNoteStore.getState>['notes'];
+};
+
+function formatUpdatedAt(updatedAt: number) {
+    return new Date(updatedAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+    });
+}
+
 export function NotesListScreen() {
+    const theme = useTheme();
     const navigation = useNavigation<Nav>();
     const notes = useNoteStore((s) => s.notes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const createNote = useNoteStore((s) => s.createNote);
-
     const projects = useProjectStore((s) => s.projects);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -36,58 +48,32 @@ export function NotesListScreen() {
         if (note) navigation.navigate('NoteDetail', { id: note.recordID });
     };
 
-    // Filter notes by search and project
-    const filteredNotes = notes.filter((note) => {
-        let matchesSearch = true;
-        let matchesProject = true;
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const titleMatch = note.title.toLowerCase().includes(q) ? true : false;
-            const bodyMatch = note.body && typeof note.body === 'string' && note.body.toLowerCase().includes(q) ? true : false;
-            matchesSearch = titleMatch || bodyMatch;
-        }
-
-        if (selectedProjectIDs.size > 0) {
-            const pid = note.projectID;
-            matchesProject = typeof pid === 'string' && selectedProjectIDs.has(pid);
-        }
-
+    const matchesFilters = (note: (typeof notes)[number]) => {
+        const query = searchQuery.trim().toLowerCase();
+        const matchesSearch = !query || note.title.toLowerCase().includes(query) || note.body.toLowerCase().includes(query);
+        const matchesProject = selectedProjectIDs.size === 0 || (
+            typeof note.projectID === 'string' && selectedProjectIDs.has(note.projectID)
+        );
         return matchesSearch && matchesProject;
-    });
+    };
 
-    const filteredArchivedNotes = archivedNotes.filter((note) => {
-        let matchesSearch = true;
-        let matchesProject = true;
+    const filteredNotes = notes.filter(matchesFilters);
+    const filteredArchivedNotes = archivedNotes.filter(matchesFilters);
 
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const titleMatch = note.title.toLowerCase().includes(q) ? true : false;
-            const bodyMatch = note.body && typeof note.body === 'string' && note.body.toLowerCase().includes(q) ? true : false;
-            matchesSearch = titleMatch || bodyMatch;
-        }
-
-        if (selectedProjectIDs.size > 0) {
-            const pid = note.projectID;
-            matchesProject = typeof pid === 'string' && selectedProjectIDs.has(pid);
-        }
-
-        return matchesSearch && matchesProject;
-    });
-
-    // Sort projects by most notes
     const sortedProjects = [...projects].sort((a, b) => {
-        const aCount = notes.filter((n) => n.projectID === a.recordID).length;
-        const bCount = notes.filter((n) => n.projectID === b.recordID).length;
+        const aCount = notes.filter((note) => note.projectID === a.recordID).length;
+        const bCount = notes.filter((note) => note.projectID === b.recordID).length;
         return bCount - aCount;
     });
 
-    const sections = [
-        ...(filteredNotes.length > 0 ? [{ title: '', data: filteredNotes }] : []),
+    const sections: NoteSection[] = [
+        ...(filteredNotes.length > 0 ? [{ title: 'Recent', data: filteredNotes }] : []),
         ...(filteredArchivedNotes.length > 0
-            ? [{ title: `Archived (${filteredArchivedNotes.length})`, data: filteredArchivedNotes }]
+            ? [{ title: `Archived · ${filteredArchivedNotes.length}`, data: filteredArchivedNotes }]
             : []),
     ];
+
+    const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
 
     const toggleProjectFilter = (projectID: string) => {
         setSelectedProjectIDs((prev) => {
@@ -102,36 +88,65 @@ export function NotesListScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Search bar */}
-            <View style={styles.searchContainer}>
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search notes..."
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <View style={styles.controls}>
+                <Searchbar
+                    placeholder="Search your notes"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    returnKeyType="search"
+                    style={[styles.searchbar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
+                    inputStyle={styles.searchInput}
+                    elevation={0}
                 />
+
+                <View style={styles.summaryRow}>
+                    <View>
+                        <Text variant="titleMedium">Your notes</Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            {filteredNotes.length} active · {filteredArchivedNotes.length} archived
+                        </Text>
+                    </View>
+                    {hasFilters && (
+                        <Chip
+                            compact
+                            icon="close"
+                            onPress={() => {
+                                setSearchQuery('');
+                                setSelectedProjectIDs(new Set());
+                            }}
+                            style={styles.clearChip}
+                        >
+                            Clear filters
+                        </Chip>
+                    )}
+                </View>
             </View>
 
-            {/* Project filter chips */}
             {sortedProjects.length > 0 && (
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.projectChips}
                 >
+                    <Chip
+                        compact
+                        selected={selectedProjectIDs.size === 0}
+                        onPress={() => setSelectedProjectIDs(new Set())}
+                        style={styles.projectChip}
+                    >
+                        All notes
+                    </Chip>
                     {sortedProjects.map((project) => {
-                        const count = notes.filter((n) => n.projectID === project.recordID).length;
+                        const count = notes.filter((note) => note.projectID === project.recordID).length;
                         return (
                             <Chip
                                 key={project.recordID}
-                                selected={!!selectedProjectIDs.has(project.recordID)}
+                                compact
+                                selected={selectedProjectIDs.has(project.recordID)}
                                 onPress={() => toggleProjectFilter(project.recordID)}
                                 style={styles.projectChip}
-                                textStyle={styles.projectChipText}
                             >
-                                {project.name} ({count})
+                                {project.name} · {count}
                             </Chip>
                         );
                     })}
@@ -141,62 +156,140 @@ export function NotesListScreen() {
             <SectionList
                 sections={sections}
                 keyExtractor={(item) => item.recordID}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                contentContainerStyle={sections.length === 0 ? styles.emptyListContent : styles.listContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={theme.colors.primary}
+                    />
+                }
                 ListEmptyComponent={
                     <View style={styles.empty}>
-                        <Text variant="bodyLarge">
-                            {searchQuery.trim() ? 'No notes match your search.' : 'No notes yet.'}
+                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+                            <List.Icon icon={hasFilters ? 'magnify' : 'note-plus-outline'} color={theme.colors.primary} />
+                        </View>
+                        <Text variant="titleMedium" style={styles.emptyTitle}>
+                            {hasFilters ? 'No notes found' : 'No notes yet'}
+                        </Text>
+                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
+                            {hasFilters
+                                ? 'Try a different search or clear your filters.'
+                                : 'Capture an idea, reminder, or checklist to get started.'}
                         </Text>
                     </View>
                 }
-                renderSectionHeader={({ section }) =>
-                    section.title ? (
-                        <View style={styles.archivedHeader}>
-                            <Text variant="bodyMedium">{section.title}</Text>
-                        </View>
-                    ) : null
-                }
-                renderItem={({ item }) => (
-                    <List.Item
-                        title={item.title || '(untitled)'}
-                        description={item.noteType === 'list' ? 'Checklist' : item.body?.slice(0, 60)}
-                        left={(props) => (
-                            <List.Icon
-                                {...props}
-                                icon={item.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'}
-                            />
-                        )}
-                        onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
-                    />
+                renderSectionHeader={({ section }) => (
+                    <View style={styles.sectionHeader}>
+                        <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+                            {section.title.toUpperCase()}
+                        </Text>
+                    </View>
                 )}
+                renderItem={({ item }) => {
+                    const projectName = item.projectID
+                        ? projects.find((project) => project.recordID === item.projectID)?.name
+                        : undefined;
+                    const isChecklist = item.noteType === 'list';
+                    const iconColor = isChecklist ? theme.colors.onSecondaryContainer : theme.colors.onPrimaryContainer;
+                    const iconBackground = isChecklist ? theme.colors.secondaryContainer : theme.colors.primaryContainer;
+                    const description = isChecklist
+                        ? 'Checklist'
+                        : item.body.trim() || 'No content yet';
+
+                    return (
+                        <Card
+                            mode="contained"
+                            onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
+                            style={[
+                                styles.noteCard,
+                                item.archived && styles.archivedCard,
+                                { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant },
+                            ]}
+                        >
+                            <Card.Content style={styles.noteCardContent}>
+                                <View style={[styles.noteIcon, { backgroundColor: iconBackground }]}>
+                                    <List.Icon
+                                        icon={isChecklist ? 'format-list-checks' : 'note-text-outline'}
+                                        color={iconColor}
+                                    />
+                                </View>
+                                <View style={styles.noteDetails}>
+                                    <View style={styles.noteTitleRow}>
+                                        <Text variant="titleMedium" numberOfLines={1} style={styles.noteTitle}>
+                                            {item.title || '(untitled)'}
+                                        </Text>
+                                        {item.pinned && (
+                                            <Chip compact icon="pin" style={styles.pinChip} textStyle={styles.pinChipText}>
+                                                Pinned
+                                            </Chip>
+                                        )}
+                                    </View>
+                                    <Text
+                                        variant="bodyMedium"
+                                        numberOfLines={1}
+                                        style={{ color: theme.colors.onSurfaceVariant }}
+                                    >
+                                        {description}
+                                    </Text>
+                                    <View style={styles.noteMeta}>
+                                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                            Updated {formatUpdatedAt(item.updatedAt)}
+                                        </Text>
+                                        {projectName && (
+                                            <Text variant="labelSmall" numberOfLines={1} style={[styles.projectMeta, { color: theme.colors.primary }]}>
+                                                {projectName}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+                            </Card.Content>
+                        </Card>
+                    );
+                }}
             />
-            <FAB icon="plus" style={styles.fab} onPress={onAdd} />
+            <FAB icon="plus" label="New note" style={styles.fab} onPress={onAdd} />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    searchContainer: { paddingHorizontal: 16, paddingVertical: 8 },
-    searchInput: {
-        backgroundColor: 'transparent',
-        fontSize: 16,
+    controls: { paddingHorizontal: 16, paddingTop: 12 },
+    searchbar: { borderWidth: 1, borderRadius: 16 },
+    searchInput: { fontSize: 16 },
+    summaryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
     },
+    clearChip: { marginLeft: 12 },
     projectChips: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        minHeight: 48,
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingBottom: 12,
     },
-    projectChip: {
-        flexShrink: 0,
-        minHeight: 40,
-        justifyContent: 'center',
-    },
-    projectChipText: { lineHeight: 20 },
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    archivedHeader: { padding: 16, alignItems: 'center' },
-    fab: { position: 'absolute', right: 16, bottom: 16 },
+    projectChip: { minHeight: 36 },
+    listContent: { paddingTop: 4, paddingBottom: 104 },
+    emptyListContent: { flexGrow: 1, paddingBottom: 104 },
+    sectionHeader: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+    noteCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
+    archivedCard: { opacity: 0.7 },
+    noteCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+    noteIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    noteDetails: { flex: 1, marginLeft: 12 },
+    noteTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
+    noteTitle: { flex: 1 },
+    pinChip: { height: 26, marginLeft: 8 },
+    pinChipText: { fontSize: 11 },
+    noteMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
+    projectMeta: { flexShrink: 1, marginLeft: 8 },
+    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    emptyTitle: { textAlign: 'center', marginBottom: 6 },
+    emptyDescription: { textAlign: 'center', lineHeight: 21 },
+    fab: { right: 16, bottom: 16 },
 });
