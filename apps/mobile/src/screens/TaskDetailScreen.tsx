@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { TextInput, Button, Text, Chip, Switch, Dialog, Portal, Paragraph, RadioButton } from 'react-native-paper';
+import { TextInput, Button, Text, Chip, Switch, Dialog, Portal, Paragraph, RadioButton, useTheme } from 'react-native-paper';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 type RecurrenceUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
 
 export function TaskDetailScreen() {
+    const theme = useTheme();
     const route = useRoute<RouteProp<TasksStackParamList, 'TaskDetail'>>();
     const navigation = useNavigation();
     const { id } = route.params;
@@ -207,7 +208,7 @@ export function TaskDetailScreen() {
                         <Switch value={isRecurring} onValueChange={setIsRecurring} />
                     </View>
                     {isRecurring && (
-                        <View style={styles.recurrenceSettings}>
+                        <View style={[styles.recurrenceSettings, { backgroundColor: theme.colors.surfaceVariant }]}>
                             <View style={styles.recurrenceInputRow}>
                                 <Text>Every</Text>
                                 <TextInput
@@ -268,7 +269,7 @@ export function TaskDetailScreen() {
             <View style={styles.subtasksSection}>
                 <View style={styles.subtasksHeader}>
                     <Text style={styles.sectionTitle}>Subtasks</Text>
-                    <Text style={styles.subtaskCount}>
+                    <Text style={{ color: theme.colors.onSurfaceVariant }}>
                         ({subtasks.filter(s => s.isCompleted).length}/{subtasks.length})
                     </Text>
                 </View>
@@ -285,7 +286,7 @@ export function TaskDetailScreen() {
                                     />
                                     <Text style={[
                                         styles.subtaskText,
-                                        subtask.isCompleted && styles.completedSubtaskText
+                                        subtask.isCompleted && { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' }
                                     ]}>
                                         {subtask.title}
                                     </Text>
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
     projectInput: { marginBottom: 8 },
     recurrenceSection: { marginTop: 16 },
     recurrenceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    recurrenceSettings: { marginTop: 16, backgroundColor: '#f5f5f5', padding: 12, borderRadius: 8 },
+    recurrenceSettings: { marginTop: 16, padding: 12, borderRadius: 8 },
     recurrenceInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
     recurrenceNumber: { width: 60 },
     recurrenceChip: { marginLeft: 8 },
@@ -385,12 +386,10 @@ const styles = StyleSheet.create({
     radioButtonRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     subtasksSection: { marginTop: 16 },
     subtasksHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    subtaskCount: { color: '#666' },
     subtaskList: { marginTop: 8 },
     subtaskItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
     subtaskContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
     subtaskText: { flex: 1 },
-    completedSubtaskText: { textDecorationLine: 'line-through', color: '#999' },
     deleteSubtaskBtn: { padding: 4 },
     addSubtaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
     addSubtaskInput: { flex: 1 },

@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTheme } from 'react-native-paper';
 import { NotesListScreen } from '../screens/NotesListScreen';
 import { NoteDetailScreen } from '../screens/NoteDetailScreen';
 import type { NotesStackParamList } from './types';
@@ -6,8 +7,10 @@ import type { NotesStackParamList } from './types';
 const Stack = createNativeStackNavigator<NotesStackParamList>();
 
 export function NotesStack() {
+    const theme = useTheme();
+
     return (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen
                 name="NotesList"
                 component={NotesListScreen}

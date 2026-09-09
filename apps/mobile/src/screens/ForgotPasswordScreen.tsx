@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, HelperText, Card } from 'react-native-paper';
+import { TextInput, Button, Text, HelperText, Card, useTheme } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 
 export function ForgotPasswordScreen({ navigation }: { navigation: any }) {
+    const theme = useTheme();
     const [email, setEmail] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -80,7 +81,7 @@ export function ForgotPasswordScreen({ navigation }: { navigation: any }) {
                     <Text variant="headlineMedium" style={styles.title}>
                         Forgot Password
                     </Text>
-                    <Text variant="bodyMedium" style={styles.subtitle}>
+                    <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
                         Enter your email and we'll send you a link to reset your password.
                     </Text>
 
@@ -112,7 +113,7 @@ export function ForgotPasswordScreen({ navigation }: { navigation: any }) {
                     <Text variant="bodyMedium" style={styles.linkRow}>
                         Remember your password?{' '}
                         <Text
-                            style={styles.link}
+                            style={[styles.link, { color: theme.colors.primary }]}
                             onPress={() => navigation.navigate('Root' as any)}
                         >
                             Sign In
@@ -128,10 +129,10 @@ const styles = StyleSheet.create({
     container: { flex: 1, padding: 16, justifyContent: 'center' },
     card: { marginBottom: 16 },
     title: { textAlign: 'center', marginBottom: 16 },
-    subtitle: { textAlign: 'center', color: '#666', marginBottom: 24 },
+    subtitle: { textAlign: 'center', marginBottom: 24 },
     message: { textAlign: 'center', marginBottom: 16 },
     input: { marginBottom: 12 },
     button: { marginTop: 16 },
     linkRow: { textAlign: 'center', marginTop: 16 },
-    link: { color: '#0366d6', fontWeight: '600' },
+    link: { fontWeight: '600' },
 });

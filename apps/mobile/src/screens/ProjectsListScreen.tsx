@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FlatList, View, StyleSheet, RefreshControl } from 'react-native';
-import { List, FAB, Text, Chip } from 'react-native-paper';
+import { List, FAB, Text, Chip, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { refreshAllData, useProjectStore, useTaskStore, useNoteStore } from '@simpletracker/core';
@@ -9,6 +9,7 @@ import type { ProjectsStackParamList } from '../navigation/types';
 type Nav = NativeStackNavigationProp<ProjectsStackParamList, 'ProjectsList'>;
 
 export function ProjectsListScreen() {
+    const theme = useTheme();
     const navigation = useNavigation<Nav>();
     const projects = useProjectStore((s) => s.projects);
     const createBlankProject = useProjectStore((s) => s.createBlankProject);
@@ -104,15 +105,15 @@ export function ProjectsListScreen() {
                                             </Chip>
                                             <Chip
                                                 icon={stats.overdueTaskCount > 0 ? 'alert' : 'check-circle-outline'}
-                                                style={[styles.chip, stats.overdueTaskCount > 0 && styles.chipOverdue]}
+                                                style={[styles.chip, stats.overdueTaskCount > 0 && { backgroundColor: theme.colors.errorContainer }]}
                                                 compact
                                             >
                                                 {stats.completedTaskCount}/{stats.taskCount}
                                             </Chip>
                                         </View>
                                         {stats.overdueTaskCount > 0 && (
-                                            <View style={styles.overdueBadge}>
-                                                <Text variant="bodySmall">{stats.overdueTaskCount} overdue</Text>
+                                            <View style={[styles.overdueBadge, { backgroundColor: theme.colors.error }]}>
+                                                <Text variant="bodySmall" style={{ color: theme.colors.onError }}>{stats.overdueTaskCount} overdue</Text>
                                             </View>
                                         )}
                                     </View>
@@ -134,7 +135,6 @@ const styles = StyleSheet.create({
     projectStats: { alignItems: 'flex-end' },
     statRow: { flexDirection: 'row', gap: 4 },
     chip: { height: 28 },
-    chipOverdue: { backgroundColor: '#ffebee' },
-    overdueBadge: { marginTop: 4, backgroundColor: '#e53935' },
+    overdueBadge: { marginTop: 4 },
     fab: { position: 'absolute', right: 16, bottom: 16 },
 });

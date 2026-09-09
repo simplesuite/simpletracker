@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, HelperText, Card } from 'react-native-paper';
+import { TextInput, Button, Text, HelperText, Card, useTheme } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 
 export function SignUpScreen({ navigation }: { navigation: any }) {
+    const theme = useTheme();
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -85,7 +86,7 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
                         <Text variant="bodyMedium" style={styles.successText}>
                             You're signed up. Please verify your email before logging in.
                         </Text>
-                        <Text variant="bodySmall" style={styles.infoText}>
+                        <Text variant="bodySmall" style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
                             If you're using a self-hosted instance, there may be no email verification.
                         </Text>
                         <Button
@@ -111,7 +112,7 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
                     <Text variant="headlineMedium" style={styles.title}>
                         simpleTracker
                     </Text>
-                    <Text variant="bodyMedium" style={styles.subtitle}>
+                    <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
                         Sign up to continue
                     </Text>
 
@@ -167,7 +168,7 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
                     <Text variant="bodyMedium" style={styles.linkRow}>
                         Already have an account?{' '}
                         <Text
-                            style={styles.link}
+                            style={[styles.link, { color: theme.colors.primary }]}
                             onPress={() => navigation.navigate('Root' as any)}
                         >
                             Sign In
@@ -183,11 +184,11 @@ const styles = StyleSheet.create({
     container: { flex: 1, padding: 16, justifyContent: 'center' },
     card: { marginBottom: 16 },
     title: { textAlign: 'center', marginBottom: 16 },
-    subtitle: { textAlign: 'center', color: '#666', marginBottom: 24 },
+    subtitle: { textAlign: 'center', marginBottom: 24 },
     successText: { textAlign: 'center', marginBottom: 16 },
-    infoText: { textAlign: 'center', color: '#999', marginBottom: 24 },
+    infoText: { textAlign: 'center', marginBottom: 24 },
     input: { marginBottom: 12 },
     button: { marginTop: 16 },
     linkRow: { textAlign: 'center', marginTop: 16 },
-    link: { color: '#0366d6', fontWeight: '600' },
+    link: { fontWeight: '600' },
 });

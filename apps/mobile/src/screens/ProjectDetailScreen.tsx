@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Checkbox, Chip, Divider, List, Snackbar, Text, TextInput } from 'react-native-paper';
+import { Button, Card, Checkbox, Chip, Divider, List, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -46,6 +46,7 @@ async function waitForStoreRecord(isPresent: () => boolean): Promise<boolean> {
 }
 
 export function ProjectDetailScreen() {
+    const theme = useTheme();
     const route = useRoute<RouteProp<ProjectsStackParamList, 'ProjectDetail'>>();
     const navigation = useNavigation<ProjectNavigation>();
     const { id } = route.params;
@@ -178,16 +179,16 @@ export function ProjectDetailScreen() {
                     </View>
                     {note.noteType === 'list' ? (
                         items.slice(0, 2).map((item) => (
-                            <Text key={item.recordID} variant="bodySmall" style={item.isCompleted && styles.completedText} numberOfLines={1}>
+                            <Text key={item.recordID} variant="bodySmall" style={item.isCompleted ? { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' } : undefined} numberOfLines={1}>
                                 {item.isCompleted ? '☑' : '☐'} {item.title || '(untitled)'}
                             </Text>
                         ))
                     ) : (
-                        <Text variant="bodySmall" numberOfLines={2} style={styles.secondaryText}>
+                        <Text variant="bodySmall" numberOfLines={2} style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
                             {note.body || 'No note content'}
                         </Text>
                     )}
-                    <Text variant="labelSmall" style={styles.secondaryText}>
+                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 4 }}>
                         Updated {new Date(note.updatedAt).toLocaleDateString()}
                     </Text>
                 </Card.Content>
@@ -199,13 +200,13 @@ export function ProjectDetailScreen() {
         <List.Item
             key={task.recordID}
             title={task.title || '(untitled)'}
-            titleStyle={completed ? styles.completedText : undefined}
+            titleStyle={completed ? { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' } : undefined}
             description={task.dueDate ? formatDueDate(task.dueDate) : task.isRecurring ? 'Recurring' : undefined}
             left={(props) => (
                 <List.Icon
                     {...props}
                     icon={completed ? 'check-circle-outline' : 'circle-outline'}
-                    color={completed ? '#43a047' : undefined}
+                    color={completed ? theme.colors.primary : undefined}
                 />
             )}
             onPress={() => openTask(task.recordID)}
@@ -258,7 +259,7 @@ export function ProjectDetailScreen() {
                 <Button compact onPress={addNote}>Add</Button>
             </View>
             {projectNotes.length === 0 ? (
-                <Text style={styles.emptySection}>No notes in this project.</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>No notes in this project.</Text>
             ) : projectNotes.map((note) => renderNote(note))}
 
             {projectArchivedNotes.length > 0 && (
@@ -277,7 +278,7 @@ export function ProjectDetailScreen() {
                 <Button compact onPress={addTask}>Add</Button>
             </View>
             {projectTasks.length === 0 ? (
-                <Text style={styles.emptySection}>No tasks in this project.</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 16 }}>No tasks in this project.</Text>
             ) : (
                 <Card style={styles.taskCard}>
                     <Card.Content>
@@ -323,9 +324,6 @@ const styles = StyleSheet.create({
     archivedCard: { opacity: 0.7 },
     itemHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     itemTitle: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-    secondaryText: { color: '#777', marginTop: 4 },
-    completedText: { textDecorationLine: 'line-through', color: '#777' },
     taskCard: { marginBottom: 16 },
-    emptySection: { color: '#777', marginBottom: 16 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
 });

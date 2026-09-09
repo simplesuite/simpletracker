@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FlatList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
-import { List, FAB, Text, Checkbox, Chip } from 'react-native-paper';
+import { List, FAB, Text, Checkbox, Chip, useTheme } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { refreshAllData, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 
 export function TasksListScreen() {
+    const theme = useTheme();
     const navigation = useNavigation<Nav>();
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
@@ -159,7 +160,11 @@ export function TasksListScreen() {
             right={() => {
                 if (!task.dueDate) return null;
                 const dueDateColor = getDueDateColor(task.dueDate);
-                const chipColor = dueDateColor === 'error' ? '#e53935' : dueDateColor === 'warning' ? '#fbc02d' : '#2196f3';
+                const chipColor = dueDateColor === 'error'
+                    ? theme.colors.error
+                    : dueDateColor === 'warning'
+                        ? theme.colors.tertiary
+                        : theme.colors.primary;
                 return (
                     <Chip
                         style={[styles.dueDateChip, { backgroundColor: `${chipColor}10` }]}

@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTheme } from 'react-native-paper';
 import { TasksListScreen } from '../screens/TasksListScreen';
 import { TaskDetailScreen } from '../screens/TaskDetailScreen';
 import type { TasksStackParamList } from './types';
@@ -6,8 +7,10 @@ import type { TasksStackParamList } from './types';
 const Stack = createNativeStackNavigator<TasksStackParamList>();
 
 export function TasksStack() {
+    const theme = useTheme();
+
     return (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen
                 name="TasksList"
                 component={TasksListScreen}

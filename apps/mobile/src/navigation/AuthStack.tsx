@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTheme } from 'react-native-paper';
 import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
@@ -8,8 +9,10 @@ import type { AuthStackParamList } from './types';
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export function AuthStack() {
+    const theme = useTheme();
+
     return (
-        <Stack.Navigator>
+        <Stack.Navigator screenOptions={{ contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen
                 name="SignIn"
                 component={SignInScreen}

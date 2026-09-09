@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { TextInput, Button, Text, Switch, Chip, Dialog, Portal, RadioButton } from 'react-native-paper';
+import { TextInput, Button, Text, Switch, Chip, Dialog, Portal, RadioButton, useTheme } from 'react-native-paper';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useNoteStore, useProjectStore } from '@simpletracker/core';
@@ -9,6 +9,7 @@ import { ShareNoteDialog } from '../components/ShareNoteDialog';
 import { MarkdownPreview } from '../components/MarkdownPreview';
 
 export function NoteDetailScreen() {
+    const theme = useTheme();
     const route = useRoute<RouteProp<NotesStackParamList, 'NoteDetail'>>();
     const navigation = useNavigation();
     const { id } = route.params;
@@ -214,7 +215,7 @@ export function NoteDetailScreen() {
                                     onChangeText={(text) => handleUpdateListItemTitle(item.recordID, text)}
                                     style={[
                                         styles.listItemText,
-                                        item.isCompleted && styles.completedListItemText
+                                        item.isCompleted && { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' }
                                     ]}
                                 />
                             </View>
@@ -337,7 +338,6 @@ const styles = StyleSheet.create({
     listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
     listItemContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
     listItemText: { flex: 1 },
-    completedListItemText: { textDecorationLine: 'line-through', color: '#999' },
     deleteItemBtn: { padding: 4 },
     addListItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
     addListItemInput: { flex: 1 },

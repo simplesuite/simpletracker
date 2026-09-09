@@ -6,9 +6,9 @@ import {
     MD3LightTheme,
     ActivityIndicator,
 } from 'react-native-paper';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 // Safe to import from the barrel here: index.ts imports ./src/initCore first,
 // so configureCore has already run before this module (and the stores) load.
 import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -26,12 +26,23 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
-    const { themeMode, effectiveTheme } = useThemeStore();
-    const systemScheme = useColorScheme();
+    const { effectiveTheme } = useThemeStore();
 
     // Use the theme store's effectiveTheme directly
     // The theme store handles system theme detection
     const theme = effectiveTheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+    const navigationTheme = {
+        ...(effectiveTheme === 'dark' ? NavigationDarkTheme : NavigationLightTheme),
+        dark: effectiveTheme === 'dark',
+        colors: {
+            primary: theme.colors.primary,
+            background: theme.colors.background,
+            card: theme.colors.surface,
+            text: theme.colors.onSurface,
+            border: theme.colors.outline,
+            notification: theme.colors.error,
+        },
+    };
 
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     const setSession = useAuthStore((s) => s.setSession);
@@ -73,7 +84,7 @@ export default function App() {
             <PaperProvider theme={theme} settings={{
                 icon: (props) => <MaterialCommunityIcons {...props} />,
             }}>
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background }}>
                     <ActivityIndicator />
                 </View>
                 <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
@@ -84,9 +95,9 @@ export default function App() {
     return (
         <PaperProvider theme={theme}>
             <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
-            <NavigationContainer>
+            <NavigationContainer theme={navigationTheme}>
                 {isAuthenticated ? (
-                    <Tab.Navigator screenOptions={{ headerShown: false }}>
+                    <Tab.Navigator screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.colors.background } }}>
                         <Tab.Screen
                             name="Notes"
                             component={NotesStack}

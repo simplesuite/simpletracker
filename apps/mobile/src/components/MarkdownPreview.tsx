@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text, TextStyle } from 'react-native';
 import Markdown from 'react-native-markdown-display';
+import { useTheme } from 'react-native-paper';
 
 interface MarkdownPreviewProps {
     content: string;
@@ -8,6 +9,8 @@ interface MarkdownPreviewProps {
 }
 
 export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
+    const theme = useTheme();
+
     if (!content.trim()) {
         return null;
     }
@@ -26,7 +29,7 @@ export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
             <Markdown
                 style={{
                     base: {
-                        color: '#333',
+                        color: theme.colors.onSurface,
                         fontSize: 16,
                         lineHeight: 24,
                     },
@@ -40,13 +43,13 @@ export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
                         fontStyle: 'italic',
                     },
                     code_inline: {
-                        backgroundColor: '#f4f4f4',
+                        backgroundColor: theme.colors.surfaceVariant,
                         padding: 2,
                         borderRadius: 4,
                         fontFamily: 'monospace',
                     },
                     blockcode: {
-                        backgroundColor: '#f4f4f4',
+                        backgroundColor: theme.colors.surfaceVariant,
                         padding: 12,
                         borderRadius: 8,
                         fontFamily: 'monospace',
@@ -54,7 +57,7 @@ export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
                     },
                     hr: {
                         height: 1,
-                        backgroundColor: '#ccc',
+                        backgroundColor: theme.colors.outlineVariant,
                         marginVertical: 16,
                     },
                     heading1: {
@@ -84,7 +87,7 @@ export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
                         marginRight: 8,
                     },
                     link: {
-                        color: '#1976d2',
+                        color: theme.colors.primary,
                         textDecorationLine: 'underline',
                     },
                 }}

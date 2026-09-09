@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Divider, List, RadioButton, Text } from 'react-native-paper';
+import { Button, Card, Divider, List, RadioButton, Text, useTheme } from 'react-native-paper';
 import { clearLocalData } from '@simpletracker/core';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 
 export function SettingsScreen() {
+    const theme = useTheme();
     const userId = useAuthStore((s) => s.userId);
     const { themeMode, setThemeMode } = useThemeStore();
     const [email, setEmail] = useState<string | null>(null);
@@ -64,7 +65,7 @@ export function SettingsScreen() {
 
             <View style={styles.logoutSection}>
                 <Divider style={styles.divider} />
-                <Button mode="outlined" onPress={signOut} icon="logout" textColor="#c62828">
+                <Button mode="outlined" onPress={signOut} icon="logout" textColor={theme.colors.error}>
                     Sign out
                 </Button>
             </View>
