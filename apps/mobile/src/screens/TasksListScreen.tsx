@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FlatList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
 import { List, FAB, Text, Checkbox, Chip, useTheme } from 'react-native-paper';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { refreshAllData, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -11,6 +12,7 @@ type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 
 export function TasksListScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
@@ -165,9 +167,14 @@ export function TasksListScreen() {
                     : dueDateColor === 'warning'
                         ? theme.colors.tertiary
                         : theme.colors.primary;
+                const chipBackground = dueDateColor === 'error'
+                    ? theme.colors.errorContainer
+                    : dueDateColor === 'warning'
+                        ? theme.colors.secondaryContainer
+                        : theme.colors.primaryContainer;
                 return (
                     <Chip
-                        style={[styles.dueDateChip, { backgroundColor: `${chipColor}10` }]}
+                        style={[styles.dueDateChip, { backgroundColor: chipBackground }]}
                         icon="calendar"
                         mode="outlined"
                     >
@@ -226,6 +233,7 @@ export function TasksListScreen() {
                     { title: 'No Due Date', tasks: noDueDateTasks },
                 ].filter((section) => section.tasks.length > 0)}
                 keyExtractor={(item) => item.title}
+                contentContainerStyle={{ paddingBottom: tabBarHeight + 96 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
                     <View style={styles.empty}>
@@ -248,7 +256,7 @@ export function TasksListScreen() {
                     );
                 }}
             />
-            <FAB icon="plus" style={styles.fab} onPress={onAdd} />
+            <FAB icon="plus" style={[styles.fab, { bottom: tabBarHeight + 24 }]} onPress={onAdd} />
         </View>
     );
 }
@@ -278,5 +286,5 @@ const styles = StyleSheet.create({
     section: { marginTop: 16 },
     sectionTitle: { paddingHorizontal: 16, marginBottom: 8 },
     dueDateChip: { marginLeft: 8 },
-    fab: { position: 'absolute', right: 16, bottom: 16 },
+    fab: { position: 'absolute', right: 16 },
 });

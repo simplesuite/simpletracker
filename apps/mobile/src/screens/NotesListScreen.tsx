@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Card, Chip, FAB, List, Searchbar, Text, useTheme } from 'react-native-paper';
@@ -22,6 +23,7 @@ function formatUpdatedAt(updatedAt: number) {
 
 export function NotesListScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const notes = useNoteStore((s) => s.notes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
@@ -156,7 +158,9 @@ export function NotesListScreen() {
             <SectionList
                 sections={sections}
                 keyExtractor={(item) => item.recordID}
-                contentContainerStyle={sections.length === 0 ? styles.emptyListContent : styles.listContent}
+                contentContainerStyle={sections.length === 0
+                    ? [styles.emptyListContent, { paddingBottom: tabBarHeight + 96 }]
+                    : [styles.listContent, { paddingBottom: tabBarHeight + 96 }]}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -248,7 +252,13 @@ export function NotesListScreen() {
                     );
                 }}
             />
-            <FAB icon="plus" label="New note" style={styles.fab} onPress={onAdd} />
+            <FAB
+                icon="plus"
+                size="small"
+                accessibilityLabel="New note"
+                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                onPress={onAdd}
+            />
         </View>
     );
 }
@@ -291,5 +301,5 @@ const styles = StyleSheet.create({
     emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     emptyTitle: { textAlign: 'center', marginBottom: 6 },
     emptyDescription: { textAlign: 'center', lineHeight: 21 },
-    fab: { right: 16, bottom: 16 },
+    fab: { position: 'absolute', right: 16 },
 });

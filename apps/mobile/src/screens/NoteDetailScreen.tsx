@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { TextInput, Button, Text, Switch, Chip, Dialog, Portal, RadioButton, useTheme } from 'react-native-paper';
 import type { RouteProp } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
@@ -10,6 +11,7 @@ import { MarkdownPreview } from '../components/MarkdownPreview';
 
 export function NoteDetailScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const route = useRoute<RouteProp<NotesStackParamList, 'NoteDetail'>>();
     const navigation = useNavigation();
     const { id } = route.params;
@@ -149,7 +151,7 @@ export function NoteDetailScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}>
             <TextInput
                 mode="flat"
                 placeholder="Title"

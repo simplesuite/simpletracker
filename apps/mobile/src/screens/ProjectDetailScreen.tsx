@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Checkbox, Chip, Divider, List, Snackbar, Text, TextInput, useTheme } from 'react-native-paper';
 import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -47,6 +48,7 @@ async function waitForStoreRecord(isPresent: () => boolean): Promise<boolean> {
 
 export function ProjectDetailScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const route = useRoute<RouteProp<ProjectsStackParamList, 'ProjectDetail'>>();
     const navigation = useNavigation<ProjectNavigation>();
     const { id } = route.params;
@@ -228,7 +230,7 @@ export function ProjectDetailScreen() {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}>
             <TextInput
                 mode="flat"
                 placeholder="Project name"

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { TextInput, Button, Text, Chip, Switch, Dialog, Portal, Paragraph, RadioButton, useTheme } from 'react-native-paper';
 import type { RouteProp } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTaskStore, useProjectStore } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
@@ -11,6 +12,7 @@ type RecurrenceUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
 
 export function TaskDetailScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const route = useRoute<RouteProp<TasksStackParamList, 'TaskDetail'>>();
     const navigation = useNavigation();
     const { id } = route.params;
@@ -137,7 +139,7 @@ export function TaskDetailScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}>
             <TextInput
                 mode="flat"
                 placeholder="Title"

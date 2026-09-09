@@ -25,6 +25,22 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
+function colorWithAlpha(color: string, alpha: number) {
+    if (!color.startsWith('#')) return color;
+    const hex = color.slice(1);
+    const normalized = hex.length === 3
+        ? hex.split('').map((value) => `${value}${value}`).join('')
+        : hex.slice(0, 6);
+    const red = parseInt(normalized.slice(0, 2), 16);
+    const green = parseInt(normalized.slice(2, 4), 16);
+    const blue = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+const styles = StyleSheet.create({
+    tabBarGlass: { borderRadius: 28 },
+});
+
 export default function App() {
     const { effectiveTheme } = useThemeStore();
 
@@ -103,22 +119,46 @@ export default function App() {
                             sceneStyle: { backgroundColor: theme.colors.background },
                             tabBarActiveTintColor: theme.colors.primary,
                             tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
+                            tabBarActiveBackgroundColor: colorWithAlpha(theme.colors.primaryContainer, 0.72),
+                            tabBarLabelVisibilityMode: 'unlabeled',
                             tabBarHideOnKeyboard: true,
-                            tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-                            tabBarItemStyle: { paddingVertical: 4 },
+                            tabBarIconStyle: { marginTop: 2 },
+                            tabBarItemStyle: { marginHorizontal: 4, marginVertical: 4, borderRadius: 22 },
                             tabBarStyle: {
-                                backgroundColor: theme.colors.surface,
-                                borderTopColor: theme.colors.outlineVariant,
-                                borderTopWidth: StyleSheet.hairlineWidth,
+                                position: 'absolute',
+                                left: 12,
+                                right: 12,
+                                bottom: 12,
+                                borderRadius: 28,
+                                overflow: 'hidden',
+                                backgroundColor: 'transparent',
+                                borderColor: colorWithAlpha(theme.colors.outlineVariant, 0.7),
+                                borderWidth: StyleSheet.hairlineWidth,
                                 paddingTop: 4,
                                 paddingBottom: 4,
+                                elevation: 8,
+                                shadowColor: theme.colors.shadow,
+                                shadowOpacity: effectiveTheme === 'dark' ? 0.35 : 0.14,
+                                shadowRadius: 18,
+                                shadowOffset: { width: 0, height: 8 },
                             },
+                            tabBarBackground: () => (
+                                <View
+                                    pointerEvents="none"
+                                    style={[
+                                        StyleSheet.absoluteFill,
+                                        styles.tabBarGlass,
+                                        { backgroundColor: colorWithAlpha(theme.colors.surface, effectiveTheme === 'dark' ? 0.92 : 0.84) },
+                                    ]}
+                                />
+                            ),
                         }}
                     >
                         <Tab.Screen
                             name="Notes"
                             component={NotesStack}
                             options={{
+                                tabBarAccessibilityLabel: 'Notes',
                                 tabBarIcon: ({ color, size }) => (
                                     <MaterialCommunityIcons name="note-text-outline" color={color} size={size} />
                                 ),
@@ -128,6 +168,7 @@ export default function App() {
                             name="Tasks"
                             component={TasksStack}
                             options={{
+                                tabBarAccessibilityLabel: 'Tasks',
                                 tabBarIcon: ({ color, size }) => (
                                     <MaterialCommunityIcons name="format-list-checks" color={color} size={size} />
                                 ),
@@ -137,6 +178,7 @@ export default function App() {
                             name="Projects"
                             component={ProjectsStack}
                             options={{
+                                tabBarAccessibilityLabel: 'Projects',
                                 tabBarIcon: ({ color, size }) => (
                                     <MaterialCommunityIcons name="folder-outline" color={color} size={size} />
                                 ),
@@ -146,6 +188,7 @@ export default function App() {
                             name="Settings"
                             component={SettingsScreen}
                             options={{
+                                tabBarAccessibilityLabel: 'Settings',
                                 tabBarIcon: ({ color, size }) => (
                                     <MaterialCommunityIcons name="cog-outline" color={color} size={size} />
                                 ),

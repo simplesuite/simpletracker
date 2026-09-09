@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FlatList, View, StyleSheet, RefreshControl } from 'react-native';
 import { List, FAB, Text, Chip, useTheme } from 'react-native-paper';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { refreshAllData, useProjectStore, useTaskStore, useNoteStore } from '@simpletracker/core';
@@ -10,6 +11,7 @@ type Nav = NativeStackNavigationProp<ProjectsStackParamList, 'ProjectsList'>;
 
 export function ProjectsListScreen() {
     const theme = useTheme();
+    const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const projects = useProjectStore((s) => s.projects);
     const createBlankProject = useProjectStore((s) => s.createBlankProject);
@@ -76,6 +78,7 @@ export function ProjectsListScreen() {
             <FlatList
                     data={sortedProjects}
                     keyExtractor={(p) => p.recordID}
+                    contentContainerStyle={{ paddingBottom: tabBarHeight + 96 }}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     ListEmptyComponent={
                         <View style={styles.empty}>
@@ -123,7 +126,7 @@ export function ProjectsListScreen() {
                         );
                     }}
                 />
-            <FAB icon="plus" style={styles.fab} onPress={onAdd} />
+            <FAB icon="plus" style={[styles.fab, { bottom: tabBarHeight + 24 }]} onPress={onAdd} />
         </View>
     );
 }
@@ -136,5 +139,5 @@ const styles = StyleSheet.create({
     statRow: { flexDirection: 'row', gap: 4 },
     chip: { height: 28 },
     overdueBadge: { marginTop: 4 },
-    fab: { position: 'absolute', right: 16, bottom: 16 },
+    fab: { position: 'absolute', right: 16 },
 });
