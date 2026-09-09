@@ -31,11 +31,11 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router-dom';
-import { useTaskStore } from '../store/taskStore';
-import { useProjectStore } from '../store/projectStore';
+import { useTaskStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
 import { useGlobalStore } from '../store/globalStore';
 import IconButton from '@mui/material/IconButton';
-import type { Task } from '../types';
+import type { Task } from '@simpletracker/core';
 import Paper from "@mui/material/Paper";
 
 export default function TasksPage() {

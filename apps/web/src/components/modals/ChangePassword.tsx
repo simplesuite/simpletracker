@@ -12,7 +12,7 @@ import Typography from "@mui/material/Typography";
 import { dialogPaperStyles, useGlobalStore } from "../../store/globalStore";
 import InputAdornment from '@mui/material/InputAdornment';
 import { supabase } from "../../lib/supabase";
-import { ensureSession } from "../extras/ensureSession";
+import { ensureSession } from '@simpletracker/core';
 import CloseIcon from '@mui/icons-material/Close';
 import IconButton from "@mui/material/IconButton";
 import { useTheme } from "@mui/material/styles";

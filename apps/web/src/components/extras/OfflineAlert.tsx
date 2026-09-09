@@ -1,5 +1,5 @@
 import Alert from '@mui/material/Alert';
-import { useOfflineStore } from '../../store/offlineStore';
+import { useOfflineStore } from '@simpletracker/core';
 
 /**
  * A small alert banner to show inside modals/dialogs when the user is offline.

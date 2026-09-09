@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import { observe } from '@legendapp/state';
-import { supabase } from '../lib/supabase';
-import { syncedTable } from '../lib/legend/syncedTable';
+import { getSupabase, getCurrentUserId } from '../runtime';
+import { syncedTable } from '../legend/syncedTable';
 import { validateProjectName } from '../lib/validation';
 import { lookupUserByID, isProjectSharedLocally } from '../lib/sharing';
-import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
-import { ensureSession } from '../components/extras/ensureSession';
+import { ensureSession } from '../lib/ensureSession';
 import type { Project, ProjectShared } from '../types/index';
 
 // ─── Synced observables (Legend-State) ──────────────────────────────────────
@@ -44,7 +43,7 @@ interface ProjectStore {
 }
 
 function currentUserID(): string {
-    return useGlobalStore.getState().currentUser.recordID;
+    return getCurrentUserId();
 }
 
 function findProject(id: string): Project | undefined {
@@ -167,7 +166,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             return false;
         }
 
-        const { data: existing } = await supabase
+        const { data: existing } = await getSupabase()
             .from('task_projects_shared')
             .select('recordID')
             .eq('projectID', projectID)
@@ -187,7 +186,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             createdAt: Date.now(),
         };
 
-        const { error } = await supabase.from('task_projects_shared').insert(shareRecord);
+        const { error } = await getSupabase().from('task_projects_shared').insert(shareRecord);
         if (error) {
             set({ error: error.message || 'Failed to share project' });
             return false;
@@ -205,7 +204,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     unshareProject: async (projectID, sharedToID) => {
         await ensureSession();
-        const { error } = await supabase
+        const { error } = await getSupabase()
             .from('task_projects_shared')
             .delete()
             .eq('projectID', projectID)
@@ -222,7 +221,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
     getSharesForProject: async (projectID) => {
         await ensureSession();
-        const { data, error } = await supabase
+        const { data, error } = await getSupabase()
             .from('task_projects_shared')
             .select('*')
             .eq('projectID', projectID);

@@ -39,14 +39,14 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 
-import { useTaskStore } from "../store/taskStore";
-import { useProjectStore } from "../store/projectStore";
+import { useTaskStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
 import { dialogPaperStyles, useGlobalStore } from "../store/globalStore";
-import { useOfflineStore } from "../store/offlineStore";
-import { validateTaskTitle } from "../lib/validation";
-import { isSharedItem } from "../lib/sharing";
+import { useOfflineStore } from '@simpletracker/core';
+import { validateTaskTitle } from '@simpletracker/core';
+import { isSharedItem } from '@simpletracker/core';
 import { supabase } from "../lib/supabase";
-import type { Task, Subtask, ProjectShared, NoteShared } from "../types";
+import type { Task, Subtask, ProjectShared, NoteShared } from '@simpletracker/core';
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();

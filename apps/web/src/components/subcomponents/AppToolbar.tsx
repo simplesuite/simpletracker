@@ -10,10 +10,10 @@ import Chip from '@mui/material/Chip';
 import Badge from '@mui/material/Badge';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
-import { useOfflineStore } from "../../store/offlineStore";
-import { useNoteStore } from "../../store/noteStore";
-import { useTaskStore } from "../../store/taskStore";
-import { useProjectStore } from "../../store/projectStore";
+import { useOfflineStore } from '@simpletracker/core';
+import { useNoteStore } from '@simpletracker/core';
+import { useTaskStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
 import { keyframes } from '@mui/system';
 
 const spin = keyframes`

@@ -1,0 +1,7 @@
+# Expo/React Native need a flat node_modules; pnpm's default isolated layout
+# breaks Metro's resolution of native modules (expo-modules-core, etc.).
+nodeLinker: hoisted
+
+packages:
+  - "apps/*"
+  - "packages/*"

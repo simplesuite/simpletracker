@@ -12,9 +12,9 @@
 
 import { syncState } from '@legendapp/state';
 import { setSyncEnabled } from './config';
-import { notes$, noteListItems$ } from '../../store/noteStore';
-import { tasks$, subtasks$ } from '../../store/taskStore';
-import { projects$, projectShares$ } from '../../store/projectStore';
+import { notes$, noteListItems$ } from '../store/noteStore';
+import { tasks$, subtasks$ } from '../store/taskStore';
+import { projects$, projectShares$ } from '../store/projectStore';
 
 const allSynced = [
     notes$,

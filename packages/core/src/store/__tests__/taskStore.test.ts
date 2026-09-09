@@ -1,49 +1,49 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as fc from 'fast-check';
-import { useTaskStore } from '../taskStore';
-import { useGlobalStore } from '../globalStore';
 
-// Mock Supabase client
-vi.mock('../../lib/supabase', () => ({
-    supabase: {
-        from: () => ({
-            select: () => ({ order: () => ({ data: [], error: null }) }),
-            insert: () => ({ data: null, error: null }),
-            update: () => ({ eq: () => ({ data: null, error: null }) }),
-            delete: () => ({ eq: () => ({ data: null, error: null }) }),
-        }),
-    },
-}));
-
-// Mock offlineSync functions
-vi.mock('../../lib/offlineSync', () => ({
-    insertWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-    updateWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-    deleteWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-}));
-
-// Mock cache functions
-vi.mock('../../lib/cache', () => ({
-    getCachedTasks: vi.fn().mockReturnValue([]),
-    setCachedTasks: vi.fn(),
-    getCachedSubtasks: vi.fn().mockReturnValue({}),
-    setCachedSubtasks: vi.fn(),
-}));
-
-// Mock recurrence module
-vi.mock('../../lib/recurrence', () => ({
-    spawnRecurringTask: vi.fn().mockReturnValue({ task: {}, subtasks: [] }),
-}));
-
-const NUM_RUNS = 100;
 const TEST_USER_ID = 'test-user-id-12345';
 
-// Helper to reset store state and set up user
+// Mock the Legend-State synced-table factory with plain in-memory observables so
+// store writes + the observe() bridge run without a real Supabase backend.
+vi.mock('../../legend/syncedTable', async () => {
+    const { observable } = await import('@legendapp/state');
+    return {
+        syncedTable: <T,>() => observable<Record<string, T>>({}),
+    };
+});
+
+vi.mock('../../legend/config', () => ({
+    setSyncEnabled: vi.fn(),
+    syncEnabled$: { get: () => true },
+}));
+
+// Mock the core runtime seam (supabase/persistPlugin/getCurrentUserId).
+vi.mock('../../runtime', () => ({
+    getSupabase: () => ({ from: () => ({}) }),
+    getPersistPlugin: () => undefined,
+    getCurrentUserId: () => TEST_USER_ID,
+}));
+
+vi.mock('../../lib/sharing', () => ({
+    isTaskSharedLocally: vi.fn().mockReturnValue(false),
+}));
+
+import { useTaskStore, tasks$ } from '../taskStore';
+
+const NUM_RUNS = 100;
+
+/** Seed the source-of-truth observable; the bridge populates useTaskStore().tasks. */
+function seedTasks(tasks: any[]): void {
+    (tasks$ as any).set({});
+    for (const t of tasks) {
+        (tasks$ as any)[t.recordID].set(t);
+    }
+}
+
+// Helper to reset store state.
 function resetStoreState() {
+    seedTasks([]);
     useTaskStore.setState({ tasks: [], subtasks: {}, statusFilter: 'open', loading: false, error: null });
-    useGlobalStore.setState({
-        currentUser: { recordID: TEST_USER_ID, fullName: 'Test User', userType: 'free' },
-    });
 }
 
 /**

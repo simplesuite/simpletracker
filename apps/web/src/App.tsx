@@ -34,11 +34,8 @@ import UpdatePrompt from "./components/subcomponents/UpdatePrompt";
 import NotificationPrompt from "./components/subcomponents/NotificationPrompt";
 import { usePwaStore } from "./store/pwaStore";
 import { hasSupabaseSession, supabase } from "./lib/supabase";
-import { setSyncEnabled } from "./lib/legend/config";
+import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from "@simpletracker/core";
 import { checkAndNotify } from "./lib/notifications";
-import { useNoteStore } from "./store/noteStore";
-import { useTaskStore } from "./store/taskStore";
-import { useProjectStore } from "./store/projectStore";
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
   props,

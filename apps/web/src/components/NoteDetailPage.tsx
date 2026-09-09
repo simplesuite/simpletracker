@@ -42,20 +42,20 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import MarkdownEditor from './MarkdownEditor';
-import { useNoteStore } from '../store/noteStore';
-import { useProjectStore } from '../store/projectStore';
+import { useNoteStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
-import { useOfflineStore } from '../store/offlineStore';
+import { useOfflineStore } from '@simpletracker/core';
 import { supabase } from '../lib/supabase';
-import { ensureSession } from './extras/ensureSession';
+import { ensureSession } from '@simpletracker/core';
 import { useEntitlement } from '../lib/checkout';
-import { searchUsers, getRecentlySharedWithUsers } from '../lib/sharing';
+import { searchUsers, getRecentlySharedWithUsers } from '@simpletracker/core';
 import Avatar from '@mui/material/Avatar';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemButton from '@mui/material/ListItemButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import SearchIcon from '@mui/icons-material/Search';
-import type { Note, NoteShared, NoteListItem, ProjectShared } from '../types/index';
+import type { Note, NoteShared, NoteListItem, ProjectShared } from '@simpletracker/core';
 
 /** Inline editable text field that only persists on blur (not on every keystroke). */
 function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {

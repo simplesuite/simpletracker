@@ -20,11 +20,11 @@ import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import Grid from "@mui/material/Grid";
 import { useNavigate } from "react-router-dom";
-import { useNoteStore } from "../store/noteStore";
-import { useProjectStore } from "../store/projectStore";
+import { useNoteStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
 import { useGlobalStore } from "../store/globalStore";
 import { supabase } from "../lib/supabase";
-import type { Note } from "../types/index";
+import type { Note } from '@simpletracker/core';
 import Avatar from "@mui/material/Avatar";
 
 function formatTimestamp(ts: number): string {

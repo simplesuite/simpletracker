@@ -1,0 +1,14 @@
+{
+  "name": "simpletracker-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@11.13.1",
+  "scripts": {
+    "web": "pnpm --filter @simpletracker/web dev",
+    "web:build": "pnpm --filter @simpletracker/web build",
+    "mobile": "pnpm --filter @simpletracker/mobile start",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "simpletracker",
+  "name": "@simpletracker/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,6 +15,7 @@
     "@emotion/styled": "^11.14.0",
     "@fontsource/roboto": "^5.2.10",
     "@legendapp/state": "^3.0.0-beta.48",
+    "@simpletracker/core": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@mui/icons-material": "^7.3.9",
     "@mui/lab": "^7.0.1-beta.23",
@@ -42,7 +43,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

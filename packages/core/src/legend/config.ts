@@ -23,13 +23,8 @@
  */
 
 import { observable, type Observable } from '@legendapp/state';
-import {
-    configureSyncedSupabase,
-    syncedSupabase,
-} from '@legendapp/state/sync-plugins/supabase';
-import { ObservablePersistLocalStorage } from '@legendapp/state/persist-plugins/local-storage';
+import { configureSyncedSupabase } from '@legendapp/state/sync-plugins/supabase';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../supabase';
 
 /**
  * Global Supabase-sync configuration applied to every synced collection.
@@ -58,8 +53,3 @@ export const syncEnabled$: Observable<boolean> = observable<boolean>(false);
 export function setSyncEnabled(enabled: boolean): void {
     syncEnabled$.set(enabled);
 }
-
-/** Persistence backend for the web app (IndexedDB/localStorage-backed). */
-export const webPersistPlugin = ObservablePersistLocalStorage;
-
-export { supabase };

@@ -45,17 +45,17 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RepeatIcon from '@mui/icons-material/Repeat';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
-import { useProjectStore } from '../store/projectStore';
-import { useNoteStore } from '../store/noteStore';
-import { useTaskStore } from '../store/taskStore';
+import { useProjectStore } from '@simpletracker/core';
+import { useNoteStore } from '@simpletracker/core';
+import { useTaskStore } from '@simpletracker/core';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
-import { validateProjectName } from '../lib/validation';
+import { validateProjectName } from '@simpletracker/core';
 import { supabase } from '../lib/supabase';
 import { useEntitlement } from '../lib/checkout';
-import { searchUsers, getRecentlySharedWithUsers } from '../lib/sharing';
+import { searchUsers, getRecentlySharedWithUsers } from '@simpletracker/core';
 import Avatar from '@mui/material/Avatar';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
-import type { Task, ProjectShared } from '../types/index';
+import type { Task, ProjectShared } from '@simpletracker/core';
 
 export default function ProjectDetailPage() {
     const { id } = useParams<{ id: string }>();

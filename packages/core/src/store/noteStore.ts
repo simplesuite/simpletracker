@@ -1,14 +1,13 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { observe } from '@legendapp/state';
-import { supabase } from '../lib/supabase';
-import { syncedTable } from '../lib/legend/syncedTable';
+import { getSupabase, getCurrentUserId } from '../runtime';
+import { syncedTable } from '../legend/syncedTable';
 import { isNoteSharedLocally, lookupUserByID } from '../lib/sharing';
 import { validateNoteTitle } from '../lib/validation';
-import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
 import { useProjectStore } from './projectStore';
-import { ensureSession } from '../components/extras/ensureSession';
+import { ensureSession } from '../lib/ensureSession';
 import type { Note, NoteShared, NoteListItem } from '../types/index';
 
 // ─── Synced observables (Legend-State) ──────────────────────────────────────
@@ -58,7 +57,7 @@ interface NoteStore {
 
 /** Helper: current user's recordID. */
 function currentUserID(): string {
-    return useGlobalStore.getState().currentUser.recordID;
+    return getCurrentUserId();
 }
 
 /** Helper: is this note shared (needs connectivity to write)? */
@@ -249,7 +248,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 return false;
             }
 
-            const { data: existing } = await supabase
+            const { data: existing } = await getSupabase()
                 .from('notes_shared')
                 .select('recordID')
                 .eq('noteID', noteID)
@@ -267,7 +266,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
                 sharedToID: user.recordID,
             };
 
-            const { error } = await supabase.from('notes_shared').insert(shareRecord);
+            const { error } = await getSupabase().from('notes_shared').insert(shareRecord);
             if (error) {
                 set({ error: error.message });
                 return false;
@@ -284,7 +283,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     unshareNote: async (noteID, sharedToID) => {
         try {
             await ensureSession();
-            const { error } = await supabase
+            const { error } = await getSupabase()
                 .from('notes_shared')
                 .delete()
                 .eq('noteID', noteID)
@@ -306,7 +305,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
     getSharesForNote: async (noteID) => {
         try {
             await ensureSession();
-            const { data, error } = await supabase
+            const { data, error } = await getSupabase()
                 .from('notes_shared')
                 .select('*')
                 .eq('noteID', noteID);
@@ -475,7 +474,7 @@ function sortNotes(a: Note, b: Note): number {
 observe(() => {
     const byId = notes$.get() || {};
     const all = Object.values(byId).filter(Boolean) as Note[];
-    const uid = useGlobalStore.getState().currentUser.recordID;
+    const uid = getCurrentUserId();
 
     const notes: Note[] = [];
     const sharedNotes: Note[] = [];

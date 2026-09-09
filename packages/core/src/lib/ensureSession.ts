@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabase";
+import { getSupabase } from "../runtime";
 
 /**
  * Ensures the Supabase session is fresh before making a request.
@@ -27,6 +27,7 @@ export async function ensureSession(): Promise<boolean> {
 }
 
 async function doEnsureSession(): Promise<boolean> {
+    const supabase = getSupabase();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
         // No session at all — user needs to re-login

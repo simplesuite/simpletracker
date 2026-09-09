@@ -24,54 +24,38 @@ function seedNotes(notes: Note[]): void {
  * Validates: Requirements 4.1, 5.1, 5.2, 5.3, 5.4, 5.5, 4.2
  */
 
-// Mock Supabase client
-vi.mock('../../lib/supabase', () => ({
-    supabase: {
+// Mock the core runtime seam (supabase/persistPlugin/getCurrentUserId).
+// getCurrentUserId is inlined (not a const) since the mock factory is hoisted
+// above const initializers and the store's observe() bridge reads it at import.
+vi.mock('../../runtime', () => ({
+    getSupabase: () => ({
         from: () => ({
-            select: () => ({
-                eq: () => ({
-                    eq: () => ({
-                        order: () => Promise.resolve({ data: [], error: null }),
-                    }),
-                    order: () => Promise.resolve({ data: [], error: null }),
-                }),
-            }),
+            select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }),
             insert: () => Promise.resolve({ data: null, error: null }),
-            update: () => ({
-                eq: () => Promise.resolve({ data: null, error: null }),
-            }),
-            delete: () => ({
-                eq: () => Promise.resolve({ data: null, error: null }),
-            }),
+            update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
+            delete: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
         }),
-        auth: {
-            getSession: () => Promise.resolve({ data: { session: { access_token: 'test' } } }),
-            refreshSession: () => Promise.resolve({ error: null }),
-        },
-    },
-    SUPABASE_URL: 'http://localhost:54321',
-    SUPABASE_KEY: 'test-key',
-    getSupabaseStorageKey: () => 'sb-localhost-auth-token',
+    }),
+    getPersistPlugin: () => undefined,
+    getCurrentUserId: () => 'test-user-id-123',
 }));
 
 // Mock the Legend-State synced-table factory with plain in-memory observables
 // so store writes + the observe() bridge run without a real Supabase backend.
-vi.mock('../../lib/legend/syncedTable', async () => {
+vi.mock('../../legend/syncedTable', async () => {
     const { observable } = await import('@legendapp/state');
     return {
         syncedTable: <T,>() => observable<Record<string, T>>({}),
     };
 });
 
-vi.mock('../../lib/legend/config', () => ({
+vi.mock('../../legend/config', () => ({
     setSyncEnabled: vi.fn(),
     syncEnabled$: { get: () => true },
-    webPersistPlugin: undefined,
-    supabase: {},
 }));
 
 // Mock ensureSession
-vi.mock('../../components/extras/ensureSession', () => ({
+vi.mock('../../lib/ensureSession', () => ({
     ensureSession: vi.fn().mockResolvedValue(true),
 }));
 
@@ -87,16 +71,6 @@ vi.mock('../../lib/validation', () => ({
     validateNoteTitle: vi.fn().mockReturnValue({ valid: true }),
 }));
 
-// Mock globalStore. The literal is inlined (not a const) because this mock's
-// factory is hoisted above const initializers and the store's observe() bridge
-// reads it at import time.
-vi.mock('../globalStore', () => ({
-    useGlobalStore: {
-        getState: () => ({
-            currentUser: { recordID: 'test-user-id-123', fullName: 'Test User', userType: 'free' },
-        }),
-    },
-}));
 const TEST_USER_ID = 'test-user-id-123';
 
 // Mock offlineStore

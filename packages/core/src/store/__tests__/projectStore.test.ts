@@ -4,44 +4,40 @@ import type { Project, ProjectShared } from '../../types/index';
 
 // --- Mocks ---
 
-// Mock supabase
-vi.mock('../../lib/supabase', () => ({
-    supabase: {
+const mockCurrentUserID = 'creator-user-id-1234';
+
+// Mock the core runtime seam.
+vi.mock('../../runtime', () => ({
+    getSupabase: () => ({
         from: () => ({
             select: () => ({
                 eq: () => ({
                     order: () => Promise.resolve({ data: [], error: null }),
                     single: () => Promise.resolve({ data: null, error: null }),
                 }),
-                in: () => ({
-                    order: () => Promise.resolve({ data: [], error: null }),
-                }),
+                in: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
             }),
             insert: () => Promise.resolve({ error: null }),
-            delete: () => ({
-                eq: () => ({
-                    eq: () => Promise.resolve({ error: null }),
-                }),
-            }),
+            delete: () => ({ eq: () => ({ eq: () => Promise.resolve({ error: null }) }) }),
         }),
-    },
+    }),
+    getPersistPlugin: () => undefined,
+    getCurrentUserId: () => 'creator-user-id-1234',
 }));
 
 // Mock the Legend-State synced-table factory with a plain in-memory observable.
 // This lets the store's observable writes + observe() bridge run without a real
 // Supabase sync backend, so store-behavior assertions still exercise real code.
-vi.mock('../../lib/legend/syncedTable', async () => {
+vi.mock('../../legend/syncedTable', async () => {
     const { observable } = await import('@legendapp/state');
     return {
         syncedTable: <T,>() => observable<Record<string, T>>({}),
     };
 });
 
-vi.mock('../../lib/legend/config', () => ({
+vi.mock('../../legend/config', () => ({
     setSyncEnabled: vi.fn(),
     syncEnabled$: { get: () => true },
-    webPersistPlugin: undefined,
-    supabase: {},
 }));
 
 vi.mock('../../lib/sharing', () => ({
@@ -68,7 +64,7 @@ vi.mock('../offlineStore', () => ({
 }));
 
 // Mock ensureSession
-vi.mock('../../components/extras/ensureSession', () => ({
+vi.mock('../../lib/ensureSession', () => ({
     ensureSession: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -80,16 +76,6 @@ vi.mock('../../lib/validation', () => ({
             return { valid: false, error: 'Project name must be between 1 and 100 characters' };
         }
         return { valid: true };
-    },
-}));
-
-// Mock globalStore
-const mockCurrentUserID = 'creator-user-id-1234';
-vi.mock('../globalStore', () => ({
-    useGlobalStore: {
-        getState: () => ({
-            currentUser: { recordID: mockCurrentUserID, fullName: 'Test User', userType: 'free' },
-        }),
     },
 }));
 

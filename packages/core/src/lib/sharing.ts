@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { getSupabase } from '../runtime';
 import type { Note, Task, NoteShared, ProjectShared } from '../types/index';
 
 /**
@@ -142,7 +142,7 @@ export async function lookupUserByID(
     const trimmedID = userID.trim();
     if (!trimmedID) return null;
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('users')
         .select('recordID, fullName, email')
         .eq('recordID', trimmedID)
@@ -166,7 +166,7 @@ export async function searchUsers(
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('users')
         .select('recordID, fullName, email')
         .neq('recordID', currentUserID)
@@ -192,13 +192,13 @@ export async function getRecentlySharedWithUsers(
     currentUserID: string
 ): Promise<{ recordID: string; fullName: string; email: string }[]> {
     // Fetch distinct sharedToIDs from notes_shared
-    const { data: noteShares } = await supabase
+    const { data: noteShares } = await getSupabase()
         .from('notes_shared')
         .select('sharedToID')
         .eq('creatorID', currentUserID);
 
     // Fetch distinct sharedToIDs from task_projects_shared
-    const { data: projectShares } = await supabase
+    const { data: projectShares } = await getSupabase()
         .from('task_projects_shared')
         .select('sharedToID')
         .eq('creatorID', currentUserID);
@@ -209,7 +209,7 @@ export async function getRecentlySharedWithUsers(
 
     if (ids.size === 0) return [];
 
-    const { data: users, error } = await supabase
+    const { data: users, error } = await getSupabase()
         .from('users')
         .select('recordID, fullName, email')
         .in('recordID', Array.from(ids));

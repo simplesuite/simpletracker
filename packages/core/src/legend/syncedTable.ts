@@ -16,8 +16,8 @@
 
 import { observable, type Observable } from '@legendapp/state';
 import { syncedSupabase } from '@legendapp/state/sync-plugins/supabase';
-import type { PostgrestFilterBuilder } from '@supabase/postgrest-js';
-import { supabase, syncEnabled$, webPersistPlugin } from './config';
+import { syncEnabled$ } from './config';
+import { getSupabase, getPersistPlugin } from '../runtime';
 
 export type SyncedActions = ('create' | 'read' | 'update' | 'delete')[];
 
@@ -53,23 +53,28 @@ export function syncedTable<TRow extends Record<string, any>>(
 ): Observable<Record<string, TRow>> {
     const { collection, persistName, filter, actions } = options;
 
-    return observable<Record<string, TRow>>(
+    // Build the synced config lazily. Legend evaluates this function when the
+    // observable is first activated (.get()), NOT at module load — so the
+    // injected deps (getSupabase/getPersistPlugin) are read after configureCore,
+    // regardless of import order.
+    const makeSynced = () =>
         syncedSupabase({
-            supabase,
+            supabase: getSupabase(),
             collection,
             // Only sync while authenticated; flipped by the auth flow.
             enabled: syncEnabled$,
             actions: actions ?? ['read', 'create', 'update', 'delete'],
             ...(filter
                 ? {
-                      filter: (
-                          select: PostgrestFilterBuilder<any, any, any, any, any>
-                      ) => filter(select),
+                      // `select` is a Supabase PostgrestFilterBuilder; typed
+                      // loosely to avoid depending on @supabase/postgrest-js
+                      // internals (keeps this portable for the shared core).
+                      filter: (select: any) => filter(select),
                   }
                 : {}),
             persist: {
                 name: persistName,
-                plugin: webPersistPlugin,
+                plugin: getPersistPlugin() as any,
                 // Persist pending changes and retry them on reconnect — the
                 // setting that made the offline queue drain reliably in the spike.
                 retrySync: true,
@@ -82,6 +87,10 @@ export function syncedTable<TRow extends Record<string, any>>(
                 backoff: 'exponential',
                 maxDelay: 30000,
             },
-        } as any)
+        } as any);
+
+    // observable(() => syncedFn) defers construction to first activation.
+    return observable<Record<string, TRow>>(
+        (() => makeSynced()) as any
     ) as Observable<Record<string, TRow>>;
 }

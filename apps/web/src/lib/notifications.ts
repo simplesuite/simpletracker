@@ -1,4 +1,4 @@
-import type { Task } from '../types';
+import type { Task } from '@simpletracker/core';
 import { useNotificationStore } from '../store/notificationStore';
 
 /**

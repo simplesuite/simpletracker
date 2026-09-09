@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { observe } from '@legendapp/state';
-import { supabase } from '../lib/supabase';
-import { syncedTable } from '../lib/legend/syncedTable';
+import { getCurrentUserId } from '../runtime';
+import { syncedTable } from '../legend/syncedTable';
 import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
 import { spawnRecurringTask } from '../lib/recurrence';
 import { isTaskSharedLocally } from '../lib/sharing';
-import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
 import { useProjectStore } from './projectStore';
 import type { Task, Subtask } from '../types';
@@ -55,7 +54,7 @@ function checkTaskIsShared(task: Task, uid: string): boolean {
 }
 
 function currentUserID(): string {
-    return useGlobalStore.getState().currentUser.recordID;
+    return getCurrentUserId();
 }
 
 function findTask(id: string): Task | undefined {

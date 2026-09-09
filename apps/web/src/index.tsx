@@ -1,4 +1,6 @@
 import React, { lazy, Suspense } from 'react';
+// MUST be first: injects web deps into @simpletracker/core before any store loads.
+import './initCore';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
