@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
-import { useNoteStore } from '../noteStore';
+import { useNoteStore, notes$ } from '../noteStore';
 import type { Note } from '../../types/index';
+
+/**
+ * Seed the source-of-truth observable (not the derived Zustand array). The
+ * store's observe() bridge projects these into useNoteStore() buckets, matching
+ * how the app populates state. Pass all notes (archived flag decides the bucket).
+ */
+function seedNotes(notes: Note[]): void {
+    (notes$ as any).set({});
+    for (const n of notes) {
+        (notes$ as any)[n.recordID].set(n);
+    }
+}
 
 /**
  * Feature: simpletracker-notes-tasks, Property 3: Note Creation Defaults
@@ -42,20 +54,20 @@ vi.mock('../../lib/supabase', () => ({
     getSupabaseStorageKey: () => 'sb-localhost-auth-token',
 }));
 
-// Mock offlineSync functions
-vi.mock('../../lib/offlineSync', () => ({
-    insertWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: true }),
-    updateWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: true }),
-    deleteWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: true }),
-}));
+// Mock the Legend-State synced-table factory with plain in-memory observables
+// so store writes + the observe() bridge run without a real Supabase backend.
+vi.mock('../../lib/legend/syncedTable', async () => {
+    const { observable } = await import('@legendapp/state');
+    return {
+        syncedTable: <T,>() => observable<Record<string, T>>({}),
+    };
+});
 
-// Mock cache functions
-vi.mock('../../lib/cache', () => ({
-    getCachedNotes: vi.fn().mockReturnValue([]),
-    setCachedNotes: vi.fn(),
-    getCachedSharedNotes: vi.fn().mockReturnValue([]),
-    setCachedSharedNotes: vi.fn(),
-    removeCachedItem: vi.fn(),
+vi.mock('../../lib/legend/config', () => ({
+    setSyncEnabled: vi.fn(),
+    syncEnabled$: { get: () => true },
+    webPersistPlugin: undefined,
+    supabase: {},
 }));
 
 // Mock ensureSession
@@ -75,15 +87,17 @@ vi.mock('../../lib/validation', () => ({
     validateNoteTitle: vi.fn().mockReturnValue({ valid: true }),
 }));
 
-// Mock globalStore
-const TEST_USER_ID = 'test-user-id-123';
+// Mock globalStore. The literal is inlined (not a const) because this mock's
+// factory is hoisted above const initializers and the store's observe() bridge
+// reads it at import time.
 vi.mock('../globalStore', () => ({
     useGlobalStore: {
         getState: () => ({
-            currentUser: { recordID: TEST_USER_ID, fullName: 'Test User', userType: 'free' },
+            currentUser: { recordID: 'test-user-id-123', fullName: 'Test User', userType: 'free' },
         }),
     },
 }));
+const TEST_USER_ID = 'test-user-id-123';
 
 // Mock offlineStore
 vi.mock('../offlineStore', () => ({
@@ -112,29 +126,18 @@ vi.mock('../projectStore', () => ({
     },
 }));
 
-// Mock offlineQueue
-vi.mock('../../lib/offlineQueue', () => ({
-    getAll: vi.fn().mockResolvedValue([]),
-    enqueue: vi.fn().mockResolvedValue(undefined),
-    dequeue: vi.fn().mockResolvedValue(undefined),
-    pendingCount: vi.fn().mockResolvedValue(0),
-    hasPendingInsert: vi.fn().mockResolvedValue(false),
-    mergeIntoInsert: vi.fn().mockResolvedValue(undefined),
-    removeByRecordID: vi.fn().mockResolvedValue(undefined),
-}));
-
 const NUM_RUNS = 100;
 
 describe('Property 3: Note Creation Defaults', () => {
     beforeEach(() => {
         // Reset the store state before each test
-        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+        seedNotes([]); useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
     });
 
     it('createNote produces a record with non-empty recordID', async () => {
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(note!.recordID).toBeDefined();
@@ -147,7 +150,7 @@ describe('Property 3: Note Creation Defaults', () => {
     it('createNote sets creatorID equal to the current user ID', async () => {
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(note!.creatorID).toBe(TEST_USER_ID);
@@ -159,7 +162,7 @@ describe('Property 3: Note Creation Defaults', () => {
     it('createNote sets empty title and empty body', async () => {
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(note!.title).toBe('');
@@ -172,7 +175,7 @@ describe('Property 3: Note Creation Defaults', () => {
     it('createNote sets archived=false and projectID=null', async () => {
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(note!.archived).toBe(false);
@@ -185,7 +188,7 @@ describe('Property 3: Note Creation Defaults', () => {
     it('createNote sets createdAt equal to updatedAt', async () => {
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(note!.createdAt).toBe(note!.updatedAt);
@@ -198,7 +201,7 @@ describe('Property 3: Note Creation Defaults', () => {
         const ids = new Set<string>();
         await fc.assert(
             fc.asyncProperty(fc.constant(null), async () => {
-                useNoteStore.setState({ notes: [] });
+                seedNotes([]);
                 const note = await useNoteStore.getState().createNote();
                 expect(note).not.toBeNull();
                 expect(ids.has(note!.recordID)).toBe(false);
@@ -211,7 +214,7 @@ describe('Property 3: Note Creation Defaults', () => {
 
 describe('Property 5: List Ordering', () => {
     beforeEach(() => {
-        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+        seedNotes([]); useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
     });
 
     it('notes list is sorted by updatedAt descending', () => {
@@ -332,7 +335,7 @@ describe('Property 5: List Ordering', () => {
 
 describe('Property 6: Archive Round-Trip', () => {
     beforeEach(() => {
-        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+        seedNotes([]); useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
     });
 
     it('archiving a note sets archived=true and preserves title/body', async () => {
@@ -358,7 +361,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().archiveNote(noteID);
 
@@ -397,7 +400,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().archiveNote(noteID);
 
@@ -433,7 +436,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [], archivedNotes: [note] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().unarchiveNote(noteID);
 
@@ -472,7 +475,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [], archivedNotes: [note] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().unarchiveNote(noteID);
 
@@ -508,7 +511,7 @@ describe('Property 6: Archive Round-Trip', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [] });
+                    seedNotes([note]);
 
                     // Archive
                     await useNoteStore.getState().archiveNote(noteID);
@@ -529,7 +532,7 @@ describe('Property 6: Archive Round-Trip', () => {
 
 describe('Property 12: Mutations Update Timestamp', () => {
     beforeEach(() => {
-        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+        seedNotes([]); useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
     });
 
     it('updateNote increases updatedAt on the note', async () => {
@@ -555,7 +558,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().updateNote(noteID, { title: newTitle });
 
@@ -591,7 +594,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [], sharedNotes: [] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().updateNote(noteID, { body: newBody });
 
@@ -623,7 +626,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [note], archivedNotes: [] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().archiveNote(noteID);
 
@@ -655,7 +658,7 @@ describe('Property 12: Mutations Update Timestamp', () => {
                         noteType: 'text',
                     };
 
-                    useNoteStore.setState({ notes: [], archivedNotes: [note] });
+                    seedNotes([note]);
 
                     await useNoteStore.getState().unarchiveNote(noteID);
 

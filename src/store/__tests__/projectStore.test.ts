@@ -27,34 +27,26 @@ vi.mock('../../lib/supabase', () => ({
     },
 }));
 
-// Mock offlineSync
-vi.mock('../../lib/offlineSync', () => ({
-    insertWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-    updateWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-    deleteWithOfflineSupport: vi.fn().mockResolvedValue({ success: true, queued: false }),
-}));
+// Mock the Legend-State synced-table factory with a plain in-memory observable.
+// This lets the store's observable writes + observe() bridge run without a real
+// Supabase sync backend, so store-behavior assertions still exercise real code.
+vi.mock('../../lib/legend/syncedTable', async () => {
+    const { observable } = await import('@legendapp/state');
+    return {
+        syncedTable: <T,>() => observable<Record<string, T>>({}),
+    };
+});
 
-// Mock cache
-vi.mock('../../lib/cache', () => ({
-    getCachedProjects: vi.fn().mockReturnValue([]),
-    setCachedProjects: vi.fn(),
-    removeCachedItem: vi.fn(),
+vi.mock('../../lib/legend/config', () => ({
+    setSyncEnabled: vi.fn(),
+    syncEnabled$: { get: () => true },
+    webPersistPlugin: undefined,
+    supabase: {},
 }));
 
 vi.mock('../../lib/sharing', () => ({
     lookupUserByID: vi.fn().mockResolvedValue(null),
     isProjectSharedLocally: vi.fn().mockReturnValue(false),
-}));
-
-// Mock offlineQueue
-vi.mock('../../lib/offlineQueue', () => ({
-    getAll: vi.fn().mockResolvedValue([]),
-    enqueue: vi.fn().mockResolvedValue(undefined),
-    dequeue: vi.fn().mockResolvedValue(undefined),
-    pendingCount: vi.fn().mockResolvedValue(0),
-    hasPendingInsert: vi.fn().mockResolvedValue(false),
-    mergeIntoInsert: vi.fn().mockResolvedValue(undefined),
-    removeByRecordID: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock offlineStore
@@ -102,8 +94,20 @@ vi.mock('../globalStore', () => ({
 }));
 
 // Import the store after mocks are set up
-import { useProjectStore } from '../projectStore';
-import { deleteWithOfflineSupport } from '../../lib/offlineSync';
+import { useProjectStore, projects$ } from '../projectStore';
+
+/**
+ * Seed the source-of-truth observable (not the derived Zustand array). The
+ * store's observe() bridge then projects these into useProjectStore().projects,
+ * mirroring how the app actually populates state.
+ */
+function seedProjects(projects: Project[]): void {
+    // Clear then set each project keyed by recordID.
+    (projects$ as any).set({});
+    for (const p of projects) {
+        (projects$ as any)[p.recordID].set(p);
+    }
+}
 
 // --- Arbitraries ---
 
@@ -230,7 +234,7 @@ describe('Property 5: List Ordering — Projects sorted by updatedAt descending'
                         },
                     ];
 
-                    useProjectStore.setState({ projects: existingProjects, loading: false, error: null });
+                    seedProjects(existingProjects);
 
                     // Create a new project
                     const newProject = await useProjectStore.getState().createProject(name, description);
@@ -264,7 +268,6 @@ describe('Property 5: List Ordering — Projects sorted by updatedAt descending'
 describe('Property 7: Creator-Only Permissions — Only creator can delete/edit/share projects', () => {
     beforeEach(() => {
         useProjectStore.setState({ projects: [], loading: false, error: null });
-        vi.mocked(deleteWithOfflineSupport).mockResolvedValue({ success: true, queued: false });
     });
 
     it('creator can successfully delete their own project', async () => {
@@ -272,8 +275,8 @@ describe('Property 7: Creator-Only Permissions — Only creator can delete/edit/
             fc.asyncProperty(
                 projectArb(mockCurrentUserID),
                 async (project) => {
-                    // Set up the store with the project owned by the current user
-                    useProjectStore.setState({ projects: [project], loading: false, error: null });
+                    // Seed the source-of-truth observable (bridge populates state)
+                    seedProjects([project]);
 
                     // The current user (mockCurrentUserID) is the creator
                     // deleteProject should succeed
@@ -327,7 +330,7 @@ describe('Property 7: Creator-Only Permissions — Only creator can delete/edit/
                         recordID: `project-${i}-${p.recordID.slice(0, 8)}`,
                     }));
 
-                    useProjectStore.setState({ projects: uniqueProjects, loading: false, error: null });
+                    seedProjects(uniqueProjects);
 
                     // Pick a project to delete
                     const targetIndex = indexSeed % uniqueProjects.length;
@@ -352,7 +355,7 @@ describe('Property 7: Creator-Only Permissions — Only creator can delete/edit/
                 projectArb(mockCurrentUserID),
                 fc.string({ minLength: 1, maxLength: 50 }).filter((s) => s.trim().length >= 1),
                 async (project, newName) => {
-                    useProjectStore.setState({ projects: [project], loading: false, error: null });
+                    seedProjects([project]);
 
                     // Creator updates the project
                     const result = await useProjectStore.getState().updateProject(project.recordID, { name: newName });

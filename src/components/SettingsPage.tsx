@@ -18,6 +18,7 @@ import StarIcon from '@mui/icons-material/Star';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import Chip from '@mui/material/Chip';
 import { supabase, getSupabaseStorageKey } from "../lib/supabase";
+import { clearLocalData } from "../lib/legend/reset";
 import { redirectToCheckout, redirectToBillingPortal, useEntitlement } from "../lib/checkout";
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import QrCodeIcon from '@mui/icons-material/QrCode';
@@ -231,6 +232,8 @@ export default function SettingsPage() {
     };
 
     async function supaLogOut() {
+        // Wipe local synced data so the next user on this device doesn't see it.
+        try { await clearLocalData(); } catch { /* best-effort */ }
         try { await supabase.auth.signOut(); } catch { /* ignore network errors */ }
         // Always clear local session so logout works even when offline
         localStorage.removeItem(getSupabaseStorageKey());

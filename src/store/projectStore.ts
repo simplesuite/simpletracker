@@ -1,23 +1,34 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
+import { observe } from '@legendapp/state';
 import { supabase } from '../lib/supabase';
+import { syncedTable } from '../lib/legend/syncedTable';
 import { validateProjectName } from '../lib/validation';
-import { getCachedProjects, setCachedProjects, removeCachedItem } from '../lib/cache';
-import {
-    insertWithOfflineSupport,
-    updateWithOfflineSupport,
-    deleteWithOfflineSupport,
-} from '../lib/offlineSync';
-import { getAll as getAllPendingMutations } from '../lib/offlineQueue';
 import { lookupUserByID, isProjectSharedLocally } from '../lib/sharing';
 import { useGlobalStore } from './globalStore';
 import { useOfflineStore } from './offlineStore';
 import { ensureSession } from '../components/extras/ensureSession';
 import type { Project, ProjectShared } from '../types/index';
 
+// ─── Synced observables (Legend-State) ──────────────────────────────────────
+// projects$ = task_projects visible to the user (own + shared, per RLS).
+// projectShares$ = task_projects_shared rows involving the user (as creator or
+// recipient), used to derive the sharedProjectIDs set that note/task stores rely
+// on for shared-item detection.
+
+export const projects$ = syncedTable<Project>({
+    collection: 'task_projects',
+    persistName: 'st_projects',
+});
+
+export const projectShares$ = syncedTable<ProjectShared>({
+    collection: 'task_projects_shared',
+    persistName: 'st_project_shares',
+});
+
 interface ProjectStore {
     projects: Project[];
-    /** Set of project IDs that are shared (either shared by the user or shared to the user) */
+    /** Set of project IDs that are shared (shared by the user OR shared to the user) */
     sharedProjectIDs: Set<string>;
     loading: boolean;
     error: string | null;
@@ -32,6 +43,20 @@ interface ProjectStore {
     getSharesForProject: (projectID: string) => Promise<ProjectShared[]>;
 }
 
+function currentUserID(): string {
+    return useGlobalStore.getState().currentUser.recordID;
+}
+
+function findProject(id: string): Project | undefined {
+    return useProjectStore.getState().projects.find((p) => p.recordID === id);
+}
+
+function projectIsShared(project: Project | undefined): boolean {
+    if (!project) return false;
+    const sharedProjectIDs = useProjectStore.getState().sharedProjectIDs;
+    return isProjectSharedLocally(project.creatorID, project.recordID, currentUserID(), sharedProjectIDs);
+}
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
     projects: [],
     sharedProjectIDs: new Set<string>(),
@@ -39,222 +64,49 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     error: null,
 
     fetchProjects: async () => {
-        set({ loading: true, error: null });
-
-        // Load from cache first for instant render
-        const cached = getCachedProjects();
-        if (cached.length > 0) {
-            set({ projects: cached });
-        }
-
-        try {
-            await ensureSession();
-            const currentUserID = useGlobalStore.getState().currentUser.recordID;
-
-            if (!currentUserID) {
-                set({ loading: false, error: null });
-                return;
-            }
-
-            // Fetch projects created by the user
-            const { data: ownProjects, error: ownError } = await supabase
-                .from('task_projects')
-                .select('*')
-                .eq('creatorID', currentUserID)
-                .order('updatedAt', { ascending: false });
-
-            if (ownError) {
-                set({ error: ownError.message, loading: false });
-                return;
-            }
-
-            // Fetch projects shared with the user
-            const { data: sharedRecords, error: sharedError } = await supabase
-                .from('task_projects_shared')
-                .select('projectID')
-                .eq('sharedToID', currentUserID);
-
-            if (sharedError) {
-                set({ error: sharedError.message, loading: false });
-                return;
-            }
-
-            // Also fetch projects the user has shared with others
-            const { data: sharedByUser, error: sharedByUserError } = await supabase
-                .from('task_projects_shared')
-                .select('projectID')
-                .eq('creatorID', currentUserID);
-
-            if (sharedByUserError) {
-                set({ error: sharedByUserError.message, loading: false });
-                return;
-            }
-
-            let sharedProjects: Project[] = [];
-            if (sharedRecords && sharedRecords.length > 0) {
-                const sharedProjectIDs = sharedRecords.map((r) => r.projectID);
-                const { data: sharedData, error: sharedDataError } = await supabase
-                    .from('task_projects')
-                    .select('*')
-                    .in('recordID', sharedProjectIDs)
-                    .order('updatedAt', { ascending: false });
-
-                if (sharedDataError) {
-                    set({ error: sharedDataError.message, loading: false });
-                    return;
-                }
-                sharedProjects = (sharedData || []) as Project[];
-            }
-
-            // Build the set of all shared project IDs (shared to user + shared by user)
-            const allSharedProjectIDs = new Set<string>();
-            for (const r of (sharedRecords || [])) {
-                allSharedProjectIDs.add(r.projectID);
-            }
-            for (const r of (sharedByUser || [])) {
-                allSharedProjectIDs.add(r.projectID);
-            }
-
-            // Combine and deduplicate, ordered by updatedAt desc
-            const projectMap = new Map<string, Project>();
-            for (const p of [...(ownProjects || []), ...sharedProjects]) {
-                projectMap.set(p.recordID, p as Project);
-            }
-            const allProjects = Array.from(projectMap.values())
-                .sort((a, b) => b.updatedAt - a.updatedAt);
-
-            // Filter out projects with pending deletes and preserve locally-created projects
-            let filteredProjects = allProjects;
-            try {
-                const pendingMutations = await getAllPendingMutations();
-                const pendingDeleteIDs = new Set(
-                    pendingMutations
-                        .filter((m) => m.entityType === 'project' && m.operation === 'delete')
-                        .map((m) => m.recordID)
-                );
-                const pendingUpdateIDs = new Set(
-                    pendingMutations
-                        .filter((m) => m.entityType === 'project' && (m.operation === 'update' || m.operation === 'insert'))
-                        .map((m) => m.recordID)
-                );
-                if (pendingDeleteIDs.size > 0) {
-                    filteredProjects = filteredProjects.filter((p) => !pendingDeleteIDs.has(p.recordID));
-                }
-
-                // For projects with pending updates/inserts, prefer the local version
-                // over the stale server data to avoid overwriting offline edits
-                if (pendingUpdateIDs.size > 0) {
-                    const currentProjects = get().projects;
-                    const localProjectMap = new Map(currentProjects.map((p) => [p.recordID, p]));
-                    filteredProjects = filteredProjects.map((p) => {
-                        if (pendingUpdateIDs.has(p.recordID) && localProjectMap.has(p.recordID)) {
-                            return localProjectMap.get(p.recordID)!;
-                        }
-                        return p;
-                    });
-                }
-
-                // Merge in any locally-created projects not present in the server response.
-                // This covers both:
-                // 1. Projects with a pending insert still in the queue
-                // 2. Projects whose insert synced but the server response was captured before it arrived
-                const currentProjects = get().projects;
-                const serverProjectIDs = new Set(filteredProjects.map((p) => p.recordID));
-                const localOnlyProjects = currentProjects.filter(
-                    (p) => p.creatorID === currentUserID
-                        && !serverProjectIDs.has(p.recordID)
-                        && !pendingDeleteIDs.has(p.recordID)
-                );
-                if (localOnlyProjects.length > 0) {
-                    filteredProjects = [...localOnlyProjects, ...filteredProjects];
-                }
-            } catch {
-                // If we can't read the queue, proceed without filtering
-            }
-
-            set({ projects: filteredProjects, sharedProjectIDs: allSharedProjectIDs, loading: false, error: null });
-
-            // Cache all projects for instant render on next load
-            setCachedProjects(filteredProjects);
-        } catch (err: any) {
-            set({ error: err.message || 'Failed to fetch projects', loading: false });
-        }
+        projects$.get();
+        projectShares$.get();
     },
 
-    createProject: async (name: string, description?: string) => {
+    createProject: async (name, description) => {
         const validation = validateProjectName(name);
         if (!validation.valid) {
             set({ error: validation.error || 'Invalid project name' });
             return null;
         }
 
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const now = Date.now();
-        const recordID = uuid();
-
         const project: Project = {
-            recordID,
-            creatorID: currentUserID,
+            recordID: uuid(),
+            creatorID: currentUserID(),
             name: name.trim(),
             description: description?.trim() || '',
             createdAt: now,
             updatedAt: now,
         };
 
-        // Optimistically add to local state
-        set((state) => ({
-            projects: [project, ...state.projects],
-            error: null,
-        }));
-
-        // Update cache (exclude shared projects to match fetchProjects caching logic)
-        const sharedProjectIDs = get().sharedProjectIDs;
-        const ownedNonShared = get().projects.filter(
-            (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
-        );
-        setCachedProjects(ownedNonShared);
-
-        // Persist via offline support
-        await insertWithOfflineSupport('project', 'task_projects', project as unknown as Record<string, unknown>);
-
+        projects$[project.recordID].set(project as any);
+        set({ error: null });
         return project;
     },
 
     createBlankProject: async () => {
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
         const now = Date.now();
-        const recordID = uuid();
-
         const project: Project = {
-            recordID,
-            creatorID: currentUserID,
+            recordID: uuid(),
+            creatorID: currentUserID(),
             name: 'Untitled project',
             description: '',
             createdAt: now,
             updatedAt: now,
         };
 
-        // Optimistically add to local state
-        set((state) => ({
-            projects: [project, ...state.projects],
-            error: null,
-        }));
-
-        // Update cache (exclude shared projects to match fetchProjects caching logic)
-        const sharedProjectIDs = get().sharedProjectIDs;
-        const ownedNonShared = get().projects.filter(
-            (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
-        );
-        setCachedProjects(ownedNonShared);
-
-        // Persist via offline support
-        await insertWithOfflineSupport('project', 'task_projects', project as unknown as Record<string, unknown>);
-
+        projects$[project.recordID].set(project as any);
+        set({ error: null });
         return project;
     },
 
-    updateProject: async (id: string, fields: Partial<Pick<Project, 'name' | 'description'>>) => {
-        // Validate name if provided
+    updateProject: async (id, fields) => {
         if (fields.name !== undefined) {
             const validation = validateProjectName(fields.name);
             if (!validation.valid) {
@@ -263,140 +115,58 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             }
         }
 
-        const now = Date.now();
-        const payload: Record<string, unknown> = { updatedAt: now };
-
-        if (fields.name !== undefined) {
-            payload.name = fields.name.trim();
-        }
-        if (fields.description !== undefined) {
-            payload.description = fields.description.trim();
+        const project = findProject(id);
+        if (!project) {
+            set({ error: 'Project not found' });
+            return false;
         }
 
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
-        const project = get().projects.find((p) => p.recordID === id);
-        const sharedProjectIDs = get().sharedProjectIDs;
-        const shared = project
-            ? isProjectSharedLocally(project.creatorID, project.recordID, currentUserID, sharedProjectIDs)
-            : false;
-
-        if (shared) {
-            // Shared projects: check connectivity first
-            if (!useOfflineStore.getState().isOnline) {
-                set({ error: 'Shared items require an internet connection' });
-                return false;
-            }
-
-            // Write directly to server
-            try {
-                await ensureSession();
-                const { error } = await supabase
-                    .from('task_projects')
-                    .update(payload)
-                    .eq('recordID', id);
-
-                if (error) {
-                    set({ error: error.message });
-                    return false;
-                }
-            } catch (err: any) {
-                set({ error: err.message || 'Failed to update project' });
-                return false;
-            }
-        } else {
-            // Non-shared: use offline support
-            await updateWithOfflineSupport('project', 'task_projects', id, payload);
+        if (projectIsShared(project) && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
         }
 
-        // Optimistically update local state
-        set((state) => ({
-            projects: state.projects.map((p) =>
-                p.recordID === id
-                    ? { ...p, ...payload } as Project
-                    : p
-            ),
-            error: null,
-        }));
+        const payload: Partial<Project> = { updatedAt: Date.now() };
+        if (fields.name !== undefined) payload.name = fields.name.trim();
+        if (fields.description !== undefined) payload.description = fields.description.trim();
 
-        // Update cache only for non-shared projects
-        if (!shared) {
-            const currentUserProjects = get().projects.filter(
-                (p) => p.creatorID === currentUserID && !sharedProjectIDs.has(p.recordID)
-            );
-            setCachedProjects(currentUserProjects);
-        }
-
+        projects$[id].set({ ...project, ...payload } as any);
+        set({ error: null });
         return true;
     },
 
-    deleteProject: async (id: string) => {
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
-        const project = get().projects.find((p) => p.recordID === id);
-        const sharedProjectIDs = get().sharedProjectIDs;
-        const shared = project
-            ? isProjectSharedLocally(project.creatorID, project.recordID, currentUserID, sharedProjectIDs)
-            : false;
+    deleteProject: async (id) => {
+        const project = findProject(id);
 
-        if (shared) {
-            // Shared projects: check connectivity first
-            if (!useOfflineStore.getState().isOnline) {
-                set({ error: 'Shared items require an internet connection' });
-                return false;
-            }
-
-            // Delete directly from server
-            try {
-                await ensureSession();
-                const { error } = await supabase
-                    .from('task_projects')
-                    .delete()
-                    .eq('recordID', id);
-
-                if (error) {
-                    set({ error: error.message });
-                    return false;
-                }
-            } catch (err: any) {
-                set({ error: err.message || 'Failed to delete project' });
-                return false;
-            }
-        } else {
-            // Non-shared: use offline support
-            await deleteWithOfflineSupport('project', 'task_projects', id);
+        if (projectIsShared(project) && !useOfflineStore.getState().isOnline) {
+            set({ error: 'Shared items require an internet connection' });
+            return false;
         }
 
-        // Optimistically remove from local state
-        set((state) => ({
-            projects: state.projects.filter((p) => p.recordID !== id),
-            error: null,
-        }));
-
-        // Remove from cache for non-shared items
-        if (!shared) {
-            removeCachedItem('cachedProjects', id);
-        }
-
+        // Projects are OPTIONAL parents: deleting a project must NOT delete its
+        // notes/tasks (no cascade on those FKs). We only delete the project row;
+        // orphaned notes/tasks simply become project-less, which is valid.
+        projects$[id].delete();
+        set({ error: null });
         return true;
     },
 
-    shareProject: async (projectID: string, userID: string) => {
-        const currentUserID = useGlobalStore.getState().currentUser.recordID;
+    // ─── Sharing (multi-user; requires connectivity — direct Supabase) ──────
 
-        // Look up the user by ID
+    shareProject: async (projectID, userID) => {
+        const uid = currentUserID();
         await ensureSession();
+
         const user = await lookupUserByID(userID);
         if (!user) {
             set({ error: 'User not found' });
             return false;
         }
-
-        // Prevent self-sharing
-        if (user.recordID === currentUserID) {
+        if (user.recordID === uid) {
             set({ error: 'Cannot share with yourself' });
             return false;
         }
 
-        // Check for duplicate share
         const { data: existing } = await supabase
             .from('task_projects_shared')
             .select('recordID')
@@ -412,24 +182,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         const shareRecord: ProjectShared = {
             recordID: uuid(),
             projectID,
-            creatorID: currentUserID,
+            creatorID: uid,
             sharedToID: user.recordID,
             createdAt: Date.now(),
         };
 
-        const { error } = await supabase
-            .from('task_projects_shared')
-            .insert(shareRecord);
-
+        const { error } = await supabase.from('task_projects_shared').insert(shareRecord);
         if (error) {
             set({ error: error.message || 'Failed to share project' });
             return false;
         }
 
-        // Remove project from local cache since it's now shared
-        removeCachedItem('cachedProjects', projectID);
-
-        // Add to local shared project IDs set
+        // Reflect immediately in the shared set (the synced observable will also
+        // pick it up, but this keeps shared-detection instant).
         set((state) => ({
             sharedProjectIDs: new Set([...state.sharedProjectIDs, projectID]),
             error: null,
@@ -438,7 +203,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return true;
     },
 
-    unshareProject: async (projectID: string, sharedToID: string) => {
+    unshareProject: async (projectID, sharedToID) => {
         await ensureSession();
         const { error } = await supabase
             .from('task_projects_shared')
@@ -455,7 +220,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return true;
     },
 
-    getSharesForProject: async (projectID: string) => {
+    getSharesForProject: async (projectID) => {
         await ensureSession();
         const { data, error } = await supabase
             .from('task_projects_shared')
@@ -470,3 +235,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return (data || []) as ProjectShared[];
     },
 }));
+
+// ─── Bridge: synced observables → Zustand state ─────────────────────────────
+
+observe(() => {
+    const byId = projects$.get() || {};
+    const projects = (Object.values(byId).filter(Boolean) as Project[]).sort(
+        (a, b) => b.updatedAt - a.updatedAt
+    );
+    useProjectStore.setState({ projects });
+});
+
+observe(() => {
+    const byId = projectShares$.get() || {};
+    const shares = Object.values(byId).filter(Boolean) as ProjectShared[];
+    // Any project appearing in a share record (as creator or recipient) is shared.
+    const sharedProjectIDs = new Set<string>();
+    for (const s of shares) {
+        sharedProjectIDs.add(s.projectID);
+    }
+    useProjectStore.setState({ sharedProjectIDs });
+});

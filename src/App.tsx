@@ -34,8 +34,7 @@ import UpdatePrompt from "./components/subcomponents/UpdatePrompt";
 import NotificationPrompt from "./components/subcomponents/NotificationPrompt";
 import { usePwaStore } from "./store/pwaStore";
 import { hasSupabaseSession, supabase } from "./lib/supabase";
-import { initOfflineSync } from "./lib/offlineSync";
-import { getCachedNotes, getCachedTasks, getCachedProjects, clearLegacyCache } from "./lib/cache";
+import { setSyncEnabled } from "./lib/legend/config";
 import { checkAndNotify } from "./lib/notifications";
 import { useNoteStore } from "./store/noteStore";
 import { useTaskStore } from "./store/taskStore";
@@ -72,6 +71,9 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
       setAuthChecked(true);
+      // Gate Legend-State syncing on auth: activates synced observables on login,
+      // stops them on logout.
+      setSyncEnabled(!!session);
       if (session?.user) {
         const store = useGlobalStore.getState();
         if (!store.currentUser.recordID) {
@@ -87,6 +89,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsAuthenticated(!!session);
       setAuthChecked(true);
+      setSyncEnabled(!!session);
       if (session?.user) {
         const store = useGlobalStore.getState();
         if (!store.currentUser.recordID) {
@@ -111,56 +114,32 @@ export default function App() {
     useProjectStore.getState().fetchProjects();
   }, [isAuthenticated]);
 
-  // Initialize offline sync listeners and load cached data on startup
+  // Activate Legend-State synced observables on startup. Legend rehydrates each
+  // collection from local persistence automatically (instant render) and syncs
+  // with Supabase in the background — no manual cache load or sync engine needed.
   React.useEffect(() => {
-    // Clear legacy budget cache keys
-    clearLegacyCache();
-
-    // Load cached notes/tasks/projects from localStorage for instant render
-    const cachedNotes = getCachedNotes();
-    if (cachedNotes.length > 0) {
-      const nonArchived = cachedNotes
-        .filter((n) => !n.archived)
-        .sort((a, b) => b.updatedAt - a.updatedAt);
-      useNoteStore.setState({ notes: nonArchived });
-    }
-
-    const cachedTasks = getCachedTasks();
-    if (cachedTasks.length > 0) {
-      useTaskStore.setState({ tasks: cachedTasks });
-    }
-
-    const cachedProjects = getCachedProjects();
-    if (cachedProjects.length > 0) {
-      useProjectStore.setState({ projects: cachedProjects });
-    }
-
-    // Initialize the generalized offline sync engine
-    const cleanup = initOfflineSync();
-    return cleanup;
+    useNoteStore.getState().fetchNotes();
+    useTaskStore.getState().fetchTasks();
+    useProjectStore.getState().fetchProjects();
   }, []);
 
-  // Check for due/overdue tasks and send a grouped notification (once per day)
+  // Check for due/overdue tasks and send a grouped notification (once per day).
+  // Reads tasks from the (Legend-backed) task store rather than a separate cache.
   React.useEffect(() => {
-    try {
-      const cachedTasks = getCachedTasks();
-      if (cachedTasks.length > 0) {
-        checkAndNotify(cachedTasks);
+    const runCheck = () => {
+      try {
+        const tasks = useTaskStore.getState().tasks;
+        if (tasks.length > 0) checkAndNotify(tasks);
+      } catch (err) {
+        console.warn('Notification check failed:', err);
       }
-    } catch (err) {
-      console.warn('Notification check failed on mount:', err);
-    }
+    };
+
+    runCheck();
 
     // Also check when the app regains visibility (covers next-day scenario)
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          const tasks = getCachedTasks();
-          if (tasks.length > 0) checkAndNotify(tasks);
-        } catch (err) {
-          console.warn('Notification check failed on visibility change:', err);
-        }
-      }
+      if (document.visibilityState === 'visible') runCheck();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
