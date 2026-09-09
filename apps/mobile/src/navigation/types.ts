@@ -15,6 +15,13 @@ export type ProjectsStackParamList = {
     ProjectDetail: { id: string };
 };
 
+export type AuthStackParamList = {
+    SignIn: undefined;
+    SignUp: undefined;
+    ForgotPassword: undefined;
+    ResetPassword: undefined;
+};
+
 export type RootTabParamList = {
     Notes: undefined;
     Tasks: undefined;

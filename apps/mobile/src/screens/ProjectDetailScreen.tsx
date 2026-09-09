@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
-import { TextInput } from 'react-native-paper';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { TextInput, Button } from 'react-native-paper';
 import type { RouteProp } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
 import { useProjectStore } from '@simpletracker/core';
 import type { ProjectsStackParamList } from '../navigation/types';
+import { ShareProjectDialog } from '../components/ShareProjectDialog';
 
 export function ProjectDetailScreen() {
     const route = useRoute<RouteProp<ProjectsStackParamList, 'ProjectDetail'>>();
@@ -15,6 +16,7 @@ export function ProjectDetailScreen() {
 
     const [name, setName] = useState(project?.name ?? '');
     const [description, setDescription] = useState(project?.description ?? '');
+    const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
     useEffect(() => {
         if (project) {
@@ -43,6 +45,7 @@ export function ProjectDetailScreen() {
                 style={styles.body}
             />
         </ScrollView>
+
     );
 }
 

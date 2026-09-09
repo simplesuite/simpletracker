@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
     PaperProvider,
@@ -11,21 +11,26 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, useColorScheme } from 'react-native';
 // Safe to import from the barrel here: index.ts imports ./src/initCore first,
 // so configureCore has already run before this module (and the stores) load.
-import { setSyncEnabled } from '@simpletracker/core';
+import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
 import { supabase } from './src/lib/supabase';
 import { useAuthStore } from './src/store/authStore';
+import { useThemeStore } from './src/store/themeStore';
 import { NotesStack } from './src/navigation/NotesStack';
 import { TasksStack } from './src/navigation/TasksStack';
 import { ProjectsStack } from './src/navigation/ProjectsStack';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { SignInScreen } from './src/screens/SignInScreen';
+import { AuthStack } from './src/navigation/AuthStack';
 import type { RootTabParamList } from './src/navigation/types';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
-    const scheme = useColorScheme();
-    const theme = scheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
+    const { themeMode, effectiveTheme } = useThemeStore();
+
+    // Use the theme store's effectiveTheme directly
+    // The theme store handles system theme detection
+    const theme = effectiveTheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
 
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
     const setSession = useAuthStore((s) => s.setSession);
@@ -52,19 +57,32 @@ export default function App() {
         return () => subscription.unsubscribe();
     }, [setSession]);
 
+    // Fetch data when authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            useNoteStore.getState().fetchNotes();
+            useNoteStore.getState().fetchArchivedNotes();
+            useTaskStore.getState().fetchTasks();
+            useProjectStore.getState().fetchProjects();
+        }
+    }, [isAuthenticated]);
+
     if (!ready) {
         return (
-            <PaperProvider theme={theme}>
+            <PaperProvider theme={theme} settings={{
+                icon: (props) => <MaterialCommunityIcons {...props} />,
+            }}>
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator />
                 </View>
-                <StatusBar style="auto" />
+                <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
             </PaperProvider>
         );
     }
 
     return (
         <PaperProvider theme={theme}>
+            <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
             <NavigationContainer>
                 {isAuthenticated ? (
                     <Tab.Navigator screenOptions={{ headerShown: false }}>
@@ -74,10 +92,9 @@ export default function App() {
                         <Tab.Screen name="Settings" component={SettingsScreen} />
                     </Tab.Navigator>
                 ) : (
-                    <SignInScreen />
+                    <AuthStack />
                 )}
             </NavigationContainer>
-            <StatusBar style="auto" />
         </PaperProvider>
     );
 }
