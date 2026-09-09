@@ -237,15 +237,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
 // ─── Bridge: synced observables → Zustand state ─────────────────────────────
 
-observe(() => {
+// Use rAF batching to prevent rapid re-execution during React render cycles
+let projectsBatchPending = false;
+let projectSharesBatchPending = false;
+
+function processProjectsUpdate() {
+    projectsBatchPending = false;
     const byId = projects$.get() || {};
     const projects = (Object.values(byId).filter(Boolean) as Project[]).sort(
         (a, b) => b.updatedAt - a.updatedAt
     );
     useProjectStore.setState({ projects });
-});
+}
 
-observe(() => {
+function processProjectSharesUpdate() {
+    projectSharesBatchPending = false;
     const byId = projectShares$.get() || {};
     const shares = Object.values(byId).filter(Boolean) as ProjectShared[];
     // Any project appearing in a share record (as creator or recipient) is shared.
@@ -254,4 +260,22 @@ observe(() => {
         sharedProjectIDs.add(s.projectID);
     }
     useProjectStore.setState({ sharedProjectIDs });
+}
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void projects$.get();
+    if (!projectsBatchPending) {
+        projectsBatchPending = true;
+        requestAnimationFrame(processProjectsUpdate);
+    }
+});
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void projectShares$.get();
+    if (!projectSharesBatchPending) {
+        projectSharesBatchPending = true;
+        requestAnimationFrame(processProjectSharesUpdate);
+    }
 });

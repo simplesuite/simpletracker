@@ -19,7 +19,8 @@ export function TaskDetailScreen() {
     const completeTask = useTaskStore((s) => s.completeTask);
     const reopenTask = useTaskStore((s) => s.reopenTask);
     const deleteTask = useTaskStore((s) => s.deleteTask);
-    const subtasks = useTaskStore((s) => id ? s.subtasks[id] || [] : []);
+    const fetchSubtasks = useTaskStore((s) => s.fetchSubtasks);
+    const subtasks = useTaskStore((s) => s.subtasks[id]) ?? [];
     const addSubtask = useTaskStore((s) => s.addSubtask);
     const toggleSubtask = useTaskStore((s) => s.toggleSubtask);
     const deleteSubtask = useTaskStore((s) => s.deleteSubtask);
@@ -91,6 +92,12 @@ export function TaskDetailScreen() {
         }, 1000);
         return () => clearTimeout(timer);
     }, [title, body, dueDate, dueTime, projectID, isRecurring, recurrenceInterval, recurrenceUnit, recurrenceAnchor, task, saveTask]);
+
+    useEffect(() => {
+        if (id) {
+            fetchSubtasks(id);
+        }
+    }, [id, fetchSubtasks]);
 
     const handleAddSubtask = async () => {
         if (!subtaskInput.trim() || !id) return;

@@ -13,13 +13,17 @@ export function NoteDetailScreen() {
     const navigation = useNavigation();
     const { id } = route.params;
 
-    const note = useNoteStore((s) => s.notes.find((n) => n.recordID === id));
+    const note = useNoteStore((s) =>
+        s.notes.find((n) => n.recordID === id) ??
+        s.archivedNotes.find((n) => n.recordID === id) ??
+        s.sharedNotes.find((n) => n.recordID === id)
+    );
     const updateNote = useNoteStore((s) => s.updateNote);
     const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
     const unarchiveNote = useNoteStore((s) => s.unarchiveNote);
     const deleteNote = useNoteStore((s) => s.deleteNote);
-    const listItems = useNoteStore((s) => id ? s.listItems[id] || [] : []);
+    const listItems = useNoteStore((s) => s.listItems[id]) ?? [];
     const addListItem = useNoteStore((s) => s.addListItem);
     const toggleListItem = useNoteStore((s) => s.toggleListItem);
     const updateListItemTitle = useNoteStore((s) => s.updateListItemTitle);

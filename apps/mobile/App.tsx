@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
     PaperProvider,
@@ -27,6 +27,7 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function App() {
     const { themeMode, effectiveTheme } = useThemeStore();
+    const systemScheme = useColorScheme();
 
     // Use the theme store's effectiveTheme directly
     // The theme store handles system theme detection
@@ -86,10 +87,42 @@ export default function App() {
             <NavigationContainer>
                 {isAuthenticated ? (
                     <Tab.Navigator screenOptions={{ headerShown: false }}>
-                        <Tab.Screen name="Notes" component={NotesStack} />
-                        <Tab.Screen name="Tasks" component={TasksStack} />
-                        <Tab.Screen name="Projects" component={ProjectsStack} />
-                        <Tab.Screen name="Settings" component={SettingsScreen} />
+                        <Tab.Screen
+                            name="Notes"
+                            component={NotesStack}
+                            options={{
+                                tabBarIcon: ({ color, size }) => (
+                                    <MaterialCommunityIcons name="note-text-outline" color={color} size={size} />
+                                ),
+                            }}
+                        />
+                        <Tab.Screen
+                            name="Tasks"
+                            component={TasksStack}
+                            options={{
+                                tabBarIcon: ({ color, size }) => (
+                                    <MaterialCommunityIcons name="format-list-checks" color={color} size={size} />
+                                ),
+                            }}
+                        />
+                        <Tab.Screen
+                            name="Projects"
+                            component={ProjectsStack}
+                            options={{
+                                tabBarIcon: ({ color, size }) => (
+                                    <MaterialCommunityIcons name="folder-outline" color={color} size={size} />
+                                ),
+                            }}
+                        />
+                        <Tab.Screen
+                            name="Settings"
+                            component={SettingsScreen}
+                            options={{
+                                tabBarIcon: ({ color, size }) => (
+                                    <MaterialCommunityIcons name="cog-outline" color={color} size={size} />
+                                ),
+                            }}
+                        />
                     </Tab.Navigator>
                 ) : (
                     <AuthStack />

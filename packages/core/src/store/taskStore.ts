@@ -386,16 +386,21 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 }));
 
 // ─── Bridge: synced observables → Zustand state ─────────────────────────────
+// Use rAF batching to prevent rapid re-execution during React render cycles
+let tasksBatchPending = false;
+let subtasksBatchPending = false;
 
-observe(() => {
+function processTasksUpdate() {
+    tasksBatchPending = false;
     const byId = tasks$.get() || {};
     const tasks = (Object.values(byId).filter(Boolean) as Task[]).sort(
         (a, b) => b.updatedAt - a.updatedAt
     );
     useTaskStore.setState({ tasks });
-});
+}
 
-observe(() => {
+function processSubtasksUpdate() {
+    subtasksBatchPending = false;
     const byId = subtasks$.get() || {};
     const items = Object.values(byId).filter(Boolean) as Subtask[];
 
@@ -408,4 +413,22 @@ observe(() => {
     }
 
     useTaskStore.setState({ subtasks: grouped });
+}
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void tasks$.get();
+    if (!tasksBatchPending) {
+        tasksBatchPending = true;
+        requestAnimationFrame(processTasksUpdate);
+    }
+});
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void subtasks$.get();
+    if (!subtasksBatchPending) {
+        subtasksBatchPending = true;
+        requestAnimationFrame(processSubtasksUpdate);
+    }
 });

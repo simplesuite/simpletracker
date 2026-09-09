@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FlatList, View, StyleSheet } from 'react-native';
+import { FlatList, View, StyleSheet, RefreshControl } from 'react-native';
 import { List, FAB, Text, Chip } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useProjectStore, useTaskStore, useNoteStore } from '@simpletracker/core';
+import { refreshAllData, useProjectStore, useTaskStore, useNoteStore } from '@simpletracker/core';
 import type { ProjectsStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<ProjectsStackParamList, 'ProjectsList'>;
@@ -18,6 +18,18 @@ export function ProjectsListScreen() {
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
 
     const [sortByUsage, setSortByUsage] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await refreshAllData();
+        } catch (error) {
+            console.warn('Failed to refresh projects:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const onAdd = async () => {
         const project = await createBlankProject();
@@ -60,14 +72,15 @@ export function ProjectsListScreen() {
 
     return (
         <View style={styles.container}>
-            {sortedProjects.length === 0 ? (
-                <View style={styles.empty}>
-                    <Text variant="bodyLarge">No projects yet.</Text>
-                </View>
-            ) : (
-                <FlatList
+            <FlatList
                     data={sortedProjects}
                     keyExtractor={(p) => p.recordID}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                    ListEmptyComponent={
+                        <View style={styles.empty}>
+                            <Text variant="bodyLarge">No projects yet.</Text>
+                        </View>
+                    }
                     renderItem={({ item }) => {
                         const stats = getProjectStats(item.recordID);
                         return (
@@ -109,7 +122,6 @@ export function ProjectsListScreen() {
                         );
                     }}
                 />
-            )}
             <FAB icon="plus" style={styles.fab} onPress={onAdd} />
         </View>
     );

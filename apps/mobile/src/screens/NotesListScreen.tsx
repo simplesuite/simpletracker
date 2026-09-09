@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FlatList, View, StyleSheet, TextInput } from 'react-native';
+import { SectionList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
 import { List, FAB, Text, Chip } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNoteStore, useProjectStore } from '@simpletracker/core';
+import { refreshAllData, useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<NotesStackParamList, 'NotesList'>;
@@ -12,14 +12,24 @@ export function NotesListScreen() {
     const navigation = useNavigation<Nav>();
     const notes = useNoteStore((s) => s.notes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
-    const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const createNote = useNoteStore((s) => s.createNote);
 
     const projects = useProjectStore((s) => s.projects);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
-    const [archivedExpanded, setArchivedExpanded] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await refreshAllData();
+        } catch (error) {
+            console.warn('Failed to refresh notes:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const onAdd = async () => {
         const note = await createNote();
@@ -72,6 +82,13 @@ export function NotesListScreen() {
         return bCount - aCount;
     });
 
+    const sections = [
+        ...(filteredNotes.length > 0 ? [{ title: '', data: filteredNotes }] : []),
+        ...(filteredArchivedNotes.length > 0
+            ? [{ title: `Archived (${filteredArchivedNotes.length})`, data: filteredArchivedNotes }]
+            : []),
+    ];
+
     const toggleProjectFilter = (projectID: string) => {
         setSelectedProjectIDs((prev) => {
             const next = new Set(prev);
@@ -99,7 +116,11 @@ export function NotesListScreen() {
 
             {/* Project filter chips */}
             {sortedProjects.length > 0 && (
-                <View style={styles.projectChips}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.projectChips}
+                >
                     {sortedProjects.map((project) => {
                         const count = notes.filter((n) => n.projectID === project.recordID).length;
                         return (
@@ -108,72 +129,47 @@ export function NotesListScreen() {
                                 selected={!!selectedProjectIDs.has(project.recordID)}
                                 onPress={() => toggleProjectFilter(project.recordID)}
                                 style={styles.projectChip}
+                                textStyle={styles.projectChipText}
                             >
                                 {project.name} ({count})
                             </Chip>
                         );
                     })}
-                </View>
+                </ScrollView>
             )}
 
-            {filteredNotes.length === 0 && filteredArchivedNotes.length === 0 ? (
-                <View style={styles.empty}>
-                    <Text variant="bodyLarge">
-                        {searchQuery.trim() ? 'No notes match your search.' : 'No notes yet.'}
-                    </Text>
-                </View>
-            ) : (
-                <>
-                    {/* Active notes */}
-                    {filteredNotes.length > 0 && (
-                        <FlatList
-                            data={filteredNotes}
-                            keyExtractor={(n) => n.recordID}
-                            renderItem={({ item }) => (
-                                <List.Item
-                                    title={item.title || '(untitled)'}
-                                    description={item.noteType === 'list' ? 'Checklist' : item.body?.slice(0, 60)}
-                                    left={(props) => (
-                                        <List.Icon
-                                            {...props}
-                                            icon={item.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'}
-                                        />
-                                    )}
-                                    onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
-                                />
-                            )}
-                        />
-                    )}
-
-                    {/* Archived section */}
-                    {filteredArchivedNotes.length > 0 && (
-                        <View style={styles.archivedSection}>
-                            <View
-                                style={styles.archivedHeader}
-                            >
-                                <Text variant="bodyMedium">Archived ({filteredArchivedNotes.length})</Text>
-                            </View>
-                            <FlatList
-                                data={filteredArchivedNotes}
-                                keyExtractor={(n) => n.recordID}
-                                renderItem={({ item }) => (
-                                    <List.Item
-                                        title={item.title || '(untitled)'}
-                                        description={item.noteType === 'list' ? 'Checklist' : item.body?.slice(0, 60)}
-                                        left={(props) => (
-                                            <List.Icon
-                                                {...props}
-                                                icon={item.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'}
-                                            />
-                                        )}
-                                        onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
-                                    />
-                                )}
-                            />
+            <SectionList
+                sections={sections}
+                keyExtractor={(item) => item.recordID}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                ListEmptyComponent={
+                    <View style={styles.empty}>
+                        <Text variant="bodyLarge">
+                            {searchQuery.trim() ? 'No notes match your search.' : 'No notes yet.'}
+                        </Text>
+                    </View>
+                }
+                renderSectionHeader={({ section }) =>
+                    section.title ? (
+                        <View style={styles.archivedHeader}>
+                            <Text variant="bodyMedium">{section.title}</Text>
                         </View>
-                    )}
-                </>
-            )}
+                    ) : null
+                }
+                renderItem={({ item }) => (
+                    <List.Item
+                        title={item.title || '(untitled)'}
+                        description={item.noteType === 'list' ? 'Checklist' : item.body?.slice(0, 60)}
+                        left={(props) => (
+                            <List.Icon
+                                {...props}
+                                icon={item.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'}
+                            />
+                        )}
+                        onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
+                    />
+                )}
+            />
             <FAB icon="plus" style={styles.fab} onPress={onAdd} />
         </View>
     );
@@ -188,14 +184,19 @@ const styles = StyleSheet.create({
     },
     projectChips: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
+        minHeight: 48,
         paddingHorizontal: 16,
         paddingVertical: 8,
-        overflow: 'scroll',
     },
-    projectChip: { flexShrink: 1 },
+    projectChip: {
+        flexShrink: 0,
+        minHeight: 40,
+        justifyContent: 'center',
+    },
+    projectChipText: { lineHeight: 20 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    archivedSection: { marginTop: 16 },
     archivedHeader: { padding: 16, alignItems: 'center' },
     fab: { position: 'absolute', right: 16, bottom: 16 },
 });

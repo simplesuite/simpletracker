@@ -11,8 +11,7 @@ import { ensureSession } from '../lib/ensureSession';
 import type { Note, NoteShared, NoteListItem } from '../types/index';
 
 // ─── Synced observables (Legend-State) ──────────────────────────────────────
-// These are the source of truth. RLS on the server already returns own notes +
-// directly-shared notes + shared-project notes, so we sync the whole visible set
+// RLS returns own notes + directly-shared notes + shared-project notes, so we sync the whole visible set
 // into one observable and derive the notes/sharedNotes/archivedNotes buckets in
 // the bridge below. List items are their own collection.
 
@@ -471,7 +470,12 @@ function sortNotes(a: Note, b: Note): number {
     return b.updatedAt - a.updatedAt;
 }
 
-observe(() => {
+// Use rAF batching to prevent rapid re-execution during React render cycles
+let notesBatchPending = false;
+let listItemsBatchPending = false;
+
+function processNotesUpdate() {
+    notesBatchPending = false;
     const byId = notes$.get() || {};
     const all = Object.values(byId).filter(Boolean) as Note[];
     const uid = getCurrentUserId();
@@ -497,9 +501,10 @@ observe(() => {
     archivedNotes.sort((a, b) => b.updatedAt - a.updatedAt);
 
     useNoteStore.setState({ notes, sharedNotes, archivedNotes });
-});
+}
 
-observe(() => {
+function processListItemsUpdate() {
+    listItemsBatchPending = false;
     const byId = noteListItems$.get() || {};
     const items = Object.values(byId).filter(Boolean) as NoteListItem[];
 
@@ -512,4 +517,22 @@ observe(() => {
     }
 
     useNoteStore.setState({ listItems: grouped });
+}
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void notes$.get();
+    if (!notesBatchPending) {
+        notesBatchPending = true;
+        requestAnimationFrame(processNotesUpdate);
+    }
+});
+
+observe(() => {
+    // Read the observable here so Legend-State tracks remote/local changes.
+    void noteListItems$.get();
+    if (!listItemsBatchPending) {
+        listItemsBatchPending = true;
+        requestAnimationFrame(processListItemsUpdate);
+    }
 });

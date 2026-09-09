@@ -37,6 +37,7 @@ export { ensureSession } from './lib/ensureSession';
 export { syncEnabled$, setSyncEnabled } from './legend/config';
 export { syncedTable, type SyncedTableOptions, type SyncedActions } from './legend/syncedTable';
 export { clearLocalData } from './legend/reset';
+export { refreshAllData } from './legend/refresh';
 
 // Stores (Zustand facades over synced observables) + the observables themselves
 export { useNoteStore, notes$, noteListItems$ } from './store/noteStore';

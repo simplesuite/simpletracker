@@ -1,5 +1,7 @@
 /** Navigation param lists shared across the mobile app. */
 
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
 export type NotesStackParamList = {
     NotesList: undefined;
     NoteDetail: { id: string };
@@ -23,8 +25,8 @@ export type AuthStackParamList = {
 };
 
 export type RootTabParamList = {
-    Notes: undefined;
-    Tasks: undefined;
-    Projects: undefined;
+    Notes: NavigatorScreenParams<NotesStackParamList>;
+    Tasks: NavigatorScreenParams<TasksStackParamList>;
+    Projects: NavigatorScreenParams<ProjectsStackParamList>;
     Settings: undefined;
 };

@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { FlatList, View, StyleSheet, TextInput } from 'react-native';
+import { FlatList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
 import { List, FAB, Text, Checkbox, Chip } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useTaskStore, useProjectStore } from '@simpletracker/core';
+import { refreshAllData, useTaskStore, useProjectStore } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import dayjs from 'dayjs';
 
@@ -21,6 +21,18 @@ export function TasksListScreen() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
+    const [refreshing, setRefreshing] = useState(false);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await refreshAllData();
+        } catch (error) {
+            console.warn('Failed to refresh tasks:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const openTasks = tasks.filter((t) => t.status === 'open');
 
@@ -177,7 +189,11 @@ export function TasksListScreen() {
 
             {/* Project filter chips */}
             {sortedProjects.length > 0 && (
-                <View style={styles.projectChips}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.projectChips}
+                >
                     {sortedProjects.map((project) => {
                         const count = tasks.filter((t) => t.projectID === project.recordID).length;
                         return (
@@ -186,46 +202,47 @@ export function TasksListScreen() {
                                 selected={selectedProjectIDs.has(project.recordID) === true}
                                 onPress={() => toggleProjectFilter(project.recordID)}
                                 style={styles.projectChip}
+                                textStyle={styles.projectChipText}
                             >
                                 {project.name} ({count})
                             </Chip>
                         );
                     })}
-                </View>
+                </ScrollView>
             )}
 
-            {filteredTasks.length === 0 ? (
-                <View style={styles.empty}>
-                    <Text variant="bodyLarge">
-                        {searchQuery.trim() ? 'No tasks match your search.' : 'No tasks yet.'}
-                    </Text>
-                </View>
-            ) : (
-                <FlatList
-                    data={[
-                        { title: 'Overdue', tasks: overdueTasks },
-                        { title: 'Due Today', tasks: dueTodayTasks },
-                        { title: 'Tomorrow', tasks: dueTomorrowTasks },
-                        { title: 'This Week', tasks: dueThisWeekTasks },
-                        { title: 'Upcoming', tasks: upcomingTasks },
-                        { title: 'No Due Date', tasks: noDueDateTasks },
-                    ]}
-                    keyExtractor={(item) => item.title}
-                    renderItem={({ item }) => {
-                        if (item.tasks.length === 0) return null;
-                        return (
-                            <View style={styles.section}>
-                                <Text style={styles.sectionTitle}>{item.title} ({item.tasks.length})</Text>
-                                <FlatList
-                                    data={item.tasks}
-                                    keyExtractor={(t) => t.recordID}
-                                    renderItem={({ item: task }) => <TaskItem task={task} />}
-                                />
-                            </View>
-                        );
-                    }}
-                />
-            )}
+            <FlatList
+                data={[
+                    { title: 'Overdue', tasks: overdueTasks },
+                    { title: 'Due Today', tasks: dueTodayTasks },
+                    { title: 'Tomorrow', tasks: dueTomorrowTasks },
+                    { title: 'This Week', tasks: dueThisWeekTasks },
+                    { title: 'Upcoming', tasks: upcomingTasks },
+                    { title: 'No Due Date', tasks: noDueDateTasks },
+                ].filter((section) => section.tasks.length > 0)}
+                keyExtractor={(item) => item.title}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                ListEmptyComponent={
+                    <View style={styles.empty}>
+                        <Text variant="bodyLarge">
+                            {searchQuery.trim() ? 'No tasks match your search.' : 'No tasks yet.'}
+                        </Text>
+                    </View>
+                }
+                renderItem={({ item }) => {
+                    if (item.tasks.length === 0) return null;
+                    return (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>{item.title} ({item.tasks.length})</Text>
+                            <FlatList
+                                data={item.tasks}
+                                keyExtractor={(t) => t.recordID}
+                                renderItem={({ item: task }) => <TaskItem task={task} />}
+                            />
+                        </View>
+                    );
+                }}
+            />
             <FAB icon="plus" style={styles.fab} onPress={onAdd} />
         </View>
     );
@@ -240,12 +257,18 @@ const styles = StyleSheet.create({
     },
     projectChips: {
         flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
+        minHeight: 48,
         paddingHorizontal: 16,
         paddingVertical: 8,
-        overflow: 'scroll',
     },
-    projectChip: { flexShrink: 1 },
+    projectChip: {
+        flexShrink: 0,
+        minHeight: 40,
+        justifyContent: 'center',
+    },
+    projectChipText: { lineHeight: 20 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     section: { marginTop: 16 },
     sectionTitle: { paddingHorizontal: 16, marginBottom: 8 },
