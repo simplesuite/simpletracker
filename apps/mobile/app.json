@@ -19,9 +19,6 @@
     "extra": {
       "supabaseUrl": "",
       "supabaseAnonKey": ""
-    },
-    "plugins": [
-      "expo-status-bar"
-    ]
+    }
   }
 }

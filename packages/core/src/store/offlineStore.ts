@@ -27,7 +27,12 @@ interface OfflineState {
     setLastSyncError: (val: string | null) => void;
 }
 
-const initialOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+// On React Native `navigator` exists but `navigator.onLine` is undefined, so
+// only trust it when it's an actual boolean; otherwise assume online.
+const initialOnline =
+    typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean'
+        ? navigator.onLine
+        : true;
 
 export const useOfflineStore = create<OfflineState>((set) => ({
     isOnline: initialOnline,
@@ -43,7 +48,13 @@ export const useOfflineStore = create<OfflineState>((set) => ({
 }));
 
 // ─── Browser connectivity → isOnline ────────────────────────────────────────
-if (typeof window !== 'undefined') {
+// NOTE: feature-detect addEventListener rather than `typeof window`. React
+// Native defines a `window` global, but it is NOT a DOM object and has no
+// addEventListener — so a bare `typeof window !== 'undefined'` guard passes on
+// RN and then `window.addEventListener(...)` throws "undefined is not a
+// function" at module load (crashing the app on Hermes before the runtime is
+// ready). Guarding on the method's existence keeps this web-only.
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('online', () => useOfflineStore.getState().setIsOnline(true));
     window.addEventListener('offline', () => useOfflineStore.getState().setIsOnline(false));
 }
@@ -52,7 +63,9 @@ if (typeof window !== 'undefined') {
 // Poll the aggregate sync state of all synced observables. Legend exposes a
 // per-observable syncState with isGetting/isSetting (in-flight) and a count of
 // pending local changes. We roll these up into the store's fields for the UI.
-if (typeof window !== 'undefined') {
+// Only needs setInterval (present on both web and React Native), so this runs
+// on all platforms — previously it was web-gated and never ran on mobile.
+if (typeof setInterval === 'function') {
     const poll = () => {
         try {
             const states = getAllSyncStates();
