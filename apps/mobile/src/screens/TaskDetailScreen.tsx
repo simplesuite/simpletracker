@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, Platform, ScrollView, View } from 'react-native';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTaskStore, useProjectStore } from '@simpletracker/core';
-import { Button, Card, Checkbox, Dialog, Pill, Radio, Switch, Text, TextField, getUiTheme } from '@simpletracker/ui';
+import { Button, Card, Checkbox, Dialog, Pill, Radio, Snackbar, Switch, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { TasksStackParamList } from '../navigation/types';
 import dayjs from 'dayjs';
@@ -23,6 +24,7 @@ export function TaskDetailScreen() {
     const task = useTaskStore((s) => s.tasks.find((t) => t.recordID === id));
     const updateTask = useTaskStore((s) => s.updateTask);
     const completeTask = useTaskStore((s) => s.completeTask);
+    const reopenTask = useTaskStore((s) => s.reopenTask);
     const deleteTask = useTaskStore((s) => s.deleteTask);
     const fetchSubtasks = useTaskStore((s) => s.fetchSubtasks);
     const subtasks = useTaskStore((s) => s.subtasks[id]) ?? [];
@@ -36,7 +38,7 @@ export function TaskDetailScreen() {
     const [body, setBody] = useState(task?.body ?? '');
     const [dueDate, setDueDate] = useState<string | undefined>(task?.dueDate ? dayjs(task.dueDate).format('YYYY-MM-DD') : undefined);
     const [dueTime, setDueTime] = useState<string | undefined>(task?.dueDate ? dayjs(task.dueDate).format('HH:mm') : undefined);
-    const [projectID] = useState<string | ''>(task?.projectID ?? '');
+    const [projectID, setProjectID] = useState<string | ''>(task?.projectID ?? '');
     const [isRecurring, setIsRecurring] = useState(task?.isRecurring ?? false);
     const [recurrenceInterval, setRecurrenceInterval] = useState(task?.recurrenceInterval ?? 1);
     const [recurrenceUnit, setRecurrenceUnit] = useState<RecurrenceUnit>(task?.recurrenceUnit ?? 'days');
@@ -44,6 +46,13 @@ export function TaskDetailScreen() {
     const [titleError, setTitleError] = useState<string | null>(null);
     const [subtaskInput, setSubtaskInput] = useState('');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [dateDialogOpen, setDateDialogOpen] = useState(false);
+    const [timeDialogOpen, setTimeDialogOpen] = useState(false);
+    const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+    const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
+    const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
+    const [nativePickerMode, setNativePickerMode] = useState<'date' | 'time' | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
 
     const titleRef = useRef(title);
     const bodyRef = useRef(body);
@@ -54,6 +63,7 @@ export function TaskDetailScreen() {
     const recurrenceIntervalRef = useRef(recurrenceInterval);
     const recurrenceUnitRef = useRef(recurrenceUnit);
     const recurrenceAnchorRef = useRef(recurrenceAnchor);
+    const handlingBackRef = useRef(false);
     titleRef.current = title;
     bodyRef.current = body;
     dueDateRef.current = dueDate;
@@ -64,15 +74,15 @@ export function TaskDetailScreen() {
     recurrenceUnitRef.current = recurrenceUnit;
     recurrenceAnchorRef.current = recurrenceAnchor;
 
-    const saveTask = useCallback(async () => {
-        if (!id) return;
+    const saveTask = useCallback(async (): Promise<boolean> => {
+        if (!id) return false;
         let dueDateValue: number | null = null;
         if (dueDateRef.current && dueTimeRef.current) {
             dueDateValue = dayjs(`${dueDateRef.current} ${dueTimeRef.current}`, 'YYYY-MM-DD HH:mm').valueOf();
         } else if (dueDateRef.current) {
             dueDateValue = dayjs(dueDateRef.current).startOf('day').valueOf();
         }
-        await updateTask(id, {
+        return updateTask(id, {
             title: titleRef.current,
             body: bodyRef.current,
             dueDate: dueDateValue,
@@ -86,7 +96,7 @@ export function TaskDetailScreen() {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (task) saveTask();
+            if (task) void saveTask();
         }, 1000);
         return () => clearTimeout(timer);
     }, [title, body, dueDate, dueTime, projectID, isRecurring, recurrenceInterval, recurrenceUnit, recurrenceAnchor, task, saveTask]);
@@ -103,21 +113,136 @@ export function TaskDetailScreen() {
     const handleDeleteTask = async () => {
         setDeleteDialogOpen(false);
         if (!id) return;
-        await deleteTask(id);
-        navigation.goBack();
+        handlingBackRef.current = true;
+        const success = await deleteTask(id);
+        if (success) navigation.goBack();
+        else {
+            handlingBackRef.current = false;
+            setActionError(useTaskStore.getState().error ?? 'Unable to delete task.');
+        }
     };
-    const handleBack = async () => {
-        await saveTask();
-        if (!title.trim() && !body.trim()) setDeleteDialogOpen(true);
-        else navigation.goBack();
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+            if (!task || handlingBackRef.current) return;
+
+            event.preventDefault();
+            handlingBackRef.current = true;
+            void (async () => {
+                const success = isTaskBlank()
+                    ? await deleteTask(id)
+                    : await saveTask();
+                if (success) navigation.dispatch(event.data.action);
+                else {
+                    handlingBackRef.current = false;
+                    setActionError(useTaskStore.getState().error ?? 'Unable to save task.');
+                }
+            })();
+        });
+        return unsubscribe;
+    }, [navigation, task, id, title, body, deleteTask, saveTask]);
+    const adjustDueDate = (days: number) => {
+        const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
+        const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
+        setDueDate(baseDate.add(days, 'day').format('YYYY-MM-DD'));
     };
+    const adjustDueTime = (hours: number) => {
+        let baseTime = dayjs().startOf('hour');
+        if (dueTime) {
+            const [currentHours, currentMinutes] = dueTime.split(':').map(Number);
+            if (Number.isInteger(currentHours) && Number.isInteger(currentMinutes) && currentHours >= 0 && currentHours <= 23 && currentMinutes >= 0 && currentMinutes <= 59) {
+                baseTime = baseTime.hour(currentHours).minute(currentMinutes);
+            }
+        }
+        setDueTime(baseTime.add(hours, 'hour').format('HH:mm'));
+    };
+    const getPickerDate = () => {
+        const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
+        const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
+        if (!dueTime) return baseDate.startOf('hour').toDate();
+        const [hours, minutes] = dueTime.split(':').map(Number);
+        if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+            return baseDate.startOf('hour').toDate();
+        }
+        const pickerDate = baseDate.hour(hours).minute(minutes).second(0).millisecond(0).toDate();
+        return Number.isNaN(pickerDate.getTime()) ? new Date() : pickerDate;
+    };
+    const openDatePicker = () => {
+        const value = getPickerDate();
+        setDatePickerValue(value);
+        if (Platform.OS === 'android') setNativePickerMode('date');
+        else setDateDialogOpen(true);
+    };
+    const openTimePicker = () => {
+        const value = getPickerDate();
+        setTimePickerValue(value);
+        if (Platform.OS === 'android') setNativePickerMode('time');
+        else setTimeDialogOpen(true);
+    };
+    const handleNativePickerValueChange = (mode: 'date' | 'time', value: Date) => {
+        if (Number.isNaN(value.getTime())) {
+            setNativePickerMode(null);
+            return;
+        }
+        if (mode === 'date') setDueDate(dayjs(value).format('YYYY-MM-DD'));
+        else setDueTime(dayjs(value).format('HH:mm'));
+        setNativePickerMode(null);
+    };
+    const handleDateSave = () => {
+        setDueDate(dayjs(datePickerValue).format('YYYY-MM-DD'));
+        setDateDialogOpen(false);
+    };
+
+    const handleTimeSave = () => {
+        setDueTime(dayjs(timePickerValue).format('HH:mm'));
+        setTimeDialogOpen(false);
+    };
+
+    const clearDueDate = () => {
+        setDueDate(undefined);
+        setDueTime(undefined);
+        setIsRecurring(false);
+        setRecurrenceUnit('days');
+        setDateDialogOpen(false);
+        setNativePickerMode(null);
+    };
+
+    const clearDueTime = () => {
+        setDueTime(undefined);
+        if (recurrenceUnit === 'minutes' || recurrenceUnit === 'hours') setRecurrenceUnit('days');
+        setTimeDialogOpen(false);
+        setNativePickerMode(null);
+    };
+
+    const selectProject = (nextProjectID: string) => {
+        setProjectID(nextProjectID);
+        setProjectDialogOpen(false);
+    };
+
+    const handleTaskCompletion = async () => {
+        const success = isCompleted ? await reopenTask(id) : await completeTask(id);
+        if (success) {
+            handlingBackRef.current = true;
+            navigation.goBack();
+        }
+        else setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+    };
+
     const isTaskBlank = () => title.trim().length === 0 && body.trim().length === 0;
-    const iconColor = effectiveTheme === 'dark' ? '#c4b5fd' : '#4f46e5';
+    const isCompleted = task?.status === 'completed';
+    const iconColor = theme.secondary;
 
     return (
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: tabBarHeight + 24, gap: 12 }} keyboardShouldPersistTaps="handled">
                 <Card className="rounded-3xl p-2">
+                    <View className="px-2 pb-2">
+                        <Text variant="label" className="mb-1">Project</Text>
+                        <Pressable onPress={() => setProjectDialogOpen(true)}>
+                            <TextField placeholder="No project" value={projects.find((p) => p.recordID === projectID)?.name ?? ''} editable={false} trailing={<MaterialCommunityIcons name="folder-outline" size={20} color={theme.onSurfaceVariant} />} />
+                        </Pressable>
+                    </View>
+                    <Text variant="label" className="mb-1">Title</Text>
                     <TextField
                         placeholder="Task title"
                         value={title}
@@ -130,15 +255,13 @@ export function TaskDetailScreen() {
                         inputClassName="text-2xl font-semibold"
                     />
                     <View className="flex-row flex-wrap gap-2 px-2 pb-2 pt-2">
-                        <Pill compact icon={<MaterialCommunityIcons name="checkbox-marked-circle-outline" size={15} color={iconColor} />}>Open task</Pill>
-                        {isRecurring ? <Pill compact icon={<MaterialCommunityIcons name="repeat" size={15} color={iconColor} />}>Recurring</Pill> : null}
+                        <Pill compact icon={<MaterialCommunityIcons name={isCompleted ? 'check-circle-outline' : 'checkbox-marked-circle-outline'} size={15} color={iconColor} />}>{isCompleted ? 'Completed' : 'Open'}</Pill>
                     </View>
                 </Card>
 
                 <Card className="p-4">
                     <View className="mb-3">
                         <Text variant="title">Notes</Text>
-                        <Text variant="bodySmall">Optional details</Text>
                     </View>
                     <TextField placeholder="Add context or details…" value={body} onChangeText={setBody} multiline inputClassName="min-h-28" />
                 </Card>
@@ -146,46 +269,66 @@ export function TaskDetailScreen() {
                 <Card className="p-4">
                     <View className="mb-3 flex-row items-center justify-between gap-3">
                         <View>
-                            <Text variant="title">Details</Text>
-                            <Text variant="bodySmall">Schedule and organization</Text>
+                            <Text variant="title">Due</Text>
                         </View>
                         {isRecurring ? <Pill compact icon={<MaterialCommunityIcons name="repeat" size={15} color={iconColor} />}>Repeats</Pill> : null}
                     </View>
                     <View className="mb-3 mt-1">
-                        <Text variant="label" className="mb-1">Due date</Text>
-                        <TextField placeholder="No due date" value={dueDate ?? ''} editable={false} trailing={<MaterialCommunityIcons name="calendar-outline" size={20} color={theme.onSurfaceVariant} />} />
+                        <View className="flex-row items-center gap-1">
+                            <StepButton direction="down" color={theme.onSurfaceVariant} accessibilityLabel="Decrease due date by one day" onPress={() => adjustDueDate(-1)} />
+                            <Pressable onPress={openDatePicker} className="min-w-0 flex-1">
+                                <TextField
+                                    placeholder="No due date"
+                                    value={dueDate ?? ''}
+                                    editable={false}
+                                    trailing={(
+                                        <View className="flex-row items-center gap-1">
+                                            {dueDate ? <ClearButton color={theme.onSurfaceVariant} accessibilityLabel="Clear due date" onPress={clearDueDate} /> : null}
+                                            <MaterialCommunityIcons name="calendar-outline" size={20} color={theme.onSurfaceVariant} />
+                                        </View>
+                                    )}
+                                />
+                            </Pressable>
+                            <StepButton direction="up" color={theme.onSurfaceVariant} accessibilityLabel="Increase due date by one day" onPress={() => adjustDueDate(1)} />
+                        </View>
                     </View>
                     {dueDate ? (
+                        <>
                         <View className="mb-3 mt-1">
-                            <Text variant="label" className="mb-1">Time</Text>
-                            <TextField placeholder="Any time" value={dueTime ?? ''} editable={false} trailing={<MaterialCommunityIcons name="clock-outline" size={20} color={theme.onSurfaceVariant} />} />
+                            <View className="flex-row items-center gap-1">
+                                <StepButton direction="down" color={theme.onSurfaceVariant} accessibilityLabel="Decrease due time by one hour" onPress={() => adjustDueTime(-1)} />
+                                <Pressable onPress={openTimePicker} className="min-w-0 flex-1">
+                                    <TextField
+                                        placeholder="Any time"
+                                        value={dueTime ?? ''}
+                                        editable={false}
+                                        trailing={(
+                                            <View className="flex-row items-center gap-1">
+                                                {dueTime ? <ClearButton color={theme.onSurfaceVariant} accessibilityLabel="Clear due time" onPress={clearDueTime} /> : null}
+                                                <MaterialCommunityIcons name="clock-outline" size={20} color={theme.onSurfaceVariant} />
+                                            </View>
+                                        )}
+                                    />
+                                </Pressable>
+                                <StepButton direction="up" color={theme.onSurfaceVariant} accessibilityLabel="Increase due time by one hour" onPress={() => adjustDueTime(1)} />
+                            </View>
                         </View>
-                    ) : null}
-                    <View className="mb-0 mt-1">
-                        <Text variant="label" className="mb-1">Project</Text>
-                        <TextField placeholder="No project" value={projects.find((p) => p.recordID === projectID)?.name ?? ''} editable={false} trailing={<MaterialCommunityIcons name="folder-outline" size={20} color={theme.onSurfaceVariant} />} />
-                    </View>
-                </Card>
-
-                {dueDate ? (
-                    <Card className="p-4">
                         <View className="flex-row items-center justify-between gap-3">
                             <View className="min-w-0 flex-1">
                                 <Text variant="title">Recurring task</Text>
-                                <Text variant="bodySmall">Create the next occurrence when completed</Text>
                             </View>
                             <Switch value={isRecurring} onValueChange={setIsRecurring} accessibilityLabel="Recurring task" />
                         </View>
                         {isRecurring ? (
-                            <View className="mt-4 rounded-2xl bg-slate-100 p-3 dark:bg-slate-800">
+                            <View className="mt-4 p-4 rounded-2xl bg-surface-variant dark:bg-surface-variant-dark">
                                 <View className="flex-row flex-wrap items-center gap-2">
                                     <Text>Every</Text>
                                     <TextField value={String(recurrenceInterval)} onChangeText={(text) => {
                                         const value = parseInt(text, 10);
                                         if (!isNaN(value) && value > 0 && value <= 365) setRecurrenceInterval(value);
                                     }} keyboardType="number-pad" className="w-16" />
-                                    {(['days', 'weeks', 'months'] as const).map((unit) => (
-                                        <Pill key={unit} compact selected={recurrenceUnit === unit} onPress={() => setRecurrenceUnit(unit)}>{unit.slice(0, -1).replace(/^./, (value) => value.toUpperCase())}</Pill>
+                                    {(dueTime ? ['minutes', 'hours', 'days', 'weeks', 'months'] : ['days', 'weeks', 'months']).map((unit) => (
+                                        <Pill key={unit} compact selected={recurrenceUnit === unit} onPress={() => setRecurrenceUnit(unit as RecurrenceUnit)}>{unit.slice(0, -1).replace(/^./, (value) => value.toUpperCase())}</Pill>
                                     ))}
                                 </View>
                                 <View className="mt-4">
@@ -197,19 +340,19 @@ export function TaskDetailScreen() {
                                 </View>
                             </View>
                         ) : null}
-                    </Card>
-                ) : null}
+                        </>
+                    ) : null}
+                </Card>
 
                 <Card className="p-4">
                     <View className="mb-3">
                         <Text variant="title">Subtasks</Text>
                         <Text variant="bodySmall">{subtasks.filter((s) => s.isCompleted).length} of {subtasks.length} complete</Text>
                     </View>
-                    {subtasks.length === 0 ? <Text variant="bodySmall" className="py-2">Break this task into smaller steps.</Text> : null}
                     {subtasks.map((subtask) => (
-                        <View key={subtask.recordID} className="flex-row items-center border-t border-slate-200 py-1 dark:border-slate-800">
+                        <View key={subtask.recordID} className="flex-row items-center border-t border-outline-variant dark:border-outline-variant-dark">
                             <Checkbox status={subtask.isCompleted ? 'checked' : 'unchecked'} onPress={() => toggleSubtask(subtask.recordID)} accessibilityLabel={`Toggle ${subtask.title}`} />
-                            <Text className={`min-w-0 flex-1 ${subtask.isCompleted ? 'text-slate-500 line-through dark:text-slate-400' : ''}`}>{subtask.title}</Text>
+                            <Text className={`min-w-0 flex-1 ${subtask.isCompleted ? 'text-on-surface-variant line-through dark:text-on-surface-variant-dark' : ''}`}>{subtask.title}</Text>
                             <Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete subtask" onPress={() => deleteSubtask(subtask.recordID)} />
                         </View>
                     ))}
@@ -220,11 +363,87 @@ export function TaskDetailScreen() {
                 </Card>
 
                 <Card className="flex-row items-center justify-between gap-2 p-2">
-                    <Button icon={<MaterialCommunityIcons name="check" size={18} color={theme.onPrimary} />} onPress={async () => { await completeTask(id); navigation.goBack(); }}>Complete task</Button>
+                    <Button icon={<MaterialCommunityIcons name={isCompleted ? 'backup-restore' : 'check'} size={18} color={theme.onPrimary} />} onPress={handleTaskCompletion}>{isCompleted ? 'Reopen task' : 'Complete task'}</Button>
                     <Button variant="danger" icon={<MaterialCommunityIcons name="delete-outline" size={18} color={theme.error} />} onPress={() => setDeleteDialogOpen(true)}>Delete</Button>
                 </Card>
             </ScrollView>
 
+            {Platform.OS === 'android' && nativePickerMode ? (
+                <DateTimePicker
+                    mode={nativePickerMode}
+                    value={nativePickerMode === 'date' ? datePickerValue : timePickerValue}
+                    presentation="dialog"
+                    positiveButton={{ label: 'Save' }}
+                    negativeButton={{ label: 'Cancel' }}
+                    is24Hour={nativePickerMode === 'time'}
+                    accentColor={theme.primary}
+                    onValueChange={(_, value) => handleNativePickerValueChange(nativePickerMode, value)}
+                    onDismiss={() => setNativePickerMode(null)}
+                />
+            ) : null}
+            {Platform.OS !== 'android' ? (
+            <Dialog
+                visible={dateDialogOpen}
+                onDismiss={() => setDateDialogOpen(false)}
+                title="Set due date"
+                actions={<Button compact onPress={handleDateSave}>Save</Button>}
+            >
+                <View className="items-center">
+                    <DateTimePicker
+                        mode="date"
+                        display="default"
+                        presentation="inline"
+                        value={datePickerValue}
+                        accentColor={theme.primary}
+                        themeVariant={effectiveTheme}
+                        onChange={(_, value) => { if (value) setDatePickerValue(value); }}
+                    />
+                </View>
+            </Dialog>
+            ) : null}
+            {Platform.OS !== 'android' ? (
+            <Dialog
+                visible={timeDialogOpen}
+                onDismiss={() => setTimeDialogOpen(false)}
+                title="Set due time"
+                actions={<Button compact onPress={handleTimeSave}>Save</Button>}
+            >
+                <View className="items-center">
+                    <DateTimePicker
+                        mode="time"
+                        display="default"
+                        presentation="inline"
+                        value={timePickerValue}
+                        is24Hour
+                        accentColor={theme.primary}
+                        themeVariant={effectiveTheme}
+                        onChange={(_, value) => { if (value) setTimePickerValue(value); }}
+                    />
+                </View>
+            </Dialog>
+            ) : null}
+            <Dialog
+                visible={projectDialogOpen}
+                onDismiss={() => setProjectDialogOpen(false)}
+                title="Assign project"
+                actions={<Button variant="text" compact onPress={() => setProjectDialogOpen(false)}>Cancel</Button>}
+            >
+                <ScrollView className="max-h-80">
+                    <Button variant={!projectID ? 'tonal' : 'outlined'} compact className="mb-2" onPress={() => selectProject('')}>No project</Button>
+                    {projects.map((project) => (
+                        <Button
+                            key={project.recordID}
+                            variant={projectID === project.recordID ? 'tonal' : 'outlined'}
+                            compact
+                            className="mb-2"
+                            onPress={() => selectProject(project.recordID)}
+                        >
+                            {project.name}
+                        </Button>
+                    ))}
+                    {projects.length === 0 ? <Text variant="bodySmall">Create a project first to assign this task.</Text> : null}
+                </ScrollView>
+            </Dialog>
             <Dialog
                 visible={deleteDialogOpen}
                 onDismiss={() => setDeleteDialogOpen(false)}
@@ -238,7 +457,37 @@ export function TaskDetailScreen() {
             >
                 <Text>{isTaskBlank() ? 'This task is empty. Are you sure you want to delete it?' : 'Are you sure you want to delete this task?'}</Text>
             </Dialog>
+            <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
         </View>
+    );
+}
+
+function ClearButton({ color, accessibilityLabel, onPress }: { color: string; accessibilityLabel: string; onPress: () => void }) {
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            onPress={(event) => {
+                event.stopPropagation();
+                onPress();
+            }}
+            className="h-8 w-8 items-center justify-center rounded-lg active:bg-surface-variant dark:active:bg-surface-variant-dark"
+        >
+            <MaterialCommunityIcons name="close" size={18} color={color} />
+        </Pressable>
+    );
+}
+
+function StepButton({ direction, color, accessibilityLabel, onPress }: { direction: 'up' | 'down'; color: string; accessibilityLabel: string; onPress: () => void }) {
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            onPress={onPress}
+            className="h-10 w-10 items-center justify-center rounded-xl active:bg-surface-variant dark:active:bg-surface-variant-dark"
+        >
+            <MaterialCommunityIcons name={direction === 'up' ? 'chevron-up' : 'chevron-down'} size={24} color={color} />
+        </Pressable>
     );
 }
 

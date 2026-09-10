@@ -61,7 +61,7 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1" style={{ backgroundColor: theme.background }}>
                 <View className="flex-1 justify-center px-4">
                     <Card className="rounded-3xl p-5">
-                        <View className="mb-4 h-13 w-13 self-center items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950">
+                        <View className="mb-4 h-13 w-13 self-center items-center justify-center rounded-2xl bg-primary-container dark:bg-primary-container-dark">
                             <Text variant="titleLarge" style={{ color: theme.primary }}>✓</Text>
                         </View>
                         <Text variant="headline" className="mb-2 text-center">Check your email</Text>

@@ -18,6 +18,7 @@ import { AuthStack } from './src/navigation/AuthStack';
 import type { RootTabParamList } from './src/navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FloatingTabBar } from './src/components/ui/FloatingTabBar';
+import { syncLocalTaskNotifications } from './src/lib/notifications';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
@@ -44,6 +45,7 @@ export default function App() {
     };
 
     const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+    const tasks = useTaskStore((s) => s.tasks);
     const setSession = useAuthStore((s) => s.setSession);
     const [ready, setReady] = useState(false);
 
@@ -70,6 +72,10 @@ export default function App() {
             useProjectStore.getState().fetchProjects();
         }
     }, [isAuthenticated]);
+
+    useEffect(() => {
+        if (isAuthenticated) void syncLocalTaskNotifications(tasks);
+    }, [isAuthenticated, tasks]);
 
     if (!ready) {
         return (

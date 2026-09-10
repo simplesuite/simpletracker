@@ -7,7 +7,7 @@ export function Surface({ className = '', children, ...props }: SurfaceProps) {
     return (
         <View
             {...props}
-            className={`rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 ${className}`}
+            className={`rounded-3xl border border-outline-variant bg-surface dark:border-outline-variant-dark dark:bg-surface-dark ${className}`}
         >
             {children}
         </View>

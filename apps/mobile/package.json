@@ -1,6 +1,6 @@
 {
   "name": "@simpletracker/mobile",
-  "version": "0.1.0",
+  "version": "v1.0.5-beta",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -11,6 +11,7 @@
     "test": "echo \"no mobile tests yet\" && exit 0"
   },
   "dependencies": {
+    "@expo/ui": "~57.0.17",
     "@expo/vector-icons": "^15.1.1",
     "@legendapp/state": "^3.0.0-beta.48",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -22,15 +23,22 @@
     "@supabase/supabase-js": "^2.47.10",
     "dayjs": "^1.11.21",
     "expo": "~57.0.0",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.17",
+    "expo-file-system": "~57.0.6",
+    "expo-notifications": "~57.0.17",
+    "expo-sharing": "~57.0.18",
     "expo-status-bar": "~57.0.1",
+    "expo-web-browser": "~57.0.2",
     "nativewind": "4.2.6",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-get-random-values": "~1.11.0",
     "react-native-markdown-display": "^7.0.2",
+    "react-native-qrcode-svg": "6.3.24",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.2",
+    "react-native-svg": "15.15.4",
     "react-native-url-polyfill": "^2.0.0",
     "tailwindcss": "3.4.19",
     "zustand": "^5.0.12"
