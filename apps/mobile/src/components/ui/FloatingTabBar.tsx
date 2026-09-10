@@ -33,7 +33,7 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
     }
 
     const theme = getUiTheme(effectiveTheme);
-    const activeIconColor = theme.onPrimary;
+    const activeIconColor = theme.onPrimaryContainer;
     const inactiveIconColor = theme.onSurfaceVariant;
 
     const handleLayout = (event: LayoutChangeEvent) => {
@@ -43,14 +43,16 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
     return (
         <View
             onLayout={handleLayout}
-            className="absolute bottom-3 left-3 right-3 rounded-[28px] border border-outline-variant bg-surface px-2 pt-2 dark:border-outline-dark dark:bg-surface-dark"
+            className="absolute bottom-3 left-3 right-3 rounded-[20px] border px-1 pt-1"
             style={{
+                backgroundColor: effectiveTheme === 'dark' ? 'rgba(32, 32, 35, 0.92)' : 'rgba(255, 255, 255, 0.9)',
+                borderColor: effectiveTheme === 'dark' ? 'rgba(71, 85, 105, 0.65)' : 'rgba(203, 213, 225, 0.7)',
                 paddingBottom: Math.max(insets.bottom, 4),
-                elevation: 10,
+                elevation: 4,
                 shadowColor: theme.scrim,
-                shadowOpacity: effectiveTheme === 'dark' ? 0.38 : 0.14,
-                shadowRadius: 18,
-                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: effectiveTheme === 'dark' ? 0.24 : 0.08,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
             }}
         >
             <View className="flex-row items-center gap-1">
@@ -91,10 +93,10 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
                             testID={options?.tabBarButtonTestID}
                             onPress={onPress}
                             onLongPress={onLongPress}
-                            className={`min-h-14 flex-1 flex-row items-center justify-center rounded-3xl px-2 active:opacity-70 ${focused ? 'bg-primary' : ''}`}
+                            className={`min-h-[52px] flex-1 flex-row items-center justify-center rounded-2xl px-1 active:opacity-70 ${focused ? 'bg-primary-container dark:bg-primary-container-dark' : ''}`}
                         >
                             {icon}
-                            <NativeText className={`ml-1.5 text-xs font-bold ${focused ? 'text-on-primary dark:text-on-primary-dark' : 'text-on-surface-variant dark:text-on-surface-variant-dark'}`}>
+                            <NativeText className={`ml-1 text-[11px] font-semibold ${focused ? 'text-on-primary-container dark:text-on-primary-container-dark' : 'text-on-surface-variant dark:text-on-surface-variant-dark'}`}>
                                 {label}
                             </NativeText>
                         </Pressable>

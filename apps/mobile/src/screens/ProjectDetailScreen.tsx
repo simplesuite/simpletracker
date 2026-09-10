@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import type { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -74,13 +74,49 @@ export function ProjectDetailScreen() {
     const [description, setDescription] = useState(project?.description ?? '');
     const [showArchived, setShowArchived] = useState(false);
     const [showCompleted, setShowCompleted] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
     const [deletingCompleted, setDeletingCompleted] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [actionError, setActionError] = useState<string | null>(null);
+    const handlingBackRef = useRef(false);
+    const nameRef = useRef(name);
+    const descriptionRef = useRef(description);
+    nameRef.current = name;
+    descriptionRef.current = description;
     const { subscriptionState, loading: entitlementLoading } = useEntitlement();
+
+    const isBlankProject = () => {
+        const hasContent = notes.some((note) => note.projectID === id)
+            || sharedNotes.some((note) => note.projectID === id)
+            || archivedNotes.some((note) => note.projectID === id)
+            || tasks.some((task) => task.projectID === id);
+        return (nameRef.current.trim().length === 0 || nameRef.current.trim() === 'Untitled project')
+            && descriptionRef.current.trim().length === 0
+            && !hasContent;
+    };
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+            if (!project || handlingBackRef.current) return;
+
+            event.preventDefault();
+            handlingBackRef.current = true;
+            void (async () => {
+                const success = isBlankProject()
+                    ? await deleteProject(id)
+                    : await updateProject(id, { name: nameRef.current, description: descriptionRef.current });
+                if (success) navigation.dispatch(event.data.action);
+                else {
+                    handlingBackRef.current = false;
+                    setActionError(useProjectStore.getState().error ?? 'Unable to save project.');
+                }
+            })();
+        });
+        return unsubscribe;
+    }, [navigation, project?.recordID, id, notes, sharedNotes, archivedNotes, tasks, deleteProject, updateProject]);
 
     useEffect(() => {
         if (project) {
@@ -90,6 +126,24 @@ export function ProjectDetailScreen() {
     }, [project?.recordID, project?.name, project?.description]);
 
     const isCreator = project?.creatorID === userId;
+
+    useLayoutEffect(() => {
+        navigation.setOptions({
+            headerRight: isCreator ? () => (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="More project options"
+                    hitSlop={10}
+                    onPress={() => setMenuOpen(true)}
+                    className="rounded-xl p-2 active:opacity-70"
+                >
+                    <MaterialCommunityIcons name="dots-vertical" size={24} color={theme.onSurface} />
+                </Pressable>
+            ) : undefined,
+        });
+
+        return () => navigation.setOptions({ headerRight: undefined });
+    }, [navigation, theme.onSurface, isCreator]);
     const query = searchQuery.trim().toLowerCase();
     const projectNotes = useMemo(() => {
         const uniqueNotes = Array.from(new Map([...notes, ...sharedNotes].map((note) => [note.recordID, note])).values())
@@ -162,9 +216,13 @@ export function ProjectDetailScreen() {
 
     const handleDeleteProject = async () => {
         setDeleteDialogOpen(false);
+        handlingBackRef.current = true;
         const success = await deleteProject(id);
         if (success) navigation.goBack();
-        else setActionError(useProjectStore.getState().error ?? 'Unable to delete project.');
+        else {
+            handlingBackRef.current = false;
+            setActionError(useProjectStore.getState().error ?? 'Unable to delete project.');
+        }
     };
 
     const handleDeleteCompleted = async () => {
@@ -181,7 +239,7 @@ export function ProjectDetailScreen() {
     const renderNote = (note: Note, archived = false) => {
         const items = listItems[note.recordID] ?? [];
         return (
-            <Card key={note.recordID} onPress={() => openNote(note.recordID)} className={`mb-2 p-4 ${archived ? 'opacity-60' : ''}`}>
+            <Card key={note.recordID} onPress={() => openNote(note.recordID)} className={`mb-1 p-4 ${archived ? 'opacity-60' : ''}`}>
                 <View className="flex-row items-center justify-between">
                     <View className="min-w-0 flex-1 flex-row items-center">
                         <MaterialCommunityIcons name={note.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'} size={22} color={theme.primary} />
@@ -224,9 +282,6 @@ export function ProjectDetailScreen() {
                     trailing={searchQuery ? <Pressable accessibilityLabel="Clear project search" onPress={() => setSearchQuery('')}><MaterialCommunityIcons name="close" size={18} color={theme.onSurfaceVariant} /></Pressable> : null}
                 />
                 <Card className="rounded-3xl p-4">
-                    <View className="mb-2 h-11 w-11 items-center justify-center rounded-2xl bg-primary-container dark:bg-primary-container-dark">
-                        <MaterialCommunityIcons name="folder-outline" size={23} color={theme.primary} />
-                    </View>
                     <TextField placeholder="Project name" value={name} onChangeText={setName} onBlur={() => updateProject(id, { name })} inputClassName="text-2xl font-semibold" className="border-0" />
                     <TextField placeholder="Add a short description" value={description} onChangeText={setDescription} onBlur={() => updateProject(id, { description })} multiline inputClassName="min-h-20" className="mt-2 border-0" />
                     <View className="mt-3 flex-row gap-6 border-t border-outline-variant pt-3 dark:border-outline-variant-dark">
@@ -235,13 +290,6 @@ export function ProjectDetailScreen() {
                         <Stat value={completedTasks.length} label="Completed" />
                     </View>
                 </Card>
-
-                <View className="flex-row flex-wrap items-center gap-2 rounded-3xl border border-outline-variant bg-surface p-3 dark:border-outline-variant-dark dark:bg-surface-dark">
-                    <Button variant="tonal" compact icon={<MaterialCommunityIcons name="note-plus-outline" size={17} color={theme.primary} />} onPress={addNote}>Add note</Button>
-                    <Button variant="tonal" compact icon={<MaterialCommunityIcons name="checkbox-marked-circle-outline" size={17} color={theme.primary} />} onPress={addTask}>Add task</Button>
-                    {isCreator ? <Button variant="text" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={17} color={theme.primary} />} onPress={handleShareProject}>{entitlementLoading ? 'Checking plan…' : subscriptionState === 'free' ? 'Share (Pro)' : 'Share'}</Button> : null}
-                    {isCreator ? <Button variant="danger" compact icon={<MaterialCommunityIcons name="delete-outline" size={17} color={theme.error} />} onPress={() => setDeleteDialogOpen(true)}>Delete</Button> : null}
-                </View>
 
                 <Divider className="my-2" />
                 <SectionHeader title="Notes" subtitle={`${projectNotes.length} active ${projectNotes.length === 1 ? 'note' : 'notes'}`} onAdd={addNote} />
@@ -271,6 +319,34 @@ export function ProjectDetailScreen() {
                 )}
             </ScrollView>
 
+            <Dialog
+                visible={menuOpen}
+                onDismiss={() => setMenuOpen(false)}
+                title="More options"
+                actions={<Button variant="text" compact onPress={() => setMenuOpen(false)}>Close</Button>}
+            >
+                <View className="gap-2">
+                    <Text variant="label">Actions</Text>
+                    <Button
+                        variant="outlined"
+                        compact
+                        className="justify-start"
+                        icon={<MaterialCommunityIcons name="share-variant-outline" size={18} color={theme.primary} />}
+                        onPress={() => { setMenuOpen(false); void handleShareProject(); }}
+                    >
+                        {entitlementLoading ? 'Checking plan…' : subscriptionState === 'free' ? 'Share (Pro)' : 'Share'}
+                    </Button>
+                    <Button
+                        variant="danger"
+                        compact
+                        className="justify-start"
+                        icon={<MaterialCommunityIcons name="delete-outline" size={18} color={theme.error} />}
+                        onPress={() => { setMenuOpen(false); setDeleteDialogOpen(true); }}
+                    >
+                        Delete
+                    </Button>
+                </View>
+            </Dialog>
             <Dialog
                 visible={deleteDialogOpen}
                 onDismiss={() => setDeleteDialogOpen(false)}

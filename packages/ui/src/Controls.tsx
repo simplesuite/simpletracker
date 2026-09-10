@@ -111,6 +111,7 @@ type TextFieldProps = Omit<TextInputProps, 'style'> & {
     label?: string;
     error?: boolean;
     helperText?: string;
+    borderless?: boolean;
     leading?: ReactNode;
     trailing?: ReactNode;
 };
@@ -127,21 +128,25 @@ export function TextField({
     multiline,
     editable = true,
     placeholderTextColor,
+    borderless = false,
     ...props
 }: TextFieldProps) {
     const { colorScheme } = useColorScheme();
     const theme = getUiTheme(colorScheme === 'dark' ? 'dark' : 'light');
+    const fieldClasses = borderless
+        ? 'min-h-0 flex-row items-center rounded-none border-0 bg-transparent px-0 dark:bg-transparent'
+        : `min-h-14 flex-row items-center rounded-2xl border bg-surface px-4 dark:bg-surface-dark ${error ? 'border-error dark:border-error-dark' : 'border-outline dark:border-outline-dark'}`;
     return (
         <View className={`w-full ${className}`}>
             {label ? <NativeText className="mb-2 text-sm font-semibold text-on-surface-variant dark:text-on-surface-variant-dark">{label}</NativeText> : null}
-            <View className={`min-h-14 flex-row items-center rounded-2xl border bg-surface px-4 dark:bg-surface-dark ${error ? 'border-error dark:border-error-dark' : 'border-outline dark:border-outline-dark'} ${!editable ? 'opacity-70' : ''}`}>
+            <View className={`${fieldClasses} ${!editable ? 'opacity-70' : ''}`}>
                 {leading ? <View className="mr-3">{leading}</View> : null}
                 <NativeTextInput
                     {...props}
                     editable={editable}
                     multiline={multiline}
                     placeholderTextColor={placeholderTextColor ?? theme.onSurfaceVariant}
-                    className={`min-w-0 flex-1 py-3 text-base text-on-surface dark:text-on-surface-dark ${multiline ? 'min-h-28' : ''} ${inputClassName}`}
+                    className={`min-w-0 flex-1 ${borderless ? 'py-0' : 'py-3'} text-base text-on-surface dark:text-on-surface-dark ${multiline ? 'min-h-28' : ''} ${inputClassName}`}
                     style={inputStyle}
                 />
                 {trailing ? <View className="ml-3">{trailing}</View> : null}

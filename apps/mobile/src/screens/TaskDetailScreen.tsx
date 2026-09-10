@@ -63,6 +63,7 @@ export function TaskDetailScreen() {
     const recurrenceIntervalRef = useRef(recurrenceInterval);
     const recurrenceUnitRef = useRef(recurrenceUnit);
     const recurrenceAnchorRef = useRef(recurrenceAnchor);
+    const handlingBackRef = useRef(false);
     titleRef.current = title;
     bodyRef.current = body;
     dueDateRef.current = dueDate;
@@ -73,15 +74,15 @@ export function TaskDetailScreen() {
     recurrenceUnitRef.current = recurrenceUnit;
     recurrenceAnchorRef.current = recurrenceAnchor;
 
-    const saveTask = useCallback(async () => {
-        if (!id) return;
+    const saveTask = useCallback(async (): Promise<boolean> => {
+        if (!id) return false;
         let dueDateValue: number | null = null;
         if (dueDateRef.current && dueTimeRef.current) {
             dueDateValue = dayjs(`${dueDateRef.current} ${dueTimeRef.current}`, 'YYYY-MM-DD HH:mm').valueOf();
         } else if (dueDateRef.current) {
             dueDateValue = dayjs(dueDateRef.current).startOf('day').valueOf();
         }
-        await updateTask(id, {
+        return updateTask(id, {
             title: titleRef.current,
             body: bodyRef.current,
             dueDate: dueDateValue,
@@ -95,7 +96,7 @@ export function TaskDetailScreen() {
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (task) saveTask();
+            if (task) void saveTask();
         }, 1000);
         return () => clearTimeout(timer);
     }, [title, body, dueDate, dueTime, projectID, isRecurring, recurrenceInterval, recurrenceUnit, recurrenceAnchor, task, saveTask]);
@@ -112,14 +113,34 @@ export function TaskDetailScreen() {
     const handleDeleteTask = async () => {
         setDeleteDialogOpen(false);
         if (!id) return;
-        await deleteTask(id);
-        navigation.goBack();
+        handlingBackRef.current = true;
+        const success = await deleteTask(id);
+        if (success) navigation.goBack();
+        else {
+            handlingBackRef.current = false;
+            setActionError(useTaskStore.getState().error ?? 'Unable to delete task.');
+        }
     };
-    const handleBack = async () => {
-        await saveTask();
-        if (!title.trim() && !body.trim()) setDeleteDialogOpen(true);
-        else navigation.goBack();
-    };
+
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+            if (!task || handlingBackRef.current) return;
+
+            event.preventDefault();
+            handlingBackRef.current = true;
+            void (async () => {
+                const success = isTaskBlank()
+                    ? await deleteTask(id)
+                    : await saveTask();
+                if (success) navigation.dispatch(event.data.action);
+                else {
+                    handlingBackRef.current = false;
+                    setActionError(useTaskStore.getState().error ?? 'Unable to save task.');
+                }
+            })();
+        });
+        return unsubscribe;
+    }, [navigation, task, id, title, body, deleteTask, saveTask]);
     const adjustDueDate = (days: number) => {
         const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
         const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
@@ -200,7 +221,10 @@ export function TaskDetailScreen() {
 
     const handleTaskCompletion = async () => {
         const success = isCompleted ? await reopenTask(id) : await completeTask(id);
-        if (success) navigation.goBack();
+        if (success) {
+            handlingBackRef.current = true;
+            navigation.goBack();
+        }
         else setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
     };
 
