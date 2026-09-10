@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+import type { GestureResponderEvent } from 'react-native';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -57,6 +58,12 @@ export function NoteDetailScreen() {
     const bodyRef = useRef(body);
     const projectIDRef = useRef(projectID);
     const handlingBackRef = useRef(false);
+    const rowLayouts = useRef<Record<string, { y: number; height: number }>>({});
+    const dragStartYRef = useRef(0);
+    const dragTranslationRef = useRef(0);
+    const activeDragItemRef = useRef<string | null>(null);
+    const [draggedItemID, setDraggedItemID] = useState<string | null>(null);
+    const [dragTranslationY, setDragTranslationY] = useState(0);
     titleRef.current = title;
     bodyRef.current = body;
     projectIDRef.current = projectID;
@@ -137,6 +144,14 @@ export function NoteDetailScreen() {
     const sortedItems = useMemo(() => [...listItems].sort((a, b) => a.indexOrder - b.indexOrder), [listItems]);
     const activeItems = sortedItems.filter((item) => !item.isCompleted);
     const completedItems = sortedItems.filter((item) => item.isCompleted);
+    const activeItemsRef = useRef(activeItems);
+    const completedItemsRef = useRef(completedItems);
+    const noteIDRef = useRef(id);
+    const reorderListItemsRef = useRef(reorderListItems);
+    activeItemsRef.current = activeItems;
+    completedItemsRef.current = completedItems;
+    noteIDRef.current = id;
+    reorderListItemsRef.current = reorderListItems;
     const isCreator = note?.creatorID === userId;
     const iconColor = theme.secondary;
 
@@ -180,14 +195,62 @@ export function NoteDetailScreen() {
         else setStatusMessage(useNoteStore.getState().error ?? 'Unable to add checklist item.');
     };
 
-    const moveItem = async (itemID: string, direction: -1 | 1) => {
-        const index = activeItems.findIndex((item) => item.recordID === itemID);
-        const target = index + direction;
-        if (index < 0 || target < 0 || target >= activeItems.length) return;
-        const reorderedActive = [...activeItems];
-        [reorderedActive[index], reorderedActive[target]] = [reorderedActive[target], reorderedActive[index]];
-        const success = await reorderListItems(id, [...reorderedActive, ...completedItems]);
+    const getDropIndex = (itemID: string, translationY: number) => {
+        const currentActiveItems = activeItemsRef.current;
+        const draggedLayout = rowLayouts.current[itemID];
+        const currentIndex = currentActiveItems.findIndex((item) => item.recordID === itemID);
+        if (!draggedLayout || currentIndex < 0) return currentIndex;
+
+        const draggedCenter = draggedLayout.y + draggedLayout.height / 2 + translationY;
+        const targetIndex = currentActiveItems.reduce((count, item) => {
+            if (item.recordID === itemID) return count;
+            const layout = rowLayouts.current[item.recordID];
+            return layout && draggedCenter > layout.y + layout.height / 2 ? count + 1 : count;
+        }, 0);
+        return Math.max(0, Math.min(targetIndex, currentActiveItems.length - 1));
+    };
+
+    const reorderItem = async (itemID: string, targetIndex: number) => {
+        const currentActiveItems = activeItemsRef.current;
+        const currentIndex = currentActiveItems.findIndex((item) => item.recordID === itemID);
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= currentActiveItems.length || currentIndex === targetIndex) return;
+
+        const reorderedActive = [...currentActiveItems];
+        const [draggedItem] = reorderedActive.splice(currentIndex, 1);
+        reorderedActive.splice(targetIndex, 0, draggedItem);
+        const success = await reorderListItemsRef.current(noteIDRef.current, [...reorderedActive, ...completedItemsRef.current]);
         if (!success) setStatusMessage(useNoteStore.getState().error ?? 'Unable to reorder checklist.');
+    };
+
+    const handleDragPressIn = (event: GestureResponderEvent) => {
+        dragStartYRef.current = event.nativeEvent.pageY;
+        dragTranslationRef.current = 0;
+        activeDragItemRef.current = null;
+    };
+
+    const handleDragLongPress = (itemID: string) => {
+        if (!rowLayouts.current[itemID]) return;
+        activeDragItemRef.current = itemID;
+        setDraggedItemID(itemID);
+        setDragTranslationY(0);
+    };
+
+    const handleDragPressMove = (itemID: string, event: GestureResponderEvent) => {
+        if (activeDragItemRef.current !== itemID) return;
+        const translationY = event.nativeEvent.pageY - dragStartYRef.current;
+        dragTranslationRef.current = translationY;
+        setDragTranslationY(translationY);
+    };
+
+    const handleDragPressOut = (itemID: string, event: GestureResponderEvent) => {
+        if (activeDragItemRef.current !== itemID) return;
+        const translationY = event.nativeEvent.pageY - dragStartYRef.current;
+        const targetIndex = getDropIndex(itemID, translationY);
+        activeDragItemRef.current = null;
+        dragTranslationRef.current = 0;
+        setDraggedItemID(null);
+        setDragTranslationY(0);
+        void reorderItem(itemID, targetIndex);
     };
 
     const handleDeleteAllCompleted = async () => {
@@ -245,7 +308,7 @@ export function NoteDetailScreen() {
                                 <Button variant="text" compact onPress={() => setCompletedCollapsed((value) => !value)}>
                                     {completedCollapsed ? 'Show completed' : 'Hide completed'}</Button> : null}
                         </View>
-                        {activeItems.length === 0 && completedItems.length === 0 ? <Text variant="bodySmall" className="px-4 py-2">Add your first item below.</Text> : null}{activeItems.map((item, index) => <View key={item.recordID} className="flex-row items-center border-t border-outline-variant py-1 dark:border-outline-variant-dark"><Checkbox status="unchecked" onPress={() => toggleListItem(item.recordID)} accessibilityLabel={`Toggle ${item.title}`} /><TextField value={item.title} onChangeText={(text) => updateListItemTitle(item.recordID, text)} className="min-w-0 flex-1 border-0" /><Button variant="text" compact accessibilityLabel="Move checklist item up" onPress={() => moveItem(item.recordID, -1)} disabled={index === 0}><MaterialCommunityIcons name="chevron-up" size={20} color={theme.onSurfaceVariant} /></Button><Button variant="text" compact accessibilityLabel="Move checklist item down" onPress={() => moveItem(item.recordID, 1)} disabled={index === activeItems.length - 1}><MaterialCommunityIcons name="chevron-down" size={20} color={theme.onSurfaceVariant} /></Button><Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete checklist item" onPress={() => deleteListItem(item.recordID)} /></View>)}{!completedCollapsed && completedItems.length > 0 ? <View className="mt-2 border-t border-outline-variant pt-1 dark:border-outline-variant-dark">{completedItems.map((item) => <View key={item.recordID} className="flex-row items-center"><Checkbox status="checked" onPress={() => toggleListItem(item.recordID)} accessibilityLabel={`Toggle ${item.title}`} /><TextField value={item.title} onChangeText={(text) => updateListItemTitle(item.recordID, text)} inputClassName="line-through text-on-surface-variant" className="min-w-0 flex-1 border-0" /><Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete completed checklist item" onPress={() => deleteListItem(item.recordID)} /></View>)}<Button variant="danger" compact className="mt-2 self-start" onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all completed</Button></View> : null}<View className="mt-3 flex-row items-center gap-2 px-4"><TextField placeholder="Add an item" value={listItemInput} onChangeText={setListItemInput} className="min-w-0 flex-1" /><Button compact onPress={handleAddListItem} disabled={!listItemInput.trim()}>Add</Button></View>
+                        {activeItems.length === 0 && completedItems.length === 0 ? <Text variant="bodySmall" className="px-4 py-2">Add your first item below.</Text> : null}{activeItems.map((item) => <View key={item.recordID} onLayout={(event) => { rowLayouts.current[item.recordID] = event.nativeEvent.layout; }} className="flex-row items-center border-t border-outline-variant py-1 dark:border-outline-variant-dark" style={draggedItemID === item.recordID ? { opacity: 0.85, transform: [{ translateY: dragTranslationY }] } : undefined}><Checkbox status="unchecked" onPress={() => toggleListItem(item.recordID)} accessibilityLabel={`Toggle ${item.title}`} /><TextField value={item.title} onChangeText={(text) => updateListItemTitle(item.recordID, text)} borderless className="min-w-0 flex-1" /><Pressable onPressIn={(event) => handleDragPressIn(event)} onLongPress={() => handleDragLongPress(item.recordID)} onPressMove={(event) => handleDragPressMove(item.recordID, event)} onPressOut={(event) => handleDragPressOut(item.recordID, event)} delayLongPress={350} cancelable={false} pressRetentionOffset={{ top: 1000, right: 1000, bottom: 1000, left: 1000 }} accessibilityRole="button" accessibilityLabel={`Hold to drag ${item.title}`} accessibilityHint="Hold and drag to reorder" className="h-10 w-10 items-center justify-center rounded-xl active:bg-surface-variant dark:active:bg-surface-variant-dark"><MaterialCommunityIcons name="drag-horizontal" size={21} color={theme.onSurfaceVariant} /></Pressable><Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete checklist item" onPress={() => deleteListItem(item.recordID)} /></View>)}{!completedCollapsed && completedItems.length > 0 ? <View className="mt-2 border-t border-outline-variant pt-1 dark:border-outline-variant-dark">{completedItems.map((item) => <View key={item.recordID} className="flex-row items-center"><Checkbox status="checked" onPress={() => toggleListItem(item.recordID)} accessibilityLabel={`Toggle ${item.title}`} /><TextField value={item.title} onChangeText={(text) => updateListItemTitle(item.recordID, text)} borderless inputClassName="line-through text-on-surface-variant" className="min-w-0 flex-1" /><Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete completed checklist item" onPress={() => deleteListItem(item.recordID)} /></View>)}<Button variant="danger" compact className="mt-2 self-start" onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all completed</Button></View> : null}<View className="mt-3 flex-row items-center gap-2 px-4"><TextField placeholder="Add an item" value={listItemInput} onChangeText={setListItemInput} className="min-w-0 flex-1" /><Button compact onPress={handleAddListItem} disabled={!listItemInput.trim()}>Add</Button></View>
                     </View>}
 
             </ScrollView>

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { observe } from '@legendapp/state';
+import { observe, syncState } from '@legendapp/state';
 import { getCurrentUserId } from '../runtime';
 import { syncedTable } from '../legend/syncedTable';
 import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
@@ -57,6 +57,87 @@ function currentUserID(): string {
     return getCurrentUserId();
 }
 
+/**
+ * Writes made before Legend-State has loaded its local table are not observed
+ * by the persistence/sync listener. Wait only while a real local load is in
+ * progress; the plain observable used by the core unit tests has no load to
+ * await.
+ */
+async function waitForTasksPersistenceReady(): Promise<void> {
+    const state = syncState(tasks$) as any;
+    const isPersistLoaded = state?.isPersistLoaded;
+    const pendingLocalLoads = state?.numPendingLocalLoads;
+    const pendingLoadCount = pendingLocalLoads?.peek?.();
+    if (!isPersistLoaded || isPersistLoaded.peek() !== false || pendingLoadCount === undefined || pendingLoadCount <= 0) return;
+
+    await new Promise<void>((resolve) => {
+        let unsubscribe = () => undefined;
+        const finish = () => {
+            unsubscribe();
+            resolve();
+        };
+        unsubscribe = isPersistLoaded.onChange(({ value }: { value: boolean }) => {
+            if (value) finish();
+        });
+        if (isPersistLoaded.peek()) finish();
+    });
+}
+
+type TaskWriteResult = {
+    saved: boolean;
+    error: string | null;
+};
+
+function getTaskSyncError(): string | null {
+    const state = syncState(tasks$) as any;
+    const error = state?.error?.peek?.();
+    if (!error) return null;
+    return error instanceof Error ? error.message : String(error);
+}
+
+function clearTaskSyncError(): void {
+    const state = syncState(tasks$) as any;
+    state?.error?.set?.(undefined);
+}
+
+async function waitForTaskWritesToSettle(): Promise<TaskWriteResult> {
+    if (!useOfflineStore.getState().isOnline) return { saved: true, error: null };
+
+    // Let Legend-State process the observable change before inspecting its
+    // pending-set counter. This also catches a create queued immediately before
+    // an update for the same record.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const state = syncState(tasks$) as any;
+    const pendingSets = state?.numPendingSets;
+    const pendingCount = pendingSets?.peek?.();
+    if (typeof pendingCount !== 'number' || pendingCount <= 0) {
+        const error = getTaskSyncError();
+        return { saved: !error, error };
+    }
+
+    return new Promise<TaskWriteResult>((resolve) => {
+        let finished = false;
+        let unsubscribe = () => undefined;
+        const timeout = setTimeout(() => finish(false), 10000);
+        const finish = (saved: boolean) => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timeout);
+            unsubscribe();
+            const error = getTaskSyncError();
+            resolve({ saved: saved && !error, error });
+        };
+        unsubscribe = pendingSets.onChange(({ value }: { value: number }) => {
+            if (value <= 0) finish(true);
+        });
+        if ((pendingSets.peek() || 0) <= 0) finish(true);
+    });
+}
+
+function setTaskWriteError(set: (state: { error: string }) => void, action: string, result: TaskWriteResult): void {
+    set({ error: result.error ? `Unable to ${action}: ${result.error}` : `Unable to ${action}. Check your connection and try again.` });
+}
+
 function findTask(id: string): Task | undefined {
     return useTaskStore.getState().tasks.find((t) => t.recordID === id);
 }
@@ -94,6 +175,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         }
 
         const uid = currentUserID();
+        await waitForTasksPersistenceReady();
         const now = Date.now();
         const newTask: Task = {
             recordID: uuidv4(),
@@ -119,13 +201,17 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             return null;
         }
 
+        clearTaskSyncError();
         tasks$[newTask.recordID].set(newTask as any);
-        set({ error: null });
+        const saved = await waitForTaskWritesToSettle();
+        if (!saved.saved) setTaskWriteError(set, 'create task', saved);
+        else set({ error: null });
         return newTask;
     },
 
     createBlankTask: async (projectID) => {
         const uid = currentUserID();
+        await waitForTasksPersistenceReady();
         const now = Date.now();
         const newTask: Task = {
             recordID: uuidv4(),
@@ -153,8 +239,11 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             return newTask;
         }
 
+        clearTaskSyncError();
         tasks$[newTask.recordID].set(newTask as any);
-        set({ error: null });
+        const saved = await waitForTaskWritesToSettle();
+        if (!saved.saved) setTaskWriteError(set, 'create task', saved);
+        else set({ error: null });
         return newTask;
     },
 
@@ -179,7 +268,19 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             return false;
         }
 
+        const pending = await waitForTaskWritesToSettle();
+        if (!pending.saved) {
+            setTaskWriteError(set, 'save task', pending);
+            return false;
+        }
+
+        clearTaskSyncError();
         tasks$[id].set({ ...task, ...fields, updatedAt: Date.now() } as any);
+        const saved = await waitForTaskWritesToSettle();
+        if (!saved.saved) {
+            setTaskWriteError(set, 'save task', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
