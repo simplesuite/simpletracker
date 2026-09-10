@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Button, Card, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { supabase } from '../lib/supabase';
+import { useThemeStore } from '../store/themeStore';
 
 export function SignUpScreen({ navigation }: { navigation: any }) {
-    const theme = useTheme();
+    const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -13,57 +15,39 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    const validateEmail = (email: string) => {
-        return String(email)
-            .toLowerCase()
-            .match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-    };
-
-    const validatePassword = (password: string) => {
-        return password.length >= 8;
-    };
+    const validateEmail = (value: string) => String(value).toLowerCase().match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+    const validatePassword = (value: string) => value.length >= 8;
 
     const handleSignUp = async () => {
         setError(null);
-
         if (!fullName.trim()) {
             setError('Please enter your full name');
             return;
         }
-
         if (!validateEmail(email)) {
             setError('Please enter a valid email address');
             return;
         }
-
         if (!validatePassword(password)) {
             setError('Password must be at least 8 characters');
             return;
         }
-
         if (password !== confirmPassword) {
             setError('Passwords do not match');
             return;
         }
 
         setLoading(true);
-
         try {
             const { error: signUpError } = await supabase.auth.signUp({
                 email,
                 password,
-                options: {
-                    data: {
-                        full_name: fullName,
-                    },
-                },
+                options: { data: { full_name: fullName } },
             });
-
             if (signUpError) {
                 setError(signUpError.message);
                 return;
             }
-
             setSuccess(true);
         } catch (err: any) {
             setError(err.message || 'Something went wrong');
@@ -74,24 +58,18 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
 
     if (success) {
         return (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-                <View style={styles.centerContent}>
-                    <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-                        <Card.Content>
-                            <View style={[styles.statusBadge, { backgroundColor: theme.colors.primaryContainer }]}>
-                                <Text variant="titleLarge" style={{ color: theme.colors.primary }}>✓</Text>
-                            </View>
-                            <Text variant="headlineSmall" style={styles.title}>Check your email</Text>
-                            <Text variant="bodyMedium" style={styles.centerText}>
-                                You're signed up. Please verify your email before logging in.
-                            </Text>
-                            <Text variant="bodySmall" style={[styles.centerText, { color: theme.colors.onSurfaceVariant }]}>
-                                If you're using a self-hosted instance, there may be no email verification.
-                            </Text>
-                            <Button mode="contained" onPress={() => navigation.navigate('SignIn')} style={styles.button}>
-                                Back to sign in
-                            </Button>
-                        </Card.Content>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1" style={{ backgroundColor: theme.background }}>
+                <View className="flex-1 justify-center px-4">
+                    <Card className="rounded-3xl p-5">
+                        <View className="mb-4 h-13 w-13 self-center items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950">
+                            <Text variant="titleLarge" style={{ color: theme.primary }}>✓</Text>
+                        </View>
+                        <Text variant="headline" className="mb-2 text-center">Check your email</Text>
+                        <Text variant="body" className="mb-4 text-center">You're signed up. Please verify your email before logging in.</Text>
+                        <Text variant="bodySmall" className="mb-4 text-center" style={{ color: theme.onSurfaceVariant }}>
+                            If you're using a self-hosted instance, there may be no email verification.
+                        </Text>
+                        <Button onPress={() => navigation.navigate('SignIn')}>Back to sign in</Button>
                     </Card>
                 </View>
             </KeyboardAvoidingView>
@@ -99,50 +77,25 @@ export function SignUpScreen({ navigation }: { navigation: any }) {
     }
 
     return (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.colors.background }]}>
-            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-                    <Card.Content>
-                        <Text variant="headlineSmall" style={styles.title}>Create your account</Text>
-                        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-                            Set up your workspace in a few steps.
-                        </Text>
-
-                        {error && <HelperText type="error" visible>{error}</HelperText>}
-
-                        <TextInput mode="outlined" label="Full name" value={fullName} onChangeText={setFullName} autoCapitalize="words" autoComplete="name" style={styles.input} />
-                        <TextInput mode="outlined" label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" style={styles.input} />
-                        <TextInput mode="outlined" label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password-new" style={styles.input} />
-                        <TextInput mode="outlined" label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoComplete="password-new" style={styles.input} />
-
-                        <Button mode="contained" onPress={handleSignUp} loading={loading} disabled={loading} style={styles.button} contentStyle={styles.buttonContent}>
-                            Create account
-                        </Button>
-                        <Text variant="bodyMedium" style={styles.linkRow}>
-                            Already have an account?{' '}
-                            <Text style={[styles.link, { color: theme.colors.primary }]} onPress={() => navigation.navigate('SignIn')}>
-                                Sign in
-                            </Text>
-                        </Text>
-                    </Card.Content>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1" style={{ backgroundColor: theme.background }}>
+            <ScrollView contentContainerClassName="grow justify-center p-4" keyboardShouldPersistTaps="handled">
+                <Card className="rounded-3xl p-5">
+                    <Text variant="headline" className="mb-2 text-center">Create your account</Text>
+                    <Text variant="body" className="mb-5 text-center" style={{ color: theme.onSurfaceVariant }}>
+                        Set up your workspace in a few steps.
+                    </Text>
+                    {error ? <Text variant="bodySmall" className="mb-3" style={{ color: theme.error }}>{error}</Text> : null}
+                    <TextField label="Full name" value={fullName} onChangeText={setFullName} autoCapitalize="words" autoComplete="name" className="mb-3" />
+                    <TextField label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" className="mb-3" />
+                    <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password-new" className="mb-3" />
+                    <TextField label="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry autoComplete="password-new" className="mb-3" />
+                    <Button onPress={handleSignUp} loading={loading} disabled={loading} className="mt-1">Create account</Button>
+                    <Text variant="body" className="mt-3 text-center">
+                        Already have an account?{' '}
+                        <Text className="font-bold" style={{ color: theme.primary }} onPress={() => navigation.navigate('SignIn')}>Sign in</Text>
+                    </Text>
                 </Card>
             </ScrollView>
         </KeyboardAvoidingView>
     );
 }
-
-const styles = StyleSheet.create({
-    screen: { flex: 1 },
-    centerContent: { flex: 1, justifyContent: 'center', padding: 16 },
-    scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 16 },
-    card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 22 },
-    title: { textAlign: 'center', marginBottom: 8 },
-    subtitle: { textAlign: 'center', marginBottom: 20 },
-    centerText: { textAlign: 'center', marginBottom: 16 },
-    statusBadge: { alignSelf: 'center', width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    input: { marginBottom: 12 },
-    button: { marginTop: 4, borderRadius: 12 },
-    buttonContent: { paddingVertical: 4 },
-    linkRow: { textAlign: 'center', marginTop: 14 },
-    link: { fontWeight: '700' },
-});

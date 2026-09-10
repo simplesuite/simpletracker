@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { Button, Card, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Button, Card, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { supabase } from '../lib/supabase';
+import { useThemeStore } from '../store/themeStore';
 
 export function SignInScreen({ navigation }: { navigation: any }) {
-    const theme = useTheme();
+    const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -13,84 +15,65 @@ export function SignInScreen({ navigation }: { navigation: any }) {
     const signIn = async () => {
         setLoading(true);
         setError(null);
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) setError(error.message);
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) setError(signInError.message);
         setLoading(false);
     };
 
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={[styles.screen, { backgroundColor: theme.colors.background }]}
+            className="flex-1"
+            style={{ backgroundColor: theme.background }}
         >
-            <View style={styles.content}>
-                <View style={styles.branding}>
-                    <Text variant="headlineMedium" style={styles.brand}>simpleTracker</Text>
-                    <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+            <View className="flex-1 justify-center px-4">
+                <View className="mb-5 items-center gap-1">
+                    <Text variant="headline">simpleTracker</Text>
+                    <Text variant="body" style={{ color: theme.onSurfaceVariant }}>
                         A calmer way to keep track of what matters.
                     </Text>
                 </View>
 
-                <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-                    <Card.Content>
-                        <Text variant="titleLarge" style={styles.cardTitle}>Welcome back</Text>
-                        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-                            Sign in to continue to your workspace.
+                <Card className="rounded-3xl p-5">
+                    <Text variant="titleLarge" className="mb-1">Welcome back</Text>
+                    <Text variant="body" className="mb-5" style={{ color: theme.onSurfaceVariant }}>
+                        Sign in to continue to your workspace.
+                    </Text>
+
+                    {error ? <Text variant="bodySmall" className="mb-3" style={{ color: theme.error }}>{error}</Text> : null}
+
+                    <TextField
+                        label="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        autoComplete="email"
+                        className="mb-3"
+                    />
+                    <TextField
+                        label="Password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                        autoComplete="password"
+                        className="mb-3"
+                    />
+                    <Button onPress={signIn} loading={loading} disabled={loading} className="mt-1">
+                        Sign in
+                    </Button>
+
+                    <Button variant="text" compact onPress={() => navigation.navigate('ForgotPassword')} className="self-center mt-2">
+                        Forgot password?
+                    </Button>
+                    <Text variant="body" className="mt-3 text-center">
+                        New to simpleTracker?{' '}
+                        <Text className="font-bold" style={{ color: theme.primary }} onPress={() => navigation.navigate('SignUp')}>
+                            Create an account
                         </Text>
-
-                        {error ? <HelperText type="error" visible>{error}</HelperText> : null}
-
-                        <TextInput
-                            mode="outlined"
-                            label="Email"
-                            value={email}
-                            onChangeText={setEmail}
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                            autoComplete="email"
-                            style={styles.input}
-                        />
-                        <TextInput
-                            mode="outlined"
-                            label="Password"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            autoComplete="password"
-                            style={styles.input}
-                        />
-                        <Button mode="contained" onPress={signIn} loading={loading} disabled={loading} style={styles.button} contentStyle={styles.buttonContent}>
-                            Sign in
-                        </Button>
-
-                        <Button mode="text" compact onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgotButton}>
-                            Forgot password?
-                        </Button>
-                        <Text variant="bodyMedium" style={styles.linkRow}>
-                            New to simpleTracker?{' '}
-                            <Text style={[styles.link, { color: theme.colors.primary }]} onPress={() => navigation.navigate('SignUp')}>
-                                Create an account
-                            </Text>
-                        </Text>
-                    </Card.Content>
+                    </Text>
                 </Card>
             </View>
         </KeyboardAvoidingView>
     );
 }
-
-const styles = StyleSheet.create({
-    screen: { flex: 1 },
-    content: { flex: 1, justifyContent: 'center', padding: 16 },
-    branding: { alignItems: 'center', marginBottom: 20, gap: 4 },
-    brand: { fontWeight: '700' },
-    card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 22 },
-    cardTitle: { marginBottom: 4 },
-    subtitle: { marginBottom: 18 },
-    input: { marginBottom: 12 },
-    button: { marginTop: 4, borderRadius: 12 },
-    buttonContent: { paddingVertical: 4 },
-    forgotButton: { alignSelf: 'center', marginTop: 6 },
-    linkRow: { textAlign: 'center', marginTop: 12 },
-    link: { fontWeight: '700' },
-});

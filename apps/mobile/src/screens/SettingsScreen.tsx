@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, Chip, Divider, List, RadioButton, Text, useTheme } from 'react-native-paper';
+import { ScrollView, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { Button, Card, Divider, Pill, Radio, Text, getUiTheme } from '@simpletracker/ui';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { clearLocalData } from '@simpletracker/core';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 
 export function SettingsScreen() {
-    const theme = useTheme();
     const tabBarHeight = useBottomTabBarHeight();
     const userId = useAuthStore((s) => s.userId);
-    const { themeMode, setThemeMode } = useThemeStore();
+    const { themeMode, effectiveTheme, setThemeMode } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
     const [email, setEmail] = useState<string | null>(null);
 
     useEffect(() => {
@@ -25,7 +26,6 @@ export function SettingsScreen() {
     }, []);
 
     const signOut = async () => {
-        // Wipe local synced data so the next user on this device can't see it.
         try {
             await clearLocalData();
         } catch {
@@ -35,118 +35,74 @@ export function SettingsScreen() {
     };
 
     const themeLabel = themeMode === 'system' ? 'System default' : themeMode === 'light' ? 'Light' : 'Dark';
+    const setMode = (mode: 'system' | 'light' | 'dark') => setThemeMode(mode);
 
     return (
         <ScrollView
-            style={[styles.scroll, { backgroundColor: theme.colors.background }]}
-            contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}
+            className="flex-1"
+            style={{ backgroundColor: theme.background }}
+            contentContainerStyle={{ padding: 16, paddingTop: 20, paddingBottom: tabBarHeight + 24, gap: 12 }}
         >
-            <View style={styles.header}>
-                <Text variant="labelLarge" style={[styles.eyebrow, { color: theme.colors.primary }]}>PREFERENCES</Text>
-                <Text variant="headlineMedium">Settings</Text>
-                <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-                    Manage your account and app appearance.
-                </Text>
+            <View className="mb-2 gap-1">
+                <Text variant="label" style={{ color: theme.primary }}>PREFERENCES</Text>
+                <Text variant="headline">Settings</Text>
+                <Text variant="body" style={{ color: theme.onSurfaceVariant }}>Manage your account and app appearance.</Text>
             </View>
 
-            <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-                <Card.Content>
-                    <View style={styles.sectionHeading}>
-                        <View>
-                            <Text variant="titleLarge">Account</Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                Your current signed-in account
-                            </Text>
-                        </View>
-                        <View style={[styles.iconBadge, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <List.Icon icon="account-outline" color={theme.colors.primary} />
-                        </View>
+            <Card className="overflow-hidden p-5">
+                <View className="mb-2 flex-row items-center justify-between gap-3">
+                    <View>
+                        <Text variant="titleLarge">Account</Text>
+                        <Text variant="bodySmall">Your current signed-in account</Text>
                     </View>
-                    <List.Item
-                        title={email || 'Signed in'}
-                        description={userId ? `User ID: ${userId}` : undefined}
-                        titleStyle={styles.accountTitle}
-                        descriptionNumberOfLines={1}
-                        contentStyle={styles.accountContent}
-                        left={(props) => <List.Icon {...props} icon="email-outline" color={theme.colors.onSurfaceVariant} />}
-                    />
-                </Card.Content>
-            </Card>
-
-            <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
-                <Card.Content>
-                    <View style={styles.sectionHeading}>
-                        <View>
-                            <Text variant="titleLarge">Appearance</Text>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                Choose how SimpleTracker looks
-                            </Text>
-                        </View>
-                        <Chip compact icon="palette-outline">{themeLabel}</Chip>
+                    <View className="h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950">
+                        <MaterialCommunityIcons name="account-outline" size={22} color={theme.primary} />
                     </View>
-                    <RadioButton.Group
-                        value={themeMode}
-                        onValueChange={(value) => setThemeMode(value as 'system' | 'light' | 'dark')}
-                    >
-                        <View style={[styles.optionRow, { borderColor: theme.colors.outlineVariant }]}>
-                            <View style={styles.optionCopy}>
-                                <Text variant="bodyLarge">Use system setting</Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Follow your device theme</Text>
-                            </View>
-                            <RadioButton value="system" />
-                        </View>
-                        <View style={[styles.optionRow, { borderColor: theme.colors.outlineVariant }]}>
-                            <View style={styles.optionCopy}>
-                                <Text variant="bodyLarge">Light</Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>A bright interface</Text>
-                            </View>
-                            <RadioButton value="light" />
-                        </View>
-                        <View style={[styles.optionRow, { borderColor: theme.colors.outlineVariant }]}>
-                            <View style={styles.optionCopy}>
-                                <Text variant="bodyLarge">Dark</Text>
-                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>A darker interface</Text>
-                            </View>
-                            <RadioButton value="dark" />
-                        </View>
-                    </RadioButton.Group>
-                </Card.Content>
-            </Card>
-
-            <View style={[styles.signOutCard, { backgroundColor: theme.colors.errorContainer, borderColor: theme.colors.error }]}>
-                <View style={styles.signOutCopy}>
-                    <Text variant="titleMedium">Sign out</Text>
-                    <Text variant="bodySmall" style={{ color: theme.colors.onErrorContainer }}>
-                        Local synced data will be cleared from this device.
-                    </Text>
                 </View>
-                <Button mode="outlined" icon="logout" onPress={signOut} textColor={theme.colors.error}>
-                    Sign out
-                </Button>
+                <View className="flex-row items-center py-3">
+                    <MaterialCommunityIcons name="email-outline" size={22} color={theme.onSurfaceVariant} />
+                    <View className="min-w-0 flex-1 pl-3">
+                        <Text className="font-semibold" numberOfLines={1}>{email || 'Signed in'}</Text>
+                        {userId ? <Text variant="bodySmall" numberOfLines={1}>User ID: {userId}</Text> : null}
+                    </View>
+                </View>
+            </Card>
+
+            <Card className="overflow-hidden p-5">
+                <View className="mb-3 flex-row items-center justify-between gap-3">
+                    <View>
+                        <Text variant="titleLarge">Appearance</Text>
+                        <Text variant="bodySmall">Choose how SimpleTracker looks</Text>
+                    </View>
+                    <Pill compact icon={<MaterialCommunityIcons name="palette-outline" size={15} color={theme.onSurfaceVariant} />}>{themeLabel}</Pill>
+                </View>
+                <View className="border-t border-slate-200 dark:border-slate-800">
+                    {([
+                        ['system', 'Use system setting', 'Follow your device theme'],
+                        ['light', 'Light', 'A bright interface'],
+                        ['dark', 'Dark', 'A darker interface'],
+                    ] as const).map(([value, title, description]) => (
+                        <View key={value} className="min-h-16 flex-row items-center justify-between border-b border-slate-200 py-1 dark:border-slate-800">
+                            <View className="min-w-0 flex-1 gap-0.5">
+                                <Text variant="bodyLarge">{title}</Text>
+                                <Text variant="bodySmall">{description}</Text>
+                            </View>
+                            <Radio checked={themeMode === value} onPress={() => setMode(value)} accessibilityLabel={title} />
+                        </View>
+                    ))}
+                </View>
+            </Card>
+
+            <View className="mt-1 flex-row items-center justify-between gap-3 rounded-3xl border p-4" style={{ backgroundColor: theme.errorContainer, borderColor: theme.error }}>
+                <View className="min-w-0 flex-1 gap-1">
+                    <Text variant="title">Sign out</Text>
+                    <Text variant="bodySmall" style={{ color: theme.onErrorContainer }}>Local synced data will be cleared from this device.</Text>
+                </View>
+                <Button variant="outlined" compact icon={<MaterialCommunityIcons name="logout" size={18} color={theme.error} />} textClassName="text-red-600 dark:text-red-300" className="border-red-500 dark:border-red-400" onPress={signOut}>Sign out</Button>
             </View>
 
-            <Divider style={styles.footerDivider} />
-            <Text variant="bodySmall" style={[styles.footerNote, { color: theme.colors.onSurfaceVariant }]}>
-                Theme preferences are saved on this device.
-            </Text>
+            <Divider className="mt-2" />
+            <Text variant="bodySmall" className="mb-2 text-center">Theme preferences are saved on this device.</Text>
         </ScrollView>
     );
 }
-
-const styles = StyleSheet.create({
-    scroll: { flex: 1 },
-    container: { padding: 16, paddingTop: 20, gap: 12 },
-    header: { gap: 4, marginBottom: 8 },
-    eyebrow: { letterSpacing: 1.2, fontWeight: '700' },
-    card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, overflow: 'hidden' },
-    sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 },
-    iconBadge: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    accountTitle: { fontWeight: '600' },
-    accountContent: { paddingLeft: 0 },
-    optionRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 6 },
-    optionCopy: { flex: 1, gap: 2 },
-    signOutCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 16, marginTop: 4 },
-    signOutCopy: { flex: 1, gap: 4 },
-    footerDivider: { marginTop: 8 },
-    footerNote: { textAlign: 'center', marginBottom: 8 },
-});

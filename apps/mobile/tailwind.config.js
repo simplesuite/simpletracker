@@ -3,8 +3,9 @@ module.exports = {
     content: [
         './App.{js,jsx,ts,tsx}',
         './src/**/*.{js,jsx,ts,tsx}',
+        '../../packages/ui/src/**/*.{js,jsx,ts,tsx}',
     ],
-    darkMode: 'media',
+    darkMode: 'class',
     presets: [require('nativewind/preset')],
     theme: {
         extend: {},

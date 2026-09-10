@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+    resolve: {
+        // The workspace uses hoisted dependencies; keep React as one runtime
+        // so peer dependencies such as react-router-dom share its hook state.
+        dedupe: ['react', 'react-dom'],
+    },
     plugins: [
         react(),
         VitePWA({

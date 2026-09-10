@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useTheme } from 'react-native-paper';
+import { getUiTheme } from '@simpletracker/ui';
+import { useThemeStore } from '../store/themeStore';
 import { TasksListScreen } from '../screens/TasksListScreen';
 import { TaskDetailScreen } from '../screens/TaskDetailScreen';
 import type { TasksStackParamList } from './types';
@@ -7,15 +8,16 @@ import type { TasksStackParamList } from './types';
 const Stack = createNativeStackNavigator<TasksStackParamList>();
 
 export function TasksStack() {
-    const theme = useTheme();
+    const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
 
     return (
         <Stack.Navigator
             screenOptions={{
-                contentStyle: { backgroundColor: theme.colors.background },
-                headerStyle: { backgroundColor: theme.colors.surface },
-                headerTintColor: theme.colors.onSurface,
-                headerTitleStyle: { color: theme.colors.onSurface, fontWeight: '700' },
+                contentStyle: { backgroundColor: theme.background },
+                headerStyle: { backgroundColor: theme.surface },
+                headerTintColor: theme.onSurface,
+                headerTitleStyle: { color: theme.onSurface, fontWeight: '700' },
                 headerShadowVisible: false,
             }}
         >

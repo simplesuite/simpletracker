@@ -9,8 +9,7 @@ import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/co
 import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import { useThemeStore } from '../store/themeStore';
-import { Pill } from '../components/ui/Pill';
-import { Surface } from '../components/ui/Surface';
+import { Pill, Surface } from '@simpletracker/ui';
 import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;

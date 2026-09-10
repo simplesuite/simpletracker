@@ -1,11 +1,14 @@
-import { useState } from 'react';
-import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, SectionList, Text as NativeText, TextInput, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Card, Chip, FAB, List, Searchbar, Text, useTheme, Icon } from 'react-native-paper';
+import { useColorScheme } from 'nativewind';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { refreshAllData, useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
+import { useThemeStore } from '../store/themeStore';
+import { Pill, Surface } from '@simpletracker/ui';
 
 type Nav = NativeStackNavigationProp<NotesStackParamList, 'NotesList'>;
 
@@ -22,17 +25,22 @@ function formatUpdatedAt(updatedAt: number) {
 }
 
 export function NotesListScreen() {
-    const theme = useTheme();
     const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const notes = useNoteStore((s) => s.notes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const createNote = useNoteStore((s) => s.createNote);
     const projects = useProjectStore((s) => s.projects);
+    const { effectiveTheme } = useThemeStore();
+    const { setColorScheme } = useColorScheme();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        setColorScheme(effectiveTheme);
+    }, [effectiveTheme, setColorScheme]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -76,118 +84,103 @@ export function NotesListScreen() {
     ];
 
     const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
+    const placeholderColor = effectiveTheme === 'dark' ? '#94a3b8' : '#64748b';
 
     const toggleProjectFilter = (projectID: string) => {
-        setSelectedProjectIDs((prev) => {
-            const next = new Set(prev);
-            if (next.has(projectID)) {
-                next.delete(projectID);
-            } else {
-                next.add(projectID);
-            }
+        setSelectedProjectIDs((previous) => {
+            const next = new Set(previous);
+            if (next.has(projectID)) next.delete(projectID);
+            else next.add(projectID);
             return next;
         });
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <View style={styles.controls}>
-                <Searchbar
-                    placeholder="Search your notes"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    style={[styles.searchbar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
-                    inputStyle={styles.searchInput}
-                    elevation={0}
-                />
-
-                <View style={styles.summaryRow}>
+        <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+            <View className="px-4 pb-1 pt-4">
+                <View className="relative">
+                    <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
+                    <TextInput
+                        placeholder="Search your notes"
+                        placeholderTextColor={placeholderColor}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoCapitalize="none"
+                        className="h-14 rounded-2xl border border-slate-200 bg-white pl-12 pr-12 text-base text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
+                    />
+                    {searchQuery.length > 0 && (
+                        <Pressable
+                            accessibilityLabel="Clear note search"
+                            onPress={() => setSearchQuery('')}
+                            className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full active:bg-slate-100 dark:active:bg-slate-800"
+                        >
+                            <MaterialCommunityIcons name="close" size={18} color={placeholderColor} />
+                        </Pressable>
+                    )}
+                </View>
+                <View className="flex-row items-center justify-between py-4">
                     <View>
-                        <Text variant="titleMedium">Your notes</Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        <NativeText className="text-lg font-bold text-slate-950 dark:text-slate-50">Your notes</NativeText>
+                        <NativeText className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             {filteredNotes.length} active · {filteredArchivedNotes.length} archived
-                        </Text>
+                        </NativeText>
                     </View>
                     {hasFilters && (
-                        <Chip
-                            compact
-                            icon="close"
+                        <Pressable
+                            accessibilityLabel="Clear note filters"
                             onPress={() => {
                                 setSearchQuery('');
                                 setSelectedProjectIDs(new Set());
                             }}
-                            style={styles.clearChip}
+                            className="flex-row items-center rounded-full border border-slate-200 bg-white px-3 py-2 active:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:active:bg-slate-800"
                         >
-                            Clear filters
-                        </Chip>
+                            <MaterialCommunityIcons name="close" size={14} color={placeholderColor} />
+                            <NativeText className="ml-1 text-xs font-semibold text-slate-700 dark:text-slate-200">Clear filters</NativeText>
+                        </Pressable>
                     )}
                 </View>
             </View>
 
             {sortedProjects.length > 0 && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.projectChips}
-                >
-                    <Chip
-                        compact
-                        selected={selectedProjectIDs.size === 0}
-                        onPress={() => setSelectedProjectIDs(new Set())}
-                        style={styles.projectChip}
-                    >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+                    <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
                         All notes
-                    </Chip>
-                    {sortedProjects.map((project) => {
-                        const count = notes.filter((note) => note.projectID === project.recordID).length;
-                        return (
-                            <Chip
-                                key={project.recordID}
-                                compact
-                                selected={selectedProjectIDs.has(project.recordID)}
-                                onPress={() => toggleProjectFilter(project.recordID)}
-                                style={styles.projectChip}
-                            >
-                                {project.name} · {count}
-                            </Chip>
-                        );
-                    })}
+                    </Pill>
+                    {sortedProjects.map((project) => (
+                        <Pill
+                            key={project.recordID}
+                            selected={selectedProjectIDs.has(project.recordID)}
+                            onPress={() => toggleProjectFilter(project.recordID)}
+                        >
+                            {project.name} · {notes.filter((note) => note.projectID === project.recordID).length}
+                        </Pill>
+                    ))}
                 </ScrollView>
             )}
 
             <SectionList
                 sections={sections}
                 keyExtractor={(item) => item.recordID}
-                contentContainerStyle={sections.length === 0
-                    ? [styles.emptyListContent, { paddingBottom: tabBarHeight + 96 }]
-                    : [styles.listContent, { paddingBottom: tabBarHeight + 96 }]}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={theme.colors.primary}
-                    />
-                }
+                contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sections.length === 0 ? { flexGrow: 1 } : {}) }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
-                    <View style={styles.empty}>
-                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <List.Icon icon={hasFilters ? 'magnify' : 'note-plus-outline'} color={theme.colors.primary} />
+                    <View className="flex-1 items-center justify-center px-8 pt-16">
+                        <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-indigo-100 dark:bg-indigo-950">
+                            <MaterialCommunityIcons name={hasFilters ? 'magnify' : 'note-plus-outline'} size={30} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#4f46e5'} />
                         </View>
-                        <Text variant="titleMedium" style={styles.emptyTitle}>
+                        <NativeText className="text-center text-lg font-bold text-slate-950 dark:text-slate-50">
                             {hasFilters ? 'No notes found' : 'No notes yet'}
-                        </Text>
-                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
-                            {hasFilters
-                                ? 'Try a different search or clear your filters.'
-                                : 'Capture an idea, reminder, or checklist to get started.'}
-                        </Text>
+                        </NativeText>
+                        <NativeText className="mt-2 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
+                            {hasFilters ? 'Try a different search or clear your filters.' : 'Capture an idea, reminder, or checklist to get started.'}
+                        </NativeText>
                     </View>
                 }
                 renderSectionHeader={({ section }) => (
-                    <View style={styles.sectionHeader}>
-                        <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-                            {section.title.toUpperCase()}
-                        </Text>
+                    <View className="px-5 pb-2 pt-4">
+                        <NativeText className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            {section.title}
+                        </NativeText>
                     </View>
                 )}
                 renderItem={({ item }) => {
@@ -195,107 +188,59 @@ export function NotesListScreen() {
                         ? projects.find((project) => project.recordID === item.projectID)?.name
                         : undefined;
                     const isChecklist = item.noteType === 'list';
-                    const iconColor = isChecklist ? theme.colors.onSecondaryContainer : theme.colors.onPrimaryContainer;
-                    const iconBackground = isChecklist ? theme.colors.secondaryContainer : theme.colors.primaryContainer;
-                    const description = isChecklist
-                        ? 'Checklist'
-                        : item.body.trim() || 'No content yet';
+                    const description = isChecklist ? 'Checklist' : item.body.trim() || 'No content yet';
 
                     return (
-                        <Card
-                            mode="contained"
-                            onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })}
-                            style={[
-                                styles.noteCard,
-                                item.archived && styles.archivedCard,
-                                { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant },
-                            ]}
-                        >
-                            <Card.Content style={styles.noteCardContent}>
-                                <View style={[styles.noteIcon, { backgroundColor: iconBackground }]}>
-                                    <List.Icon
-                                        icon={isChecklist ? 'format-list-checks' : 'note-text-outline'}
-                                        color={iconColor}
-                                    />
-                                </View>
-                                <View style={styles.noteDetails}>
-                                    <View style={styles.noteTitleRow}>
-                                        <Text variant="titleMedium" numberOfLines={1} style={styles.noteTitle}>
-                                            {item.title || '(untitled)'}
-                                        </Text>
-                                        {item.pinned && (
-                                            <Icon source="pin" size={15} />
-                                        )}
+                        <Surface className={`mx-4 mb-3 overflow-hidden ${item.archived ? 'opacity-60' : ''}`}>
+                            <Pressable onPress={() => navigation.navigate('NoteDetail', { id: item.recordID })} className="active:opacity-70">
+                                <View className="flex-row items-center px-4 py-3">
+                                    <View className={`h-11 w-11 items-center justify-center rounded-2xl ${isChecklist ? 'bg-violet-100 dark:bg-violet-950' : 'bg-indigo-100 dark:bg-indigo-950'}`}>
+                                        <MaterialCommunityIcons
+                                            name={isChecklist ? 'format-list-checks' : 'note-text-outline'}
+                                            size={22}
+                                            color={isChecklist ? '#7c3aed' : '#4f46e5'}
+                                        />
                                     </View>
-                                    <Text
-                                        variant="bodyMedium"
-                                        numberOfLines={1}
-                                        style={{ color: theme.colors.onSurfaceVariant }}
-                                    >
-                                        {description}
-                                    </Text>
-                                    <View style={styles.noteMeta}>
-                                        <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                            Updated {formatUpdatedAt(item.updatedAt)}
-                                        </Text>
-                                        {projectName && (
-                                            <Text variant="labelSmall" numberOfLines={1} style={[styles.projectMeta, { color: theme.colors.primary }]}>
-                                                {projectName}
-                                            </Text>
-                                        )}
+                                    <View className="min-w-0 flex-1 pl-3">
+                                        <View className="flex-row items-center">
+                                            <NativeText numberOfLines={1} className="min-w-0 flex-1 text-base font-semibold text-slate-900 dark:text-slate-50">
+                                                {item.title || '(untitled)'}
+                                            </NativeText>
+                                            {item.pinned && <MaterialCommunityIcons name="pin" size={15} color={effectiveTheme === 'dark' ? '#c4b5fd' : '#6366f1'} />}
+                                        </View>
+                                        <NativeText numberOfLines={1} className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                            {description}
+                                        </NativeText>
+                                        <View className="mt-2 flex-row items-center">
+                                            <NativeText className="text-xs text-slate-500 dark:text-slate-400">
+                                                Updated {formatUpdatedAt(item.updatedAt)}
+                                            </NativeText>
+                                            {projectName && (
+                                                <NativeText numberOfLines={1} className="ml-2 max-w-[48%] text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                                                    {projectName}
+                                                </NativeText>
+                                            )}
+                                        </View>
                                     </View>
                                 </View>
-                            </Card.Content>
-                        </Card>
+                            </Pressable>
+                        </Surface>
                     );
                 }}
             />
-            <FAB
-                icon="plus"
-                size="small"
+
+            <Pressable
                 accessibilityLabel="New note"
-                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                accessibilityRole="button"
                 onPress={onAdd}
-            />
+                className="absolute right-4 items-center justify-center rounded-2xl bg-indigo-600 px-5 py-4 shadow-lg active:bg-indigo-700 dark:bg-indigo-400 dark:active:bg-indigo-300"
+                style={{ bottom: tabBarHeight + 24 }}
+            >
+                <View className="flex-row items-center gap-2">
+                    <MaterialCommunityIcons name="plus" size={20} color={effectiveTheme === 'dark' ? '#0f172a' : '#ffffff'} />
+                    <NativeText className="font-bold text-white dark:text-slate-950">New note</NativeText>
+                </View>
+            </Pressable>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    controls: { paddingHorizontal: 16, paddingTop: 12 },
-    searchbar: { borderWidth: 1, borderRadius: 16 },
-    searchInput: { fontSize: 16 },
-    summaryRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-    },
-    clearChip: { marginLeft: 12 },
-    projectChips: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    projectChip: { minHeight: 36 },
-    listContent: { paddingTop: 4, paddingBottom: 104 },
-    emptyListContent: { flexGrow: 1, paddingBottom: 104 },
-    sectionHeader: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-    noteCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
-    archivedCard: { opacity: 0.7 },
-    noteCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-    noteIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-    noteDetails: { flex: 1, marginLeft: 12 },
-    noteTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
-    noteTitle: { flex: 1 },
-    noteMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
-    projectMeta: { flexShrink: 1, marginLeft: 8 },
-    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
-    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    emptyTitle: { textAlign: 'center', marginBottom: 6 },
-    emptyDescription: { textAlign: 'center', lineHeight: 21 },
-    fab: { position: 'absolute', right: 16 },
-});

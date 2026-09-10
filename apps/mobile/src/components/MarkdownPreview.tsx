@@ -1,103 +1,41 @@
-import React from 'react';
-import { View, StyleSheet, Text, TextStyle } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import Markdown from 'react-native-markdown-display';
-import { useTheme } from 'react-native-paper';
+import { getUiTheme } from '@simpletracker/ui';
+import { useThemeStore } from '../store/themeStore';
 
 interface MarkdownPreviewProps {
     content: string;
-    style?: TextStyle | TextStyle[];
+    style?: any;
 }
 
-export function MarkdownPreview({ content, style }: MarkdownPreviewProps) {
-    const theme = useTheme();
+export function MarkdownPreview({ content, style: _style }: MarkdownPreviewProps) {
+    const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
 
-    if (!content.trim()) {
-        return null;
-    }
-
-    const renderers = {
-        paragraph: (node: any, children: React.ReactNode, parent: any, styles: any) => {
-            return <Text key={node.key} style={[styles.base, styles.paragraph]}>{children}</Text>;
-        },
-        text: (node: any, children: React.ReactNode, parent: any, styles: any) => {
-            return <Text key={node.key} style={styles.base}>{children}</Text>;
-        },
-    };
+    if (!content.trim()) return null;
 
     return (
         <View style={styles.container}>
             <Markdown
                 style={{
-                    base: {
-                        color: theme.colors.onSurface,
-                        fontSize: 16,
-                        lineHeight: 24,
-                    },
-                    paragraph: {
-                        marginBottom: 12,
-                    },
-                    strong: {
-                        fontWeight: 'bold',
-                    },
-                    em: {
-                        fontStyle: 'italic',
-                    },
-                    code_inline: {
-                        backgroundColor: theme.colors.surfaceVariant,
-                        padding: 2,
-                        borderRadius: 4,
-                        fontFamily: 'monospace',
-                    },
-                    blockcode: {
-                        backgroundColor: theme.colors.surfaceVariant,
-                        padding: 12,
-                        borderRadius: 8,
-                        fontFamily: 'monospace',
-                        marginVertical: 8,
-                    },
-                    hr: {
-                        height: 1,
-                        backgroundColor: theme.colors.outlineVariant,
-                        marginVertical: 16,
-                    },
-                    heading1: {
-                        fontSize: 24,
-                        fontWeight: 'bold',
-                        marginBottom: 12,
-                    },
-                    heading2: {
-                        fontSize: 20,
-                        fontWeight: 'bold',
-                        marginBottom: 10,
-                    },
-                    heading3: {
-                        fontSize: 18,
-                        fontWeight: 'bold',
-                        marginBottom: 8,
-                    },
-                    list: {
-                        marginLeft: 16,
-                    },
-                   ListItem: {
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        marginBottom: 4,
-                    },
-                    listIcon: {
-                        marginRight: 8,
-                    },
-                    link: {
-                        color: theme.colors.primary,
-                        textDecorationLine: 'underline',
-                    },
+                    base: { color: theme.onSurface, fontSize: 16, lineHeight: 24 },
+                    paragraph: { marginBottom: 12 },
+                    strong: { fontWeight: 'bold' },
+                    em: { fontStyle: 'italic' },
+                    code_inline: { backgroundColor: theme.surfaceVariant, padding: 2, borderRadius: 4, fontFamily: 'monospace' },
+                    blockcode: { backgroundColor: theme.surfaceVariant, padding: 12, borderRadius: 8, fontFamily: 'monospace', marginVertical: 8 },
+                    hr: { height: 1, backgroundColor: theme.outlineVariant, marginVertical: 16 },
+                    heading1: { fontSize: 24, fontWeight: 'bold', marginBottom: 12 },
+                    heading2: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+                    heading3: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
+                    list: { marginLeft: 16 },
+                    ListItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 },
+                    listIcon: { marginRight: 8 },
+                    link: { color: theme.primary, textDecorationLine: 'underline' },
                 }}
             />
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        marginTop: 8,
-    },
-});
+const styles = StyleSheet.create({ container: { marginTop: 8 } });

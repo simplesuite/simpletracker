@@ -1,16 +1,18 @@
-import { useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, Text as NativeText, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Card, FAB, List, Text, useTheme } from 'react-native-paper';
+import { useColorScheme } from 'nativewind';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { refreshAllData, useNoteStore, useProjectStore, useTaskStore } from '@simpletracker/core';
 import type { ProjectsStackParamList } from '../navigation/types';
+import { useThemeStore } from '../store/themeStore';
+import { Surface } from '@simpletracker/ui';
 
 type Nav = NativeStackNavigationProp<ProjectsStackParamList, 'ProjectsList'>;
 
 export function ProjectsListScreen() {
-    const theme = useTheme();
     const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const projects = useProjectStore((s) => s.projects);
@@ -19,8 +21,14 @@ export function ProjectsListScreen() {
     const notes = useNoteStore((s) => s.notes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
+    const { effectiveTheme } = useThemeStore();
+    const { setColorScheme } = useColorScheme();
 
     const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        setColorScheme(effectiveTheme);
+    }, [effectiveTheme, setColorScheme]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -66,105 +74,78 @@ export function ProjectsListScreen() {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <View style={styles.header}>
-                <Text variant="titleMedium">Your projects</Text>
-                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+        <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+            <View className="px-4 pb-3 pt-5">
+                <NativeText className="text-lg font-bold text-slate-950 dark:text-slate-50">Your projects</NativeText>
+                <NativeText className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                     {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organised by activity
-                </Text>
+                </NativeText>
             </View>
 
             <FlatList
                 data={sortedProjects}
                 keyExtractor={(project) => project.recordID}
-                contentContainerStyle={[
-                    styles.listContent,
-                    sortedProjects.length === 0 && styles.emptyListContent,
-                    { paddingBottom: tabBarHeight + 96 },
-                ]}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+                contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sortedProjects.length === 0 ? { flexGrow: 1 } : {}) }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
-                    <View style={styles.empty}>
-                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <List.Icon icon="folder-plus-outline" color={theme.colors.primary} />
+                    <View className="flex-1 items-center justify-center px-8 pt-16">
+                        <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-indigo-100 dark:bg-indigo-950">
+                            <MaterialCommunityIcons name="folder-plus-outline" size={30} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#4f46e5'} />
                         </View>
-                        <Text variant="titleMedium" style={styles.emptyTitle}>No projects yet</Text>
-                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
+                        <NativeText className="text-center text-lg font-bold text-slate-950 dark:text-slate-50">No projects yet</NativeText>
+                        <NativeText className="mt-2 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
                             Create a project to keep related notes and tasks together.
-                        </Text>
+                        </NativeText>
                     </View>
                 }
                 renderItem={({ item }) => {
                     const stats = getProjectStats(item.recordID);
                     return (
-                        <Card
-                            mode="contained"
-                            onPress={() => navigation.navigate('ProjectDetail', { id: item.recordID })}
-                            style={[styles.projectCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
-                        >
-                            <Card.Content style={styles.projectCardContent}>
-                                <View style={[styles.projectIcon, { backgroundColor: theme.colors.primaryContainer }]}>
-                                    <List.Icon icon="folder-outline" color={theme.colors.onPrimaryContainer} />
+                        <Surface className="mx-4 mb-3 overflow-hidden">
+                            <Pressable onPress={() => navigation.navigate('ProjectDetail', { id: item.recordID })} className="active:opacity-70">
+                                <View className="flex-row items-center px-4 py-3">
+                                    <View className="h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950">
+                                        <MaterialCommunityIcons name="folder-outline" size={22} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#4f46e5'} />
+                                    </View>
+                                    <View className="min-w-0 flex-1 pl-3">
+                                        <NativeText numberOfLines={1} className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                                            {item.name || '(untitled)'}
+                                        </NativeText>
+                                        <NativeText numberOfLines={1} className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                            {item.description?.trim() || 'No description yet'}
+                                        </NativeText>
+                                        <NativeText className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                            {stats.noteCount} {stats.noteCount === 1 ? 'note' : 'notes'} · {stats.completedTaskCount}/{stats.taskCount} tasks complete
+                                        </NativeText>
+                                    </View>
+                                    <View className="ml-3 min-w-[46px] items-end">
+                                        <NativeText className="text-base font-bold text-indigo-600 dark:text-indigo-300">{stats.taskCount}</NativeText>
+                                        <NativeText className="text-xs text-slate-500 dark:text-slate-400">tasks</NativeText>
+                                        {stats.overdueTaskCount > 0 && (
+                                            <NativeText className="mt-1 text-right text-xs font-semibold text-red-600 dark:text-red-300">
+                                                {stats.overdueTaskCount} overdue
+                                            </NativeText>
+                                        )}
+                                    </View>
                                 </View>
-                                <View style={styles.projectDetails}>
-                                    <Text variant="titleMedium" numberOfLines={1}>
-                                        {item.name || '(untitled)'}
-                                    </Text>
-                                    <Text
-                                        variant="bodyMedium"
-                                        numberOfLines={1}
-                                        style={{ color: theme.colors.onSurfaceVariant, marginTop: 3 }}
-                                    >
-                                        {item.description?.trim() || 'No description yet'}
-                                    </Text>
-                                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 6 }}>
-                                        {stats.noteCount} {stats.noteCount === 1 ? 'note' : 'notes'} · {stats.completedTaskCount}/{stats.taskCount} tasks complete
-                                    </Text>
-                                </View>
-                                <View style={styles.projectStats}>
-                                    <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
-                                        {stats.taskCount}
-                                    </Text>
-                                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                        tasks
-                                    </Text>
-                                    {stats.overdueTaskCount > 0 && (
-                                        <Text variant="labelSmall" style={[styles.overdueText, { color: theme.colors.error }]}>
-                                            {stats.overdueTaskCount} overdue
-                                        </Text>
-                                    )}
-                                </View>
-                            </Card.Content>
-                        </Card>
+                            </Pressable>
+                        </Surface>
                     );
                 }}
             />
 
-            <FAB
-                icon="plus"
-                size="small"
+            <Pressable
                 accessibilityLabel="New project"
-                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                accessibilityRole="button"
                 onPress={onAdd}
-            />
+                className="absolute right-4 items-center justify-center rounded-2xl bg-indigo-600 px-5 py-4 shadow-lg active:bg-indigo-700 dark:bg-indigo-400 dark:active:bg-indigo-300"
+                style={{ bottom: tabBarHeight + 24 }}
+            >
+                <View className="flex-row items-center gap-2">
+                    <MaterialCommunityIcons name="plus" size={20} color={effectiveTheme === 'dark' ? '#0f172a' : '#ffffff'} />
+                    <NativeText className="font-bold text-white dark:text-slate-950">New project</NativeText>
+                </View>
+            </Pressable>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    header: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
-    listContent: { paddingTop: 4 },
-    emptyListContent: { flexGrow: 1 },
-    projectCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
-    projectCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
-    projectIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-    projectDetails: { flex: 1, marginLeft: 12 },
-    projectStats: { alignItems: 'flex-end', marginLeft: 8, minWidth: 46 },
-    overdueText: { marginTop: 5, textAlign: 'right' },
-    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
-    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    emptyTitle: { textAlign: 'center', marginBottom: 6 },
-    emptyDescription: { textAlign: 'center', lineHeight: 21 },
-    fab: { position: 'absolute', right: 16 },
-});
