@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { TextInput, Button, Text, HelperText, Card, IconButton, useTheme } from 'react-native-paper';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Button, Card, HelperText, Text, TextInput, useTheme } from 'react-native-paper';
 import { supabase } from '../lib/supabase';
 
 export function ResetPasswordScreen({ navigation }: { navigation: any }) {
@@ -51,94 +51,77 @@ export function ResetPasswordScreen({ navigation }: { navigation: any }) {
 
     if (success) {
         return (
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.container}
-            >
-                <Card style={styles.card}>
-                    <Card.Content>
-                        <Text variant="headlineMedium" style={styles.title}>
-                            Password updated
-                        </Text>
-                        <Text variant="bodyMedium" style={styles.successText}>
-                            Your password has been reset successfully. You can now sign in with your new password.
-                        </Text>
-                        <Button
-                            mode="contained"
-                            onPress={() => navigation.navigate('Root' as any)}
-                            style={styles.button}
-                        >
-                            Go to Sign In
-                        </Button>
-                    </Card.Content>
-                </Card>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+                <View style={styles.centerContent}>
+                    <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                        <Card.Content>
+                            <View style={[styles.statusBadge, { backgroundColor: theme.colors.primaryContainer }]}>
+                                <Text variant="titleLarge" style={{ color: theme.colors.primary }}>✓</Text>
+                            </View>
+                            <Text variant="headlineSmall" style={styles.title}>Password updated</Text>
+                            <Text variant="bodyMedium" style={styles.centerText}>
+                                Your password has been reset successfully. You can now sign in with your new password.
+                            </Text>
+                            <Button mode="contained" onPress={() => navigation.navigate('SignIn')} style={styles.button}>
+                                Go to sign in
+                            </Button>
+                        </Card.Content>
+                    </Card>
+                </View>
             </KeyboardAvoidingView>
         );
     }
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.container}
-        >
-            <Card style={styles.card}>
-                <Card.Content>
-                    <Text variant="headlineMedium" style={styles.title}>
-                        Reset Password
-                    </Text>
-                    <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-                        Enter your new password below.
-                    </Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.screen, { backgroundColor: theme.colors.background }]}>
+            <View style={styles.centerContent}>
+                <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                    <Card.Content>
+                        <Text variant="headlineSmall" style={styles.title}>Choose a new password</Text>
+                        <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
+                            Use at least 8 characters for your new password.
+                        </Text>
 
-                    {error && (
-                        <HelperText type="error" visible={!!error}>
-                            {error}
-                        </HelperText>
-                    )}
+                        {error && <HelperText type="error" visible>{error}</HelperText>}
 
-                    <TextInput
-                        label="New Password"
-                        value={newPassword}
-                        onChangeText={setNewPassword}
-                        secureTextEntry={!showPassword}
-                        right={
-                            <TextInput.Icon
-                                icon={showPassword ? 'eye-off' : 'eye'}
-                                onPress={() => setShowPassword(!showPassword)}
-                            />
-                        }
-                        style={styles.input}
-                    />
-
-                    <TextInput
-                        label="Confirm New Password"
-                        value={confirmPassword}
-                        onChangeText={setConfirmPassword}
-                        secureTextEntry={!showPassword}
-                        style={styles.input}
-                    />
-
-                    <Button
-                        mode="contained"
-                        onPress={handleResetPassword}
-                        loading={loading}
-                        disabled={loading || newPassword.length < 8}
-                        style={styles.button}
-                    >
-                        Reset Password
-                    </Button>
-                </Card.Content>
-            </Card>
+                        <TextInput
+                            mode="outlined"
+                            label="New password"
+                            value={newPassword}
+                            onChangeText={setNewPassword}
+                            secureTextEntry={!showPassword}
+                            autoComplete="password-new"
+                            right={<TextInput.Icon icon={showPassword ? 'eye-off-outline' : 'eye-outline'} onPress={() => setShowPassword(!showPassword)} />}
+                            style={styles.input}
+                        />
+                        <TextInput
+                            mode="outlined"
+                            label="Confirm new password"
+                            value={confirmPassword}
+                            onChangeText={setConfirmPassword}
+                            secureTextEntry={!showPassword}
+                            autoComplete="password-new"
+                            style={styles.input}
+                        />
+                        <Button mode="contained" onPress={handleResetPassword} loading={loading} disabled={loading || newPassword.length < 8} style={styles.button} contentStyle={styles.buttonContent}>
+                            Reset password
+                        </Button>
+                    </Card.Content>
+                </Card>
+            </View>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16, justifyContent: 'center' },
-    card: { marginBottom: 16 },
-    title: { textAlign: 'center', marginBottom: 16 },
-    subtitle: { textAlign: 'center', marginBottom: 24 },
-    successText: { textAlign: 'center', marginBottom: 16 },
+    screen: { flex: 1 },
+    centerContent: { flex: 1, justifyContent: 'center', padding: 16 },
+    card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 22 },
+    title: { textAlign: 'center', marginBottom: 8 },
+    subtitle: { textAlign: 'center', marginBottom: 20 },
+    centerText: { textAlign: 'center', marginBottom: 18 },
+    statusBadge: { alignSelf: 'center', width: 52, height: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
     input: { marginBottom: 12 },
-    button: { marginTop: 16 },
+    button: { marginTop: 4, borderRadius: 12 },
+    buttonContent: { paddingVertical: 4 },
 });

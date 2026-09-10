@@ -151,36 +151,71 @@ export function NoteDetailScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}>
-            <TextInput
-                mode="flat"
-                placeholder="Title"
-                value={title}
-                onChangeText={setTitle}
-                style={styles.title}
-            />
-            <View style={styles.toggleSection}>
-                <Text style={styles.toggleLabel}>Note Type</Text>
+        <ScrollView
+            style={[styles.scroll, { backgroundColor: theme.colors.background }]}
+            contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}
+            keyboardShouldPersistTaps="handled"
+        >
+            <View style={[styles.editorCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <TextInput
+                    mode="flat"
+                    placeholder="Title"
+                    value={title}
+                    onChangeText={setTitle}
+                    style={styles.title}
+                    contentStyle={styles.titleContent}
+                />
+                <View style={styles.metaRow}>
+                    <Chip icon={noteType === 'list' ? 'format-list-checks' : 'note-text-outline'} compact>
+                        {noteType === 'list' ? 'Checklist' : 'Text note'}
+                    </Chip>
+                    {archived && <Chip icon="archive" compact>Archived</Chip>}
+                    {pinned && <Chip icon="pin" compact>Pinned</Chip>}
+                </View>
+            </View>
+
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <View style={styles.sectionHeading}>
+                    <View>
+                        <Text variant="titleMedium">Note type</Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            Choose how this note is organized
+                        </Text>
+                    </View>
+                    <Chip icon="swap-horizontal" compact disabled={archived}>
+                        {noteType === 'list' ? 'Checklist' : 'Text'}
+                    </Chip>
+                </View>
                 <View style={styles.toggleRow}>
-                    <RadioButton
-                        value="text"
-                        status={noteType === 'text' ? 'checked' : 'unchecked'}
-                        onPress={() => handleToggleNoteType()}
-                        disabled={archived}
-                    />
-                    <Text style={styles.toggleOption}>Text</Text>
-                    <RadioButton
-                        value="list"
-                        status={noteType === 'list' ? 'checked' : 'unchecked'}
-                        onPress={() => handleToggleNoteType()}
-                        disabled={archived}
-                    />
-                    <Text style={styles.toggleOption}>Checklist</Text>
+                    <Chip
+                        icon="note-text-outline"
+                        selected={noteType === 'text'}
+                        onPress={handleToggleNoteType}
+                        disabled={archived || noteType === 'text'}
+                        style={styles.typeChip}
+                    >
+                        Text
+                    </Chip>
+                    <Chip
+                        icon="format-list-checks"
+                        selected={noteType === 'list'}
+                        onPress={handleToggleNoteType}
+                        disabled={archived || noteType === 'list'}
+                        style={styles.typeChip}
+                    >
+                        Checklist
+                    </Chip>
                 </View>
             </View>
 
             {noteType === 'text' ? (
-                <>
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                    <View style={styles.sectionHeading}>
+                        <Text variant="titleMedium">Content</Text>
+                        <Button compact mode="text" icon={showPreview ? 'pencil-outline' : 'eye-outline'} onPress={() => setShowPreview(!showPreview)}>
+                            {showPreview ? 'Edit' : 'Preview'}
+                        </Button>
+                    </View>
                     {showPreview ? (
                         <MarkdownPreview content={body} style={styles.body} />
                     ) : (
@@ -191,59 +226,63 @@ export function NoteDetailScreen() {
                             onChangeText={setBody}
                             multiline
                             style={styles.body}
+                            contentStyle={styles.bodyContent}
                         />
                     )}
-                    <Button
-                        mode="text"
-                        onPress={() => setShowPreview(!showPreview)}
-                        style={styles.previewToggle}
-                    >
-                        {showPreview ? 'Edit' : 'Preview'}
-                    </Button>
-                </>
+                </View>
             ) : (
-                <View style={styles.listSection}>
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                    <View style={styles.sectionHeading}>
+                        <View>
+                            <Text variant="titleMedium">Checklist</Text>
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                {listItems.filter((item) => item.isCompleted).length} of {listItems.length} complete
+                            </Text>
+                        </View>
+                    </View>
+                    {listItems.length === 0 && (
+                        <Text variant="bodyMedium" style={[styles.emptyHint, { color: theme.colors.onSurfaceVariant }]}>
+                            Add your first item below.
+                        </Text>
+                    )}
                     {listItems.map((item) => (
-                        <View key={item.recordID} style={styles.listItem}>
-                            <View style={styles.listItemContent}>
-                                <RadioButton
-                                    value={item.isCompleted ? 'completed' : 'incomplete'}
-                                    status={item.isCompleted ? 'checked' : 'unchecked'}
-                                    onPress={() => handleToggleListItem(item.recordID)}
-                                />
-                                <TextInput
-                                    mode="flat"
-                                    value={item.title}
-                                    onChangeText={(text) => handleUpdateListItemTitle(item.recordID, text)}
-                                    style={[
-                                        styles.listItemText,
-                                        item.isCompleted && { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' }
-                                    ]}
-                                />
-                            </View>
+                        <View key={item.recordID} style={[styles.listItem, { borderTopColor: theme.colors.outlineVariant }]}>
+                            <RadioButton
+                                value={item.isCompleted ? 'completed' : 'incomplete'}
+                                status={item.isCompleted ? 'checked' : 'unchecked'}
+                                onPress={() => handleToggleListItem(item.recordID)}
+                            />
+                            <TextInput
+                                mode="flat"
+                                value={item.title}
+                                onChangeText={(text) => handleUpdateListItemTitle(item.recordID, text)}
+                                style={styles.listItemText}
+                                contentStyle={item.isCompleted ? [styles.completedText, { color: theme.colors.onSurfaceVariant }] : undefined}
+                            />
                             <Button
                                 mode="text"
-                                icon="delete"
+                                icon="delete-outline"
+                                compact
+                                accessibilityLabel="Delete checklist item"
                                 onPress={() => handleDeleteListItem(item.recordID)}
-                                style={styles.deleteItemBtn}
                             >
-                                Delete
+                                {''}
                             </Button>
                         </View>
                     ))}
                     <View style={styles.addListItemRow}>
                         <TextInput
                             mode="outlined"
-                            placeholder="Add an item..."
+                            placeholder="Add an item"
                             value={listItemInput}
                             onChangeText={setListItemInput}
                             style={styles.addListItemInput}
                         />
                         <Button
                             mode="contained"
+                            compact
                             onPress={handleAddListItem}
                             disabled={!listItemInput.trim()}
-                            style={styles.addListItemBtn}
                         >
                             Add
                         </Button>
@@ -251,57 +290,36 @@ export function NoteDetailScreen() {
                 </View>
             )}
 
-            {/* Actions Toolbar */}
-            <View style={styles.actions}>
-                <Button
-                    mode="text"
-                    icon={pinned ? 'pin' : 'pin-outline'}
-                    onPress={handleTogglePin}
-                >
-                    {pinned ? 'Pinned' : 'Pin'}
-                </Button>
-                <Button
-                    mode="text"
-                    icon={archived ? 'unarchive' : 'archive'}
-                    onPress={handleArchive}
-                >
-                    {archived ? 'Unarchive' : 'Archive'}
-                </Button>
-                <Button
-                    mode="text"
-                    icon="delete"
-                    onPress={() => setDeleteDialogOpen(true)}
-                >
-                    Delete
-                </Button>
-                <Button
-                    mode="text"
-                    icon="share-variant"
-                    onPress={() => setShareDialogOpen(true)}
-                >
-                    Share
-                </Button>
-            </View>
-
-            {/* Project chip (read-only for now) */}
             {projectID && (
                 <View style={styles.projectSection}>
-                    <Chip
-                        icon="folder"
-                        onClose={() => { /* TODO: Remove project */ }}
-                    >
+                    <Text variant="labelLarge" style={styles.sectionLabel}>Project</Text>
+                    <Chip icon="folder-outline" onClose={() => { /* TODO: Remove project */ }}>
                         {projects.find(p => p.recordID === projectID)?.name || 'Unknown Project'}
                     </Chip>
                 </View>
             )}
 
-            {/* Delete Confirmation Dialog */}
+            <View style={[styles.actionsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <Button mode="text" icon={pinned ? 'pin' : 'pin-outline'} onPress={handleTogglePin} compact>
+                    {pinned ? 'Pinned' : 'Pin'}
+                </Button>
+                <Button mode="text" icon={archived ? 'unarchive' : 'archive-outline'} onPress={handleArchive} compact>
+                    {archived ? 'Unarchive' : 'Archive'}
+                </Button>
+                <Button mode="text" icon="share-variant-outline" onPress={() => setShareDialogOpen(true)} compact>
+                    Share
+                </Button>
+                <Button mode="text" icon="delete-outline" onPress={() => setDeleteDialogOpen(true)} compact textColor={theme.colors.error}>
+                    Delete
+                </Button>
+            </View>
+
             <Portal>
                 <Dialog visible={deleteDialogOpen} onDismiss={() => setDeleteDialogOpen(false)}>
                     <Dialog.Title>Delete Note</Dialog.Title>
                     <Dialog.Content>
                         <Text>
-                            {isNoteBlank() 
+                            {isNoteBlank()
                                 ? 'This note is empty. Are you sure you want to delete it?'
                                 : 'Are you sure you want to delete this note?'}
                         </Text>
@@ -311,40 +329,38 @@ export function NoteDetailScreen() {
                         <Button onPress={handleDeleteNote}>Delete</Button>
                     </Dialog.Actions>
                 </Dialog>
-            {/* Share Dialog */}
-            {id && (
-                <Portal>
-                    <ShareNoteDialog
-                        visible={shareDialogOpen}
-                        noteId={id}
-                        onClose={() => setShareDialogOpen(false)}
-                    />
-                </Portal>
-            )}
-
             </Portal>
-
+            {id && (
+                <ShareNoteDialog
+                    visible={shareDialogOpen}
+                    noteId={id}
+                    onClose={() => setShareDialogOpen(false)}
+                />
+            )}
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { padding: 16 },
-    title: { fontSize: 20, marginBottom: 8, backgroundColor: 'transparent' },
+    scroll: { flex: 1 },
+    container: { padding: 16, gap: 12 },
+    editorCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 8 },
+    title: { fontSize: 25, backgroundColor: 'transparent' },
+    titleContent: { paddingHorizontal: 8, paddingVertical: 8, fontWeight: '600' },
+    metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 8, paddingBottom: 8 },
+    sectionCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 16 },
+    sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+    toggleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    typeChip: { flexGrow: 1 },
     body: { minHeight: 240, backgroundColor: 'transparent' },
-    toggleSection: { marginTop: 16, paddingVertical: 8 },
-    toggleLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-    toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    toggleOption: { fontSize: 16 },
-    listSection: { marginTop: 16 },
-    listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-    listItemContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-    listItemText: { flex: 1 },
-    deleteItemBtn: { padding: 4 },
-    addListItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    bodyContent: { paddingHorizontal: 0, paddingTop: 8 },
+    emptyHint: { paddingVertical: 8 },
+    listItem: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 4 },
+    listItemText: { flex: 1, backgroundColor: 'transparent' },
+    completedText: { textDecorationLine: 'line-through' },
+    addListItemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
     addListItemInput: { flex: 1 },
-    addListItemBtn: { marginLeft: 8 },
-    actions: { flexDirection: 'row', gap: 16, marginTop: 24, justifyContent: 'flex-end' },
-    projectSection: { marginTop: 16 },
-    previewToggle: { marginTop: 8, alignSelf: 'flex-start' },
+    projectSection: { paddingHorizontal: 4, gap: 6 },
+    sectionLabel: { marginLeft: 4 },
+    actionsCard: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, paddingVertical: 6, paddingHorizontal: 4 },
 });

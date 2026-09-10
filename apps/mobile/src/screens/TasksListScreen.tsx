@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { FlatList, ScrollView, View, StyleSheet, TextInput, RefreshControl } from 'react-native';
-import { List, FAB, Text, Checkbox, Chip, useTheme } from 'react-native-paper';
+import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { refreshAllData, useTaskStore, useProjectStore } from '@simpletracker/core';
+import { Card, Checkbox, Chip, FAB, List, Searchbar, Text, useTheme } from 'react-native-paper';
+import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/core';
+import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
+
+type TaskSection = {
+    title: string;
+    data: Task[];
+};
 
 export function TasksListScreen() {
     const theme = useTheme();
@@ -17,9 +23,6 @@ export function TasksListScreen() {
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
-    const reopenTask = useTaskStore((s) => s.reopenTask);
-    const deleteTask = useTaskStore((s) => s.deleteTask);
-
     const projects = useProjectStore((s) => s.projects);
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -37,34 +40,21 @@ export function TasksListScreen() {
         }
     };
 
-    const openTasks = tasks.filter((t) => t.status === 'open');
-
     const onAdd = async () => {
         const task = await createBlankTask();
         navigation.navigate('TaskDetail', { id: task.recordID });
     };
 
-    // Filter tasks by search and project
+    const openTasks = tasks.filter((task) => task.status === 'open');
+    const query = searchQuery.trim().toLowerCase();
     const filteredTasks = openTasks.filter((task) => {
-        let matchesSearch = true;
-        let matchesProject = true;
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            const titleMatch = task.title.toLowerCase().includes(q) ? true : false;
-            const bodyMatch = task.body && typeof task.body === 'string' && task.body.toLowerCase().includes(q) ? true : false;
-            matchesSearch = titleMatch || bodyMatch;
-        }
-
-        if (selectedProjectIDs.size > 0) {
-            const pid = task.projectID;
-            matchesProject = typeof pid === 'string' && selectedProjectIDs.has(pid);
-        }
-
+        const matchesSearch = !query || task.title.toLowerCase().includes(query) || task.body.toLowerCase().includes(query);
+        const matchesProject = selectedProjectIDs.size === 0 || (
+            typeof task.projectID === 'string' && selectedProjectIDs.has(task.projectID)
+        );
         return matchesSearch && matchesProject;
     });
 
-    // Sort tasks by due date
     const sortedTasks = [...filteredTasks].sort((a, b) => {
         if (a.dueDate != null && b.dueDate != null) return a.dueDate - b.dueDate;
         if (a.dueDate != null) return -1;
@@ -72,7 +62,6 @@ export function TasksListScreen() {
         return b.createdAt - a.createdAt;
     });
 
-    // Group by due date
     const { overdueTasks, dueTodayTasks, dueTomorrowTasks, dueThisWeekTasks, upcomingTasks, noDueDateTasks } = (() => {
         const now = new Date();
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -80,211 +69,251 @@ export function TasksListScreen() {
         const tomorrowEnd = todayStart + 2 * 24 * 60 * 60 * 1000 - 1;
         const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000 - 1;
 
-        const overdue: typeof sortedTasks = [];
-        const dueToday: typeof sortedTasks = [];
-        const dueTomorrow: typeof sortedTasks = [];
-        const dueThisWeek: typeof sortedTasks = [];
-        const upcoming: typeof sortedTasks = [];
-        const noDueDate: typeof sortedTasks = [];
+        const overdue: Task[] = [];
+        const dueToday: Task[] = [];
+        const dueTomorrow: Task[] = [];
+        const dueThisWeek: Task[] = [];
+        const upcoming: Task[] = [];
+        const noDueDate: Task[] = [];
 
         for (const task of sortedTasks) {
-            if (task.dueDate == null) {
-                noDueDate.push(task);
-            } else if (task.dueDate < todayStart) {
-                overdue.push(task);
-            } else if (task.dueDate <= todayEnd) {
-                dueToday.push(task);
-            } else if (task.dueDate <= tomorrowEnd) {
-                dueTomorrow.push(task);
-            } else if (task.dueDate <= weekEnd) {
-                dueThisWeek.push(task);
-            } else {
-                upcoming.push(task);
-            }
+            if (task.dueDate == null) noDueDate.push(task);
+            else if (task.dueDate < todayStart) overdue.push(task);
+            else if (task.dueDate <= todayEnd) dueToday.push(task);
+            else if (task.dueDate <= tomorrowEnd) dueTomorrow.push(task);
+            else if (task.dueDate <= weekEnd) dueThisWeek.push(task);
+            else upcoming.push(task);
         }
 
-        return { overdueTasks: overdue, dueTodayTasks: dueToday, dueTomorrowTasks: dueTomorrow, dueThisWeekTasks: dueThisWeek, upcomingTasks: upcoming, noDueDateTasks: noDueDate };
+        return {
+            overdueTasks: overdue,
+            dueTodayTasks: dueToday,
+            dueTomorrowTasks: dueTomorrow,
+            dueThisWeekTasks: dueThisWeek,
+            upcomingTasks: upcoming,
+            noDueDateTasks: noDueDate,
+        };
     })();
 
-    // Sort projects by most tasks
+    const sections: TaskSection[] = [
+        ...(overdueTasks.length > 0 ? [{ title: 'Overdue', data: overdueTasks }] : []),
+        ...(dueTodayTasks.length > 0 ? [{ title: 'Today', data: dueTodayTasks }] : []),
+        ...(dueTomorrowTasks.length > 0 ? [{ title: 'Tomorrow', data: dueTomorrowTasks }] : []),
+        ...(dueThisWeekTasks.length > 0 ? [{ title: 'This week', data: dueThisWeekTasks }] : []),
+        ...(upcomingTasks.length > 0 ? [{ title: 'Upcoming', data: upcomingTasks }] : []),
+        ...(noDueDateTasks.length > 0 ? [{ title: 'No due date', data: noDueDateTasks }] : []),
+    ];
+
     const sortedProjects = [...projects].sort((a, b) => {
-        const aCount = tasks.filter((t) => t.projectID === a.recordID).length;
-        const bCount = tasks.filter((t) => t.projectID === b.recordID).length;
+        const aCount = tasks.filter((task) => task.projectID === a.recordID).length;
+        const bCount = tasks.filter((task) => task.projectID === b.recordID).length;
         return bCount - aCount;
     });
 
+    const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
+    const dueSoonCount = dueTodayTasks.length + dueTomorrowTasks.length;
+
     const toggleProjectFilter = (projectID: string) => {
-        setSelectedProjectIDs((prev) => {
-            const next = new Set(prev);
-            if (next.has(projectID)) {
-                next.delete(projectID);
-            } else {
-                next.add(projectID);
-            }
+        setSelectedProjectIDs((previous) => {
+            const next = new Set(previous);
+            if (next.has(projectID)) next.delete(projectID);
+            else next.add(projectID);
             return next;
         });
     };
 
-    const formatDueDate = (dueDate: number): string => {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const date = new Date(dueDate);
-        const diffDays = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
+    const formatDueDate = (dueDate: number) => {
+        const today = dayjs().startOf('day');
+        const date = dayjs(dueDate);
+        const diffDays = date.startOf('day').diff(today, 'day');
         if (diffDays < 0) return 'Overdue';
         if (diffDays === 0) return 'Today';
         if (diffDays === 1) return 'Tomorrow';
-        if (diffDays <= 7) return date.toLocaleDateString(undefined, { weekday: 'short' });
-        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        if (diffDays <= 7) return date.format('ddd');
+        return date.format('MMM D');
     };
 
-    const getDueDateColor = (dueDate: number): 'error' | 'warning' | 'default' => {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-        if (dueDate < todayStart) return 'error';
-        if (dueDate <= todayStart + 24 * 60 * 60 * 1000 - 1) return 'warning';
-        return 'default';
-    };
+    const renderTask = ({ item }: { item: Task }) => {
+        const projectName = item.projectID
+            ? projects.find((project) => project.recordID === item.projectID)?.name
+            : undefined;
+        const isOverdue = item.dueDate != null && item.dueDate < new Date().setHours(0, 0, 0, 0);
+        const dueColor = isOverdue ? theme.colors.error : theme.colors.primary;
+        const dueBackground = isOverdue ? theme.colors.errorContainer : theme.colors.primaryContainer;
 
-    const TaskItem = ({ task }: { task: typeof tasks[0] }) => (
-        <List.Item
-            title={task.title || '(untitled)'}
-            left={() => (
-                <Checkbox
-                    status={task.status === 'completed' ? 'checked' : 'unchecked'}
-                    onPress={() =>
-                        task.status === 'completed'
-                            ? reopenTask(task.recordID)
-                            : completeTask(task.recordID)
-                    }
-                />
-            )}
-            right={() => {
-                if (!task.dueDate) return null;
-                const dueDateColor = getDueDateColor(task.dueDate);
-                const chipColor = dueDateColor === 'error'
-                    ? theme.colors.error
-                    : dueDateColor === 'warning'
-                        ? theme.colors.tertiary
-                        : theme.colors.primary;
-                const chipBackground = dueDateColor === 'error'
-                    ? theme.colors.errorContainer
-                    : dueDateColor === 'warning'
-                        ? theme.colors.secondaryContainer
-                        : theme.colors.primaryContainer;
-                return (
-                    <Chip
-                        style={[styles.dueDateChip, { backgroundColor: chipBackground }]}
-                        icon="calendar"
-                        mode="outlined"
-                    >
-                        <Text style={{ color: chipColor }}>{formatDueDate(task.dueDate)}</Text>
-                    </Chip>
-                );
-            }}
-            onPress={() => navigation.navigate('TaskDetail', { id: task.recordID })}
-        />
-    );
+        return (
+            <Card
+                mode="contained"
+                onPress={() => navigation.navigate('TaskDetail', { id: item.recordID })}
+                style={[styles.taskCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
+            >
+                <Card.Content style={styles.taskCardContent}>
+                    <Checkbox
+                        status="unchecked"
+                        onPress={() => completeTask(item.recordID)}
+                    />
+                    <View style={styles.taskDetails}>
+                        <Text variant="titleMedium" numberOfLines={1}>
+                            {item.title || '(untitled)'}
+                        </Text>
+                        <View style={styles.taskMeta}>
+                            {projectName && (
+                                <Text variant="labelSmall" numberOfLines={1} style={[styles.projectMeta, { color: theme.colors.primary }]}>
+                                    {projectName}
+                                </Text>
+                            )}
+                            {item.isRecurring && (
+                                <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                    Recurring
+                                </Text>
+                            )}
+                        </View>
+                    </View>
+                    {item.dueDate != null && (
+                        <Chip
+                            compact
+                            icon="calendar"
+                            mode="flat"
+                            style={[styles.dueChip, { backgroundColor: dueBackground }]}
+                            textStyle={{ color: dueColor }}
+                        >
+                            {formatDueDate(item.dueDate)}
+                        </Chip>
+                    )}
+                </Card.Content>
+            </Card>
+        );
+    };
 
     return (
-        <View style={styles.container}>
-            {/* Search bar */}
-            <View style={styles.searchContainer}>
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search tasks..."
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <View style={styles.controls}>
+                <Searchbar
+                    placeholder="Search your tasks"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    returnKeyType="search"
+                    style={[styles.searchbar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
+                    inputStyle={styles.searchInput}
+                    elevation={0}
                 />
+                <View style={styles.summaryRow}>
+                    <View>
+                        <Text variant="titleMedium">Your tasks</Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            {filteredTasks.length} open · {dueSoonCount} due soon
+                        </Text>
+                    </View>
+                    {hasFilters && (
+                        <Chip
+                            compact
+                            icon="close"
+                            onPress={() => {
+                                setSearchQuery('');
+                                setSelectedProjectIDs(new Set());
+                            }}
+                        >
+                            Clear filters
+                        </Chip>
+                    )}
+                </View>
             </View>
 
-            {/* Project filter chips */}
             {sortedProjects.length > 0 && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.projectChips}
-                >
-                    {sortedProjects.map((project) => {
-                        const count = tasks.filter((t) => t.projectID === project.recordID).length;
-                        return (
-                            <Chip
-                                key={project.recordID}
-                                selected={selectedProjectIDs.has(project.recordID) === true}
-                                onPress={() => toggleProjectFilter(project.recordID)}
-                                style={styles.projectChip}
-                                textStyle={styles.projectChipText}
-                            >
-                                {project.name} ({count})
-                            </Chip>
-                        );
-                    })}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projectChips}>
+                    <Chip
+                        compact
+                        selected={selectedProjectIDs.size === 0}
+                        onPress={() => setSelectedProjectIDs(new Set())}
+                        style={styles.projectChip}
+                    >
+                        All tasks
+                    </Chip>
+                    {sortedProjects.map((project) => (
+                        <Chip
+                            key={project.recordID}
+                            compact
+                            selected={selectedProjectIDs.has(project.recordID)}
+                            onPress={() => toggleProjectFilter(project.recordID)}
+                            style={styles.projectChip}
+                        >
+                            {project.name} · {tasks.filter((task) => task.projectID === project.recordID).length}
+                        </Chip>
+                    ))}
                 </ScrollView>
             )}
 
-            <FlatList
-                data={[
-                    { title: 'Overdue', tasks: overdueTasks },
-                    { title: 'Due Today', tasks: dueTodayTasks },
-                    { title: 'Tomorrow', tasks: dueTomorrowTasks },
-                    { title: 'This Week', tasks: dueThisWeekTasks },
-                    { title: 'Upcoming', tasks: upcomingTasks },
-                    { title: 'No Due Date', tasks: noDueDateTasks },
-                ].filter((section) => section.tasks.length > 0)}
-                keyExtractor={(item) => item.title}
-                contentContainerStyle={{ paddingBottom: tabBarHeight + 96 }}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            <SectionList
+                sections={sections}
+                keyExtractor={(item) => item.recordID}
+                contentContainerStyle={sections.length === 0
+                    ? [styles.emptyListContent, { paddingBottom: tabBarHeight + 96 }]
+                    : [styles.listContent, { paddingBottom: tabBarHeight + 96 }]}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
                 ListEmptyComponent={
                     <View style={styles.empty}>
-                        <Text variant="bodyLarge">
-                            {searchQuery.trim() ? 'No tasks match your search.' : 'No tasks yet.'}
+                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+                            <List.Icon icon={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} color={theme.colors.primary} />
+                        </View>
+                        <Text variant="titleMedium" style={styles.emptyTitle}>
+                            {hasFilters ? 'No tasks found' : 'No tasks yet'}
+                        </Text>
+                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
+                            {hasFilters ? 'Try a different search or clear your filters.' : 'Add a task to keep your next steps in view.'}
                         </Text>
                     </View>
                 }
-                renderItem={({ item }) => {
-                    if (item.tasks.length === 0) return null;
-                    return (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>{item.title} ({item.tasks.length})</Text>
-                            <FlatList
-                                data={item.tasks}
-                                keyExtractor={(t) => t.recordID}
-                                renderItem={({ item: task }) => <TaskItem task={task} />}
-                            />
-                        </View>
-                    );
-                }}
+                renderSectionHeader={({ section }) => (
+                    <View style={styles.sectionHeader}>
+                        <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+                            {section.title.toUpperCase()}
+                        </Text>
+                    </View>
+                )}
+                renderItem={renderTask}
             />
-            <FAB icon="plus" style={[styles.fab, { bottom: tabBarHeight + 24 }]} onPress={onAdd} />
+
+            <FAB
+                icon="plus"
+                size="small"
+                accessibilityLabel="New task"
+                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                onPress={onAdd}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    searchContainer: { paddingHorizontal: 16, paddingVertical: 8 },
-    searchInput: {
-        backgroundColor: 'transparent',
-        fontSize: 16,
+    controls: { paddingHorizontal: 16, paddingTop: 12 },
+    searchbar: { borderWidth: 1, borderRadius: 16 },
+    searchInput: { fontSize: 16 },
+    summaryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 16,
     },
     projectChips: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        minHeight: 48,
         paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingVertical: 12,
     },
-    projectChip: {
-        flexShrink: 0,
-        minHeight: 40,
-        justifyContent: 'center',
-    },
-    projectChipText: { lineHeight: 20 },
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    section: { marginTop: 16 },
-    sectionTitle: { paddingHorizontal: 16, marginBottom: 8 },
-    dueDateChip: { marginLeft: 8 },
+    projectChip: { minHeight: 36 },
+    listContent: { paddingTop: 4 },
+    emptyListContent: { flexGrow: 1 },
+    sectionHeader: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+    taskCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
+    taskCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingRight: 12 },
+    taskDetails: { flex: 1, marginLeft: 4 },
+    taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    projectMeta: { flexShrink: 1 },
+    dueChip: { marginLeft: 8 },
+    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    emptyTitle: { textAlign: 'center', marginBottom: 6 },
+    emptyDescription: { textAlign: 'center', lineHeight: 21 },
     fab: { position: 'absolute', right: 16 },
 });

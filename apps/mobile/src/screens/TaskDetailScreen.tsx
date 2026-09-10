@@ -139,74 +139,105 @@ export function TaskDetailScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}>
-            <TextInput
-                mode="flat"
-                placeholder="Title"
-                value={title}
-                onChangeText={(text) => {
-                    setTitle(text);
-                    if (text.trim().length > 255) {
-                        setTitleError('Title must not exceed 255 characters');
-                    } else {
-                        setTitleError(null);
-                    }
-                }}
-                error={!!titleError}
-                underlineColorAndroid="transparent"
-            />
-            <TextInput
-                mode="flat"
-                placeholder="Notes"
-                value={body}
-                onChangeText={setBody}
-                multiline
-                style={styles.body}
-            />
-            
-            {/* Due Date */}
-            <View style={styles.dateSection}>
-                <Text style={styles.sectionTitle}>Due Date</Text>
+        <ScrollView
+            style={[styles.scroll, { backgroundColor: theme.colors.background }]}
+            contentContainerStyle={[styles.container, { paddingBottom: tabBarHeight + 24 }]}
+            keyboardShouldPersistTaps="handled"
+        >
+            <View style={[styles.editorCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
                 <TextInput
-                    mode="outlined"
-                    placeholder="Date"
-                    value={dueDate ?? ''}
-                    style={styles.dateInput}
-                    editable={false}
-                    right={<TextInput.Icon icon="calendar" />}
+                    mode="flat"
+                    placeholder="Task title"
+                    value={title}
+                    onChangeText={(text) => {
+                        setTitle(text);
+                        if (text.trim().length > 255) {
+                            setTitleError('Title must not exceed 255 characters');
+                        } else {
+                            setTitleError(null);
+                        }
+                    }}
+                    error={!!titleError}
+                    style={styles.title}
+                    contentStyle={styles.titleContent}
                 />
+                {titleError && <Text variant="bodySmall" style={[styles.errorText, { color: theme.colors.error }]}>{titleError}</Text>}
+                <View style={styles.taskStatusRow}>
+                    <Chip icon="checkbox-marked-circle-outline" compact>Open task</Chip>
+                    {isRecurring && <Chip icon="repeat" compact>Recurring</Chip>}
+                </View>
+            </View>
+
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <View style={styles.sectionHeading}>
+                    <Text variant="titleMedium">Notes</Text>
+                    <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Optional details</Text>
+                </View>
+                <TextInput
+                    mode="flat"
+                    placeholder="Add context or details…"
+                    value={body}
+                    onChangeText={setBody}
+                    multiline
+                    style={styles.body}
+                    contentStyle={styles.bodyContent}
+                />
+            </View>
+
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <View style={styles.sectionHeading}>
+                    <View>
+                        <Text variant="titleMedium">Details</Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>Schedule and organization</Text>
+                    </View>
+                    {isRecurring && <Chip compact icon="repeat">Repeats</Chip>}
+                </View>
+                <View style={styles.detailField}>
+                    <Text variant="labelLarge" style={styles.fieldLabel}>Due date</Text>
+                    <TextInput
+                        mode="outlined"
+                        placeholder="No due date"
+                        value={dueDate ?? ''}
+                        style={styles.dateInput}
+                        editable={false}
+                        right={<TextInput.Icon icon="calendar-outline" />}
+                    />
+                </View>
                 {dueDate && (
-                    <View style={styles.timeRow}>
+                    <View style={styles.detailField}>
+                        <Text variant="labelLarge" style={styles.fieldLabel}>Time</Text>
                         <TextInput
                             mode="outlined"
-                            placeholder="Time"
+                            placeholder="Any time"
                             value={dueTime ?? ''}
                             style={styles.timeInput}
                             editable={false}
-                            right={<TextInput.Icon icon="clock" />}
+                            right={<TextInput.Icon icon="clock-outline" />}
                         />
                     </View>
                 )}
+                <View style={styles.detailField}>
+                    <Text variant="labelLarge" style={styles.fieldLabel}>Project</Text>
+                    <TextInput
+                        mode="outlined"
+                        placeholder="No project"
+                        value={projects.find(p => p.recordID === projectID)?.name ?? ''}
+                        style={styles.projectInput}
+                        editable={false}
+                        right={<TextInput.Icon icon="folder-outline" />}
+                    />
+                </View>
             </View>
 
-            {/* Project */}
-            <View style={styles.projectSection}>
-                <Text style={styles.sectionTitle}>Project</Text>
-                <TextInput
-                    mode="outlined"
-                    placeholder="No project"
-                    value={projects.find(p => p.recordID === projectID)?.name ?? ''}
-                    style={styles.projectInput}
-                    editable={false}
-                />
-            </View>
-
-            {/* Recurrence */}
             {dueDate && (
-                <View style={styles.recurrenceSection}>
-                    <Text style={styles.sectionTitle}>Recurring</Text>
+                <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
                     <View style={styles.recurrenceRow}>
-                        <Text>Recurring</Text>
+                        <View>
+                            <Text variant="titleMedium">Recurring task</Text>
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                Create the next occurrence when completed
+                            </Text>
+                        </View>
                         <Switch value={isRecurring} onValueChange={setIsRecurring} />
                     </View>
                     {isRecurring && (
@@ -225,40 +256,23 @@ export function TaskDetailScreen() {
                                     style={styles.recurrenceNumber}
                                     keyboardType="number-pad"
                                 />
-                                <Chip
-                                    selected={recurrenceUnit === 'days'}
-                                    onPress={() => setRecurrenceUnit('days')}
-                                    style={styles.recurrenceChip}
-                                >
-                                    Day
-                                </Chip>
-                                <Chip
-                                    selected={recurrenceUnit === 'weeks'}
-                                    onPress={() => setRecurrenceUnit('weeks')}
-                                    style={styles.recurrenceChip}
-                                >
-                                    Week
-                                </Chip>
-                                <Chip
-                                    selected={recurrenceUnit === 'months'}
-                                    onPress={() => setRecurrenceUnit('months')}
-                                    style={styles.recurrenceChip}
-                                >
-                                    Month
-                                </Chip>
+                                <Chip selected={recurrenceUnit === 'days'} onPress={() => setRecurrenceUnit('days')} compact>Day</Chip>
+                                <Chip selected={recurrenceUnit === 'weeks'} onPress={() => setRecurrenceUnit('weeks')} compact>Week</Chip>
+                                <Chip selected={recurrenceUnit === 'months'} onPress={() => setRecurrenceUnit('months')} compact>Month</Chip>
                             </View>
                             <View style={styles.recurrenceAnchorRow}>
+                                <Text variant="labelLarge" style={styles.fieldLabel}>Repeat from</Text>
                                 <RadioButton.Group
                                     onValueChange={(value) => setRecurrenceAnchor(value as 'due_date' | 'completed_date')}
                                     value={recurrenceAnchor}
                                 >
                                     <View style={styles.radioButtonRow}>
                                         <RadioButton value="due_date" />
-                                        <Text>Due</Text>
+                                        <Text>Due date</Text>
                                     </View>
                                     <View style={styles.radioButtonRow}>
                                         <RadioButton value="completed_date" />
-                                        <Text>Completed</Text>
+                                        <Text>Completion date</Text>
                                     </View>
                                 </RadioButton.Group>
                             </View>
@@ -267,66 +281,59 @@ export function TaskDetailScreen() {
                 </View>
             )}
 
-            {/* Subtasks */}
-            <View style={styles.subtasksSection}>
-                <View style={styles.subtasksHeader}>
-                    <Text style={styles.sectionTitle}>Subtasks</Text>
-                    <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                        ({subtasks.filter(s => s.isCompleted).length}/{subtasks.length})
-                    </Text>
-                </View>
-                
-                {subtasks.length > 0 && (
-                    <View style={styles.subtaskList}>
-                        {subtasks.map((subtask) => (
-                            <View key={subtask.recordID} style={styles.subtaskItem}>
-                                <View style={styles.subtaskContent}>
-                                    <RadioButton
-                                        value="subtask"
-                                        status={subtask.isCompleted ? 'checked' : 'unchecked'}
-                                        onPress={() => handleToggleSubtask(subtask.recordID)}
-                                    />
-                                    <Text style={[
-                                        styles.subtaskText,
-                                        subtask.isCompleted && { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' }
-                                    ]}>
-                                        {subtask.title}
-                                    </Text>
-                                </View>
-                                <Button
-                                    mode="text"
-                                    icon="delete"
-                                    onPress={() => handleDeleteSubtask(subtask.recordID)}
-                                    style={styles.deleteSubtaskBtn}
-                                >
-                                    Delete
-                                </Button>
-                            </View>
-                        ))}
+            <View style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
+                <View style={styles.sectionHeading}>
+                    <View>
+                        <Text variant="titleMedium">Subtasks</Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                            {subtasks.filter(s => s.isCompleted).length} of {subtasks.length} complete
+                        </Text>
                     </View>
+                </View>
+                {subtasks.length === 0 && (
+                    <Text variant="bodyMedium" style={[styles.emptyHint, { color: theme.colors.onSurfaceVariant }]}>
+                        Break this task into smaller steps.
+                    </Text>
                 )}
-
+                {subtasks.map((subtask) => (
+                    <View key={subtask.recordID} style={[styles.subtaskItem, { borderTopColor: theme.colors.outlineVariant }]}>
+                        <RadioButton
+                            value="subtask"
+                            status={subtask.isCompleted ? 'checked' : 'unchecked'}
+                            onPress={() => handleToggleSubtask(subtask.recordID)}
+                        />
+                        <Text style={[
+                            styles.subtaskText,
+                            subtask.isCompleted && { color: theme.colors.onSurfaceVariant, textDecorationLine: 'line-through' }
+                        ]}>
+                            {subtask.title}
+                        </Text>
+                        <Button
+                            mode="text"
+                            icon="delete-outline"
+                            compact
+                            accessibilityLabel="Delete subtask"
+                            onPress={() => handleDeleteSubtask(subtask.recordID)}
+                        >
+                            {''}
+                        </Button>
+                    </View>
+                ))}
                 <View style={styles.addSubtaskRow}>
                     <TextInput
                         mode="outlined"
-                        placeholder="Add a subtask..."
+                        placeholder="Add a subtask"
                         value={subtaskInput}
                         onChangeText={setSubtaskInput}
                         style={styles.addSubtaskInput}
                     />
-                    <Button
-                        mode="contained"
-                        onPress={handleAddSubtask}
-                        disabled={!subtaskInput.trim()}
-                        style={styles.addSubtaskBtn}
-                    >
+                    <Button mode="contained" compact onPress={handleAddSubtask} disabled={!subtaskInput.trim()}>
                         Add
                     </Button>
                 </View>
             </View>
 
-            {/* Actions */}
-            <View style={styles.actions}>
+            <View style={[styles.actionsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}>
                 <Button
                     mode="contained"
                     icon="check"
@@ -335,25 +342,19 @@ export function TaskDetailScreen() {
                         navigation.goBack();
                     }}
                 >
-                    Complete
+                    Complete task
                 </Button>
-                <Button
-                    mode="text"
-                    icon="delete"
-                    onPress={() => setDeleteDialogOpen(true)}
-                    style={styles.deleteBtn}
-                >
+                <Button mode="text" icon="delete-outline" onPress={() => setDeleteDialogOpen(true)} textColor={theme.colors.error}>
                     Delete
                 </Button>
             </View>
 
-            {/* Delete Confirmation Dialog */}
             <Portal>
                 <Dialog visible={deleteDialogOpen} onDismiss={() => setDeleteDialogOpen(false)}>
                     <Dialog.Title>Delete Task</Dialog.Title>
                     <Dialog.Content>
                         <Paragraph>
-                            {isTaskBlank() 
+                            {isTaskBlank()
                                 ? 'This task is empty. Are you sure you want to delete it?'
                                 : 'Are you sure you want to delete this task?'}
                         </Paragraph>
@@ -369,34 +370,32 @@ export function TaskDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { padding: 16 },
-    title: { fontSize: 20, marginBottom: 8, backgroundColor: 'transparent' },
+    scroll: { flex: 1 },
+    container: { padding: 16, gap: 12 },
+    editorCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 8 },
+    title: { fontSize: 25, backgroundColor: 'transparent' },
+    titleContent: { paddingHorizontal: 8, paddingVertical: 8, fontWeight: '600' },
+    errorText: { paddingHorizontal: 8, marginBottom: 4 },
+    taskStatusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 8, paddingBottom: 8 },
+    sectionCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 16 },
+    sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
     body: { minHeight: 120, backgroundColor: 'transparent' },
-    dateSection: { marginTop: 16 },
-    dateInput: { marginBottom: 8 },
-    timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    timeInput: { flex: 1 },
-    projectSection: { marginTop: 16 },
-    projectInput: { marginBottom: 8 },
-    recurrenceSection: { marginTop: 16 },
-    recurrenceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    recurrenceSettings: { marginTop: 16, padding: 12, borderRadius: 8 },
-    recurrenceInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    recurrenceNumber: { width: 60 },
-    recurrenceChip: { marginLeft: 8 },
-    recurrenceAnchorRow: { marginTop: 12 },
-    radioButtonRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-    subtasksSection: { marginTop: 16 },
-    subtasksHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    subtaskList: { marginTop: 8 },
-    subtaskItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
-    subtaskContent: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    bodyContent: { paddingHorizontal: 0, paddingTop: 8 },
+    detailField: { marginTop: 4, marginBottom: 10 },
+    fieldLabel: { marginBottom: 6 },
+    dateInput: { marginBottom: 2 },
+    timeInput: { marginBottom: 2 },
+    projectInput: { marginBottom: 0 },
+    recurrenceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    recurrenceSettings: { marginTop: 16, padding: 12, borderRadius: 14 },
+    recurrenceInputRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+    recurrenceNumber: { width: 64 },
+    recurrenceAnchorRow: { marginTop: 16 },
+    radioButtonRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+    emptyHint: { paddingVertical: 8 },
+    subtaskItem: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 4 },
     subtaskText: { flex: 1 },
-    deleteSubtaskBtn: { padding: 4 },
-    addSubtaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    addSubtaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
     addSubtaskInput: { flex: 1 },
-    addSubtaskBtn: { marginLeft: 8 },
-    actions: { marginTop: 24, flexDirection: 'row', justifyContent: 'space-between' },
-    deleteBtn: { marginTop: 8 },
-    sectionTitle: { fontSize: 14, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
+    actionsCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: StyleSheet.hairlineWidth, borderRadius: 20, padding: 8 },
 });

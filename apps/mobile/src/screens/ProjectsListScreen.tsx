@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { FlatList, View, StyleSheet, RefreshControl } from 'react-native';
-import { List, FAB, Text, Chip, useTheme } from 'react-native-paper';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { refreshAllData, useProjectStore, useTaskStore, useNoteStore } from '@simpletracker/core';
+import { Card, FAB, List, Text, useTheme } from 'react-native-paper';
+import { refreshAllData, useNoteStore, useProjectStore, useTaskStore } from '@simpletracker/core';
 import type { ProjectsStackParamList } from '../navigation/types';
 
 type Nav = NativeStackNavigationProp<ProjectsStackParamList, 'ProjectsList'>;
@@ -20,7 +20,6 @@ export function ProjectsListScreen() {
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
     const sharedNotes = useNoteStore((s) => s.sharedNotes);
 
-    const [sortByUsage, setSortByUsage] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     const onRefresh = async () => {
@@ -39,31 +38,24 @@ export function ProjectsListScreen() {
         navigation.navigate('ProjectDetail', { id: project.recordID });
     };
 
-    // Combine all notes
     const allNotes = [...notes, ...sharedNotes, ...archivedNotes];
+    const sortedProjects = [...projects].sort((a, b) => {
+        const aUsage = allNotes.filter((note) => note.projectID === a.recordID).length +
+            tasks.filter((task) => task.projectID === a.recordID).length;
+        const bUsage = allNotes.filter((note) => note.projectID === b.recordID).length +
+            tasks.filter((task) => task.projectID === b.recordID).length;
+        return bUsage - aUsage;
+    });
 
-    // Sort projects by usage (notes + tasks count)
-    const sortedProjects = sortByUsage
-        ? [...projects].sort((a, b) => {
-              const aCount = allNotes.filter((n) => n.projectID === a.recordID).length +
-                            tasks.filter((t) => t.projectID === a.recordID).length;
-              const bCount = allNotes.filter((n) => n.projectID === b.recordID).length +
-                            tasks.filter((t) => t.projectID === b.recordID).length;
-              return bCount - aCount;
-          })
-        : projects;
-
-    // Calculate project stats
     const getProjectStats = (projectID: string) => {
-        const projectNotes = allNotes.filter((n) => n.projectID === projectID);
-        const projectTasks = tasks.filter((t) => t.projectID === projectID);
-        const completedTasks = projectTasks.filter((t) => t.status === 'completed').length;
-        const overdueTasks = projectTasks.filter((t) => {
-            if (t.status !== 'open' || t.dueDate == null) return false;
-            const now = new Date();
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-            return t.dueDate < todayStart;
-        }).length;
+        const projectNotes = allNotes.filter((note) => note.projectID === projectID);
+        const projectTasks = tasks.filter((task) => task.projectID === projectID);
+        const completedTasks = projectTasks.filter((task) => task.status === 'completed').length;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const overdueTasks = projectTasks.filter((task) =>
+            task.status === 'open' && task.dueDate != null && task.dueDate < todayStart.getTime(),
+        ).length;
 
         return {
             noteCount: projectNotes.length,
@@ -74,70 +66,105 @@ export function ProjectsListScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            <View style={styles.header}>
+                <Text variant="titleMedium">Your projects</Text>
+                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organised by activity
+                </Text>
+            </View>
+
             <FlatList
-                    data={sortedProjects}
-                    keyExtractor={(p) => p.recordID}
-                    contentContainerStyle={{ paddingBottom: tabBarHeight + 96 }}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                    ListEmptyComponent={
-                        <View style={styles.empty}>
-                            <Text variant="bodyLarge">No projects yet.</Text>
+                data={sortedProjects}
+                keyExtractor={(project) => project.recordID}
+                contentContainerStyle={[
+                    styles.listContent,
+                    sortedProjects.length === 0 && styles.emptyListContent,
+                    { paddingBottom: tabBarHeight + 96 },
+                ]}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+                ListEmptyComponent={
+                    <View style={styles.empty}>
+                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+                            <List.Icon icon="folder-plus-outline" color={theme.colors.primary} />
                         </View>
-                    }
-                    renderItem={({ item }) => {
-                        const stats = getProjectStats(item.recordID);
-                        return (
-                            <List.Item
-                                title={item.name || '(untitled)'}
-                                description={item.description || undefined}
-                                left={(props) => (
-                                    <View style={styles.projectIcon}>
-                                        <List.Icon {...props} icon="folder-outline" />
-                                    </View>
-                                )}
-                                right={() => (
-                                    <View style={styles.projectStats}>
-                                        <View style={styles.statRow}>
-                                            <Chip
-                                                icon="note-text-outline"
-                                                style={styles.chip}
-                                                compact
-                                            >
-                                                {stats.noteCount}
-                                            </Chip>
-                                            <Chip
-                                                icon={stats.overdueTaskCount > 0 ? 'alert' : 'check-circle-outline'}
-                                                style={[styles.chip, stats.overdueTaskCount > 0 && { backgroundColor: theme.colors.errorContainer }]}
-                                                compact
-                                            >
-                                                {stats.completedTaskCount}/{stats.taskCount}
-                                            </Chip>
-                                        </View>
-                                        {stats.overdueTaskCount > 0 && (
-                                            <View style={[styles.overdueBadge, { backgroundColor: theme.colors.error }]}>
-                                                <Text variant="bodySmall" style={{ color: theme.colors.onError }}>{stats.overdueTaskCount} overdue</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
-                                onPress={() => navigation.navigate('ProjectDetail', { id: item.recordID })}
-                            />
-                        );
-                    }}
-                />
-            <FAB icon="plus" style={[styles.fab, { bottom: tabBarHeight + 24 }]} onPress={onAdd} />
+                        <Text variant="titleMedium" style={styles.emptyTitle}>No projects yet</Text>
+                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
+                            Create a project to keep related notes and tasks together.
+                        </Text>
+                    </View>
+                }
+                renderItem={({ item }) => {
+                    const stats = getProjectStats(item.recordID);
+                    return (
+                        <Card
+                            mode="contained"
+                            onPress={() => navigation.navigate('ProjectDetail', { id: item.recordID })}
+                            style={[styles.projectCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
+                        >
+                            <Card.Content style={styles.projectCardContent}>
+                                <View style={[styles.projectIcon, { backgroundColor: theme.colors.primaryContainer }]}>
+                                    <List.Icon icon="folder-outline" color={theme.colors.onPrimaryContainer} />
+                                </View>
+                                <View style={styles.projectDetails}>
+                                    <Text variant="titleMedium" numberOfLines={1}>
+                                        {item.name || '(untitled)'}
+                                    </Text>
+                                    <Text
+                                        variant="bodyMedium"
+                                        numberOfLines={1}
+                                        style={{ color: theme.colors.onSurfaceVariant, marginTop: 3 }}
+                                    >
+                                        {item.description?.trim() || 'No description yet'}
+                                    </Text>
+                                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant, marginTop: 6 }}>
+                                        {stats.noteCount} {stats.noteCount === 1 ? 'note' : 'notes'} · {stats.completedTaskCount}/{stats.taskCount} tasks complete
+                                    </Text>
+                                </View>
+                                <View style={styles.projectStats}>
+                                    <Text variant="labelLarge" style={{ color: theme.colors.primary }}>
+                                        {stats.taskCount}
+                                    </Text>
+                                    <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                                        tasks
+                                    </Text>
+                                    {stats.overdueTaskCount > 0 && (
+                                        <Text variant="labelSmall" style={[styles.overdueText, { color: theme.colors.error }]}>
+                                            {stats.overdueTaskCount} overdue
+                                        </Text>
+                                    )}
+                                </View>
+                            </Card.Content>
+                        </Card>
+                    );
+                }}
+            />
+
+            <FAB
+                icon="plus"
+                size="small"
+                accessibilityLabel="New project"
+                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                onPress={onAdd}
+            />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    projectIcon: { marginRight: 8 },
-    projectStats: { alignItems: 'flex-end' },
-    statRow: { flexDirection: 'row', gap: 4 },
-    chip: { height: 28 },
-    overdueBadge: { marginTop: 4 },
+    header: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
+    listContent: { paddingTop: 4 },
+    emptyListContent: { flexGrow: 1 },
+    projectCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
+    projectCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14 },
+    projectIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    projectDetails: { flex: 1, marginLeft: 12 },
+    projectStats: { alignItems: 'flex-end', marginLeft: 8, minWidth: 46 },
+    overdueText: { marginTop: 5, textAlign: 'right' },
+    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    emptyTitle: { textAlign: 'center', marginBottom: 6 },
+    emptyDescription: { textAlign: 'center', lineHeight: 21 },
     fab: { position: 'absolute', right: 16 },
 });

@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Card, Chip, FAB, List, Searchbar, Text, useTheme } from 'react-native-paper';
+import { Card, Chip, FAB, List, Searchbar, Text, useTheme, Icon } from 'react-native-paper';
 import { refreshAllData, useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
 
@@ -224,9 +224,7 @@ export function NotesListScreen() {
                                             {item.title || '(untitled)'}
                                         </Text>
                                         {item.pinned && (
-                                            <Chip compact icon="pin" style={styles.pinChip} textStyle={styles.pinChipText}>
-                                                Pinned
-                                            </Chip>
+                                            <Icon source="pin" size={15} />
                                         )}
                                     </View>
                                     <Text
@@ -280,7 +278,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
         paddingHorizontal: 16,
-        paddingBottom: 12,
+        paddingVertical: 12,
     },
     projectChip: { minHeight: 36 },
     listContent: { paddingTop: 4, paddingBottom: 104 },
@@ -293,8 +291,6 @@ const styles = StyleSheet.create({
     noteDetails: { flex: 1, marginLeft: 12 },
     noteTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
     noteTitle: { flex: 1 },
-    pinChip: { height: 26, marginLeft: 8 },
-    pinChipText: { fontSize: 11 },
     noteMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 5 },
     projectMeta: { flexShrink: 1, marginLeft: 8 },
     empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
