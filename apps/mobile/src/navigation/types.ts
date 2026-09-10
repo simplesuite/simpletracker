@@ -17,6 +17,10 @@ export type ProjectsStackParamList = {
     ProjectDetail: { id: string };
 };
 
+export type SettingsStackParamList = {
+    Settings: undefined;
+};
+
 export type AuthStackParamList = {
     SignIn: undefined;
     SignUp: undefined;
@@ -28,5 +32,5 @@ export type RootTabParamList = {
     Notes: NavigatorScreenParams<NotesStackParamList>;
     Tasks: NavigatorScreenParams<TasksStackParamList>;
     Projects: NavigatorScreenParams<ProjectsStackParamList>;
-    Settings: undefined;
+    Settings: NavigatorScreenParams<SettingsStackParamList>;
 };

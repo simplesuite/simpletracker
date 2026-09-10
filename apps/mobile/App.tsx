@@ -13,7 +13,7 @@ import { useThemeStore } from './src/store/themeStore';
 import { NotesStack } from './src/navigation/NotesStack';
 import { TasksStack } from './src/navigation/TasksStack';
 import { ProjectsStack } from './src/navigation/ProjectsStack';
-import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SettingsStack } from './src/navigation/SettingsStack';
 import { AuthStack } from './src/navigation/AuthStack';
 import type { RootTabParamList } from './src/navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -102,7 +102,7 @@ export default function App() {
                         <Tab.Screen name="Notes" component={NotesStack} options={{ tabBarAccessibilityLabel: 'Notes', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="note-text-outline" color={color} size={size} /> }} />
                         <Tab.Screen name="Tasks" component={TasksStack} options={{ tabBarAccessibilityLabel: 'Tasks', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="format-list-checks" color={color} size={size} /> }} />
                         <Tab.Screen name="Projects" component={ProjectsStack} options={{ tabBarAccessibilityLabel: 'Projects', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="folder-outline" color={color} size={size} /> }} />
-                        <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarAccessibilityLabel: 'Settings', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog-outline" color={color} size={size} /> }} />
+                        <Tab.Screen name="Settings" component={SettingsStack} options={{ tabBarAccessibilityLabel: 'Settings', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog-outline" color={color} size={size} /> }} />
                     </Tab.Navigator>
                 ) : <AuthStack />}
             </NavigationContainer>

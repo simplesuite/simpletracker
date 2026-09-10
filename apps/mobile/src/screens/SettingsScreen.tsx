@@ -180,7 +180,6 @@ export function SettingsScreen() {
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingTop: 20, paddingBottom: tabBarHeight + 24, gap: 12 }}>
                 <View className="mb-2 gap-1">
-                    <Text variant="headline">Settings</Text>
                     <Text variant="body" style={{ color: theme.onSurfaceVariant }}>Manage your account, reminders, exports, and app appearance.</Text>
                 </View>
 
