@@ -9,7 +9,7 @@ import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/co
 import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import { useThemeStore } from '../store/themeStore';
-import { Pill, Surface } from '@simpletracker/ui';
+import { Button, Dialog, Pill, Snackbar, Surface } from '@simpletracker/ui';
 import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
@@ -17,6 +17,7 @@ type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 type TaskSection = {
     title: string;
     data: Task[];
+    action?: 'reschedule' | 'delete-completed';
 };
 
 export function TasksListScreen() {
@@ -25,6 +26,9 @@ export function TasksListScreen() {
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
+    const reopenTask = useTaskStore((s) => s.reopenTask);
+    const deleteTask = useTaskStore((s) => s.deleteTask);
+    const updateTask = useTaskStore((s) => s.updateTask);
     const projects = useProjectStore((s) => s.projects);
     const { effectiveTheme } = useThemeStore();
     const { setColorScheme } = useColorScheme();
@@ -32,6 +36,9 @@ export function TasksListScreen() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState(false);
+    const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+    const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
 
     useEffect(() => {
         setColorScheme(effectiveTheme);
@@ -54,14 +61,17 @@ export function TasksListScreen() {
     };
 
     const openTasks = tasks.filter((task) => task.status === 'open');
+    const completedTasks = tasks.filter((task) => task.status === 'completed');
     const query = searchQuery.trim().toLowerCase();
-    const filteredTasks = openTasks.filter((task) => {
+    const matchesFilters = (task: Task) => {
         const matchesSearch = !query || task.title.toLowerCase().includes(query) || task.body.toLowerCase().includes(query);
         const matchesProject = selectedProjectIDs.size === 0 || (
             typeof task.projectID === 'string' && selectedProjectIDs.has(task.projectID)
         );
         return matchesSearch && matchesProject;
-    });
+    };
+    const filteredTasks = openTasks.filter(matchesFilters);
+    const filteredCompletedTasks = completedTasks.filter(matchesFilters);
 
     const sortedTasks = [...filteredTasks].sort((a, b) => {
         if (a.dueDate != null && b.dueDate != null) return a.dueDate - b.dueDate;
@@ -104,12 +114,13 @@ export function TasksListScreen() {
     })();
 
     const sections: TaskSection[] = [
-        ...(overdueTasks.length > 0 ? [{ title: 'Overdue', data: overdueTasks }] : []),
+        ...(overdueTasks.length > 0 ? [{ title: 'Overdue', data: overdueTasks, action: 'reschedule' as const }] : []),
         ...(dueTodayTasks.length > 0 ? [{ title: 'Today', data: dueTodayTasks }] : []),
         ...(dueTomorrowTasks.length > 0 ? [{ title: 'Tomorrow', data: dueTomorrowTasks }] : []),
         ...(dueThisWeekTasks.length > 0 ? [{ title: 'This week', data: dueThisWeekTasks }] : []),
         ...(upcomingTasks.length > 0 ? [{ title: 'Upcoming', data: upcomingTasks }] : []),
         ...(noDueDateTasks.length > 0 ? [{ title: 'No due date', data: noDueDateTasks }] : []),
+        ...(filteredCompletedTasks.length > 0 ? [{ title: `Completed · ${filteredCompletedTasks.length}`, data: filteredCompletedTasks, action: 'delete-completed' as const }] : []),
     ];
 
     const sortedProjects = [...projects].sort((a, b) => {
@@ -142,23 +153,50 @@ export function TasksListScreen() {
         return date.format('MMM D');
     };
 
+    const rescheduleOverdue = async () => {
+        setRescheduleDialogOpen(false);
+        const today = dayjs().startOf('day');
+        const results = await Promise.all(overdueTasks.map((task) => {
+            const original = dayjs(task.dueDate);
+            const dueDate = today.hour(original.hour()).minute(original.minute()).second(0).millisecond(0).valueOf();
+            return updateTask(task.recordID, { dueDate });
+        }));
+        const failed = results.filter((success) => !success).length;
+        if (failed > 0) setActionError(`Unable to reschedule ${failed} ${failed === 1 ? 'task' : 'tasks'}.`);
+    };
+
+    const deleteCompleted = async () => {
+        setDeleteCompletedDialogOpen(false);
+        const results = await Promise.all(filteredCompletedTasks.map((task) => deleteTask(task.recordID)));
+        const failed = results.filter((success) => !success).length;
+        if (failed > 0) setActionError(`Unable to delete ${failed} completed ${failed === 1 ? 'task' : 'tasks'}.`);
+    };
+
+    const toggleTask = async (task: Task) => {
+        const success = task.status === 'completed'
+            ? await reopenTask(task.recordID)
+            : await completeTask(task.recordID);
+        if (!success) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+    };
+
     const renderTask = ({ item }: { item: Task }) => {
+        const isCompleted = item.status === 'completed';
         const projectName = item.projectID
             ? projects.find((project) => project.recordID === item.projectID)?.name
             : undefined;
-        const isOverdue = item.dueDate != null && item.dueDate < new Date().setHours(0, 0, 0, 0);
+        const isOverdue = !isCompleted && item.dueDate != null && item.dueDate < new Date().setHours(0, 0, 0, 0);
 
         return (
-            <Surface className="mx-4 mb-3 overflow-hidden">
+            <Surface className={`mx-4 mb-3 overflow-hidden ${isCompleted ? 'opacity-70' : ''}`}>
                 <View className="flex-row items-center px-4 py-3">
                     <Pressable
-                        accessibilityLabel={`Complete ${item.title || 'task'}`}
+                        accessibilityLabel={`${isCompleted ? 'Reopen' : 'Complete'} ${item.title || 'task'}`}
                         accessibilityRole="checkbox"
-                        accessibilityState={{ checked: false }}
-                        onPress={() => completeTask(item.recordID)}
-                        className="mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 border-slate-300 bg-transparent dark:border-slate-600"
+                        accessibilityState={{ checked: isCompleted }}
+                        onPress={() => toggleTask(item)}
+                        className={`mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 ${isCompleted ? 'border-indigo-600 bg-indigo-600 dark:border-indigo-400 dark:bg-indigo-400' : 'border-slate-300 bg-transparent dark:border-slate-600'}`}
                     >
-                        <MaterialCommunityIcons name="check" size={17} color="transparent" />
+                        {isCompleted ? <NativeText className="font-bold text-white dark:text-slate-950">✓</NativeText> : <MaterialCommunityIcons name="check" size={17} color="transparent" />}
                     </Pressable>
                     <Pressable
                         accessibilityRole="button"
@@ -166,7 +204,7 @@ export function TasksListScreen() {
                         className="min-w-0 flex-1 flex-row items-center active:opacity-70"
                     >
                         <View className="min-w-0 flex-1">
-                            <NativeText numberOfLines={1} className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                            <NativeText numberOfLines={1} className={`text-base font-semibold text-slate-900 dark:text-slate-50 ${isCompleted ? 'line-through' : ''}`}>
                                 {item.title || '(untitled)'}
                             </NativeText>
                             <View className="mt-1 flex-row items-center gap-2">
@@ -176,7 +214,7 @@ export function TasksListScreen() {
                                     </NativeText>
                                 )}
                                 {item.isRecurring && (
-                                    <NativeText className="text-xs text-slate-500 dark:text-slate-400">Recurring</NativeText>
+                                    <NativeText className="text-xs text-secondary-700 dark:text-secondary-300">Recurring</NativeText>
                                 )}
                             </View>
                         </View>
@@ -212,7 +250,7 @@ export function TasksListScreen() {
                     <View>
                         <NativeText className="text-lg font-bold text-slate-950 dark:text-slate-50">Your tasks</NativeText>
                         <NativeText className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            {filteredTasks.length} open · {dueSoonCount} due soon
+                            {filteredTasks.length} open · {filteredCompletedTasks.length} completed · {dueSoonCount} due soon
                         </NativeText>
                     </View>
                     {hasFilters && (
@@ -266,14 +304,51 @@ export function TasksListScreen() {
                     </View>
                 }
                 renderSectionHeader={({ section }) => (
-                    <View className="px-5 pb-2 pt-4">
+                    <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
                         <NativeText className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
                             {section.title}
                         </NativeText>
+                        {section.action === 'reschedule' ? (
+                            <Button variant="text" compact onPress={() => setRescheduleDialogOpen(true)}>Move to today</Button>
+                        ) : section.action === 'delete-completed' ? (
+                            <Button variant="danger" compact onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all</Button>
+                        ) : null}
                     </View>
                 )}
                 renderItem={renderTask}
             />
+
+            <Dialog
+                visible={rescheduleDialogOpen}
+                onDismiss={() => setRescheduleDialogOpen(false)}
+                title="Move overdue tasks?"
+                actions={(
+                    <>
+                        <Button variant="text" compact onPress={() => setRescheduleDialogOpen(false)}>Cancel</Button>
+                        <Button compact onPress={rescheduleOverdue}>Move to today</Button>
+                    </>
+                )}
+            >
+                <NativeText className="text-base leading-6 text-slate-700 dark:text-slate-200">
+                    Move {overdueTasks.length} overdue {overdueTasks.length === 1 ? 'task' : 'tasks'} to today while keeping their existing times?
+                </NativeText>
+            </Dialog>
+            <Dialog
+                visible={deleteCompletedDialogOpen}
+                onDismiss={() => setDeleteCompletedDialogOpen(false)}
+                title="Delete completed tasks?"
+                actions={(
+                    <>
+                        <Button variant="text" compact onPress={() => setDeleteCompletedDialogOpen(false)}>Cancel</Button>
+                        <Button variant="danger" compact onPress={deleteCompleted}>Delete all</Button>
+                    </>
+                )}
+            >
+                <NativeText className="text-base leading-6 text-slate-700 dark:text-slate-200">
+                    This will permanently delete {filteredCompletedTasks.length} completed {filteredCompletedTasks.length === 1 ? 'task' : 'tasks'} and their subtasks.
+                </NativeText>
+            </Dialog>
+            <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
 
             <Pressable
                 accessibilityLabel="New task"

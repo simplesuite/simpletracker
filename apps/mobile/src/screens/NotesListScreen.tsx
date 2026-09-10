@@ -7,6 +7,7 @@ import { useColorScheme } from 'nativewind';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { refreshAllData, useNoteStore, useProjectStore } from '@simpletracker/core';
 import type { NotesStackParamList } from '../navigation/types';
+import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { Pill, Surface } from '@simpletracker/ui';
 
@@ -28,7 +29,9 @@ export function NotesListScreen() {
     const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const notes = useNoteStore((s) => s.notes);
+    const sharedNotes = useNoteStore((s) => s.sharedNotes);
     const archivedNotes = useNoteStore((s) => s.archivedNotes);
+    const userId = useAuthStore((s) => s.userId);
     const createNote = useNoteStore((s) => s.createNote);
     const projects = useProjectStore((s) => s.projects);
     const { effectiveTheme } = useThemeStore();
@@ -58,7 +61,9 @@ export function NotesListScreen() {
         if (note) navigation.navigate('NoteDetail', { id: note.recordID });
     };
 
-    const matchesFilters = (note: (typeof notes)[number]) => {
+    const activeNotes = Array.from(new Map([...notes, ...sharedNotes].map((note) => [note.recordID, note])).values());
+
+    const matchesFilters = (note: (typeof activeNotes)[number]) => {
         const query = searchQuery.trim().toLowerCase();
         const matchesSearch = !query || note.title.toLowerCase().includes(query) || note.body.toLowerCase().includes(query);
         const matchesProject = selectedProjectIDs.size === 0 || (
@@ -67,12 +72,12 @@ export function NotesListScreen() {
         return matchesSearch && matchesProject;
     };
 
-    const filteredNotes = notes.filter(matchesFilters);
+    const filteredNotes = activeNotes.filter(matchesFilters);
     const filteredArchivedNotes = archivedNotes.filter(matchesFilters);
 
     const sortedProjects = [...projects].sort((a, b) => {
-        const aCount = notes.filter((note) => note.projectID === a.recordID).length;
-        const bCount = notes.filter((note) => note.projectID === b.recordID).length;
+        const aCount = activeNotes.filter((note) => note.projectID === a.recordID).length;
+        const bCount = activeNotes.filter((note) => note.projectID === b.recordID).length;
         return bCount - aCount;
     });
 
@@ -152,7 +157,7 @@ export function NotesListScreen() {
                             selected={selectedProjectIDs.has(project.recordID)}
                             onPress={() => toggleProjectFilter(project.recordID)}
                         >
-                            {project.name} · {notes.filter((note) => note.projectID === project.recordID).length}
+                            {project.name} · {activeNotes.filter((note) => note.projectID === project.recordID).length}
                         </Pill>
                     ))}
                 </ScrollView>
@@ -207,6 +212,7 @@ export function NotesListScreen() {
                                                 {item.title || '(untitled)'}
                                             </NativeText>
                                             {item.pinned && <MaterialCommunityIcons name="pin" size={15} color={effectiveTheme === 'dark' ? '#c4b5fd' : '#6366f1'} />}
+                                            {item.creatorID !== userId && <MaterialCommunityIcons name="account-multiple-outline" size={15} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#6366f1'} />}
                                         </View>
                                         <NativeText numberOfLines={1} className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                             {description}

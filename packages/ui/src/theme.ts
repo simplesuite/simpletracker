@@ -3,6 +3,7 @@ export interface UiThemeTokens {
     surface: string;
     surfaceVariant: string;
     primary: string;
+    secondary: string;
     primaryContainer: string;
     onPrimary: string;
     onSurface: string;
@@ -18,9 +19,10 @@ export const lightTokens: UiThemeTokens = {
     background: '#f8fafc',
     surface: '#ffffff',
     surfaceVariant: '#f1f5f9',
-    primary: '#4f46e5',
-    primaryContainer: '#e0e7ff',
-    onPrimary: '#ffffff',
+    primary: '#d79a00',
+    secondary: '#5897d6',
+    primaryContainer: '#ffedb3',
+    onPrimary: '#0f172a',
     onSurface: '#0f172a',
     onSurfaceVariant: '#64748b',
     outline: '#cbd5e1',
@@ -31,12 +33,13 @@ export const lightTokens: UiThemeTokens = {
 };
 
 export const darkTokens: UiThemeTokens = {
-    background: '#020617',
-    surface: '#0f172a',
-    surfaceVariant: '#1e293b',
-    primary: '#a5b4fc',
-    primaryContainer: '#312e81',
-    onPrimary: '#0f172a',
+    background: '#161719',
+    surface: '#202023',
+    surfaceVariant: '#313335',
+    primary: '#d79a00',
+    secondary: '#5897d6',
+    primaryContainer: '#6b4d00',
+    onPrimary: '#191c21',
     onSurface: '#f8fafc',
     onSurfaceVariant: '#94a3b8',
     outline: '#475569',

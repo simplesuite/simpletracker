@@ -8,6 +8,7 @@ import { Button, Card, Checkbox, Dialog, Pill, Text, TextField, getUiTheme } fro
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NotesStackParamList } from '../navigation/types';
 import { ShareNoteDialog } from '../components/ShareNoteDialog';
+import { useAuthStore } from '../store/authStore';
 import { MarkdownPreview } from '../components/MarkdownPreview';
 import { useThemeStore } from '../store/themeStore';
 
@@ -18,6 +19,7 @@ export function NoteDetailScreen() {
     const route = useRoute<RouteProp<NotesStackParamList, 'NoteDetail'>>();
     const navigation = useNavigation();
     const { id } = route.params;
+    const userId = useAuthStore((s) => s.userId);
 
     const note = useNoteStore((s) =>
         s.notes.find((n) => n.recordID === id) ??
@@ -113,6 +115,7 @@ export function NoteDetailScreen() {
     };
 
     const isNoteBlank = () => title.trim().length === 0 && body.trim().length === 0 && listItems.length === 0;
+    const isCreator = note?.creatorID === userId;
     const iconColor = effectiveTheme === 'dark' ? '#c4b5fd' : '#4f46e5';
 
     return (
@@ -196,7 +199,7 @@ export function NoteDetailScreen() {
                 <Card className="flex-row flex-wrap items-center justify-between gap-1 p-2">
                     <Button variant="text" compact icon={<MaterialCommunityIcons name={pinned ? 'pin' : 'pin-outline'} size={17} color={iconColor} />} onPress={handleTogglePin}>{pinned ? 'Pinned' : 'Pin'}</Button>
                     <Button variant="text" compact icon={<MaterialCommunityIcons name={archived ? 'archive' : 'archive-outline'} size={17} color={iconColor} />} onPress={handleArchive}>{archived ? 'Unarchive' : 'Archive'}</Button>
-                    <Button variant="text" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={17} color={iconColor} />} onPress={() => setShareDialogOpen(true)}>Share</Button>
+                    {isCreator ? <Button variant="text" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={17} color={iconColor} />} onPress={() => setShareDialogOpen(true)}>Share</Button> : null}
                     <Button variant="danger" compact icon={<MaterialCommunityIcons name="delete-outline" size={17} color={theme.error} />} onPress={() => setDeleteDialogOpen(true)}>Delete</Button>
                 </Card>
             </ScrollView>
@@ -214,7 +217,7 @@ export function NoteDetailScreen() {
             >
                 <Text>{isNoteBlank() ? 'This note is empty. Are you sure you want to delete it?' : 'Are you sure you want to delete this note?'}</Text>
             </Dialog>
-            {id ? <ShareNoteDialog visible={shareDialogOpen} noteId={id} onClose={() => setShareDialogOpen(false)} /> : null}
+            {id && isCreator ? <ShareNoteDialog visible={shareDialogOpen} noteId={id} onClose={() => setShareDialogOpen(false)} /> : null}
         </View>
     );
 }
