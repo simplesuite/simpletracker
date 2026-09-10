@@ -1,6 +1,6 @@
 {
   "name": "@simpletracker/web",
-  "version": "0.1.0",
+  "version": "v1.0.7",
   "private": true,
   "type": "module",
   "dependencies": {
