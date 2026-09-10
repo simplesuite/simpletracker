@@ -257,12 +257,12 @@ export function ProjectDetailScreen() {
 
     const renderTask = (task: Task, completed = false) => (
         <Pressable key={task.recordID} onPress={() => openTask(task.recordID)} className="flex-row items-center border-b border-outline-variant py-2 active:opacity-70 dark:border-outline-variant-dark">
-            <MaterialCommunityIcons name={completed ? 'check-circle-outline' : 'circle-outline'} size={22} color={completed ? theme.primary : theme.onSurfaceVariant} />
+            <Checkbox status={completed ? 'checked' : 'unchecked'} onPress={() => toggleTask(task, completed)} accessibilityLabel={`Mark ${task.title || 'task'} ${completed ? 'open' : 'complete'}`} />
             <View className="min-w-0 flex-1 pl-3">
                 <Text className={completed ? 'line-through text-on-surface-variant dark:text-on-surface-variant-dark' : ''} numberOfLines={1}>{task.title || '(untitled)'}</Text>
                 {task.dueDate || task.isRecurring ? <Text variant="bodySmall">{task.dueDate ? formatDueDate(task.dueDate) : 'Recurring'}</Text> : null}
             </View>
-            <Checkbox status={completed ? 'checked' : 'unchecked'} onPress={() => toggleTask(task, completed)} accessibilityLabel={`Mark ${task.title || 'task'} ${completed ? 'open' : 'complete'}`} />
+
         </Pressable>
     );
 
@@ -284,11 +284,6 @@ export function ProjectDetailScreen() {
                 <Card className="rounded-3xl p-4">
                     <TextField placeholder="Project name" value={name} onChangeText={setName} onBlur={() => updateProject(id, { name })} inputClassName="text-2xl font-semibold" className="border-0" />
                     <TextField placeholder="Add a short description" value={description} onChangeText={setDescription} onBlur={() => updateProject(id, { description })} multiline inputClassName="min-h-20" className="mt-2 border-0" />
-                    <View className="mt-3 flex-row gap-6 border-t border-outline-variant pt-3 dark:border-outline-variant-dark">
-                        <Stat value={projectNotes.length} label="Notes" />
-                        <Stat value={openTasks.length} label="Open tasks" />
-                        <Stat value={completedTasks.length} label="Completed" />
-                    </View>
                 </Card>
 
                 <Divider className="my-2" />

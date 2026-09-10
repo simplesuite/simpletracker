@@ -253,60 +253,63 @@ export function TasksListScreen() {
 
     return (
         <View className="flex-1 bg-background dark:bg-background-dark">
-            <View className="px-4 pb-1 pt-4">
-                <View className="relative">
-                    <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
-                    <TextInput
-                        placeholder="Search your tasks"
-                        placeholderTextColor={placeholderColor}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        autoCapitalize="none"
-                        className="h-14 rounded-2xl border border-outline-variant bg-surface pl-12 pr-4 text-base text-on-surface dark:border-outline-variant-dark dark:bg-surface-dark dark:text-on-surface-dark"
-                    />
-                </View>
-                <View className="flex-row items-center justify-between py-4">
-                    <View>
-                        <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your tasks</NativeText>
-                        <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
-                            {filteredTasks.length} open · {filteredCompletedTasks.length} completed · {dueSoonCount} due soon
-                        </NativeText>
-                    </View>
-                    {hasFilters && (
-                        <Pill
-                            selected={false}
-                            onPress={() => {
-                                setSearchQuery('');
-                                setSelectedProjectIDs(new Set());
-                            }}
-                            className="min-h-9 px-3"
-                        >
-                            Clear filters
-                        </Pill>
-                    )}
-                </View>
-            </View>
-
-            {sortedProjects.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 11 }}>
-                    <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
-                        All tasks
-                    </Pill>
-                    {sortedProjects.map((project) => (
-                        <Pill
-                            key={project.recordID}
-                            selected={selectedProjectIDs.has(project.recordID)}
-                            onPress={() => toggleProjectFilter(project.recordID)}
-                        >
-                            {project.name} · {tasks.filter((task) => task.projectID === project.recordID).length}
-                        </Pill>
-                    ))}
-                </ScrollView>
-            )}
-
             <SectionList
+                style={{ flex: 1 }}
                 sections={sections}
                 keyExtractor={(item) => item.recordID}
+                ListHeaderComponent={(
+                    <>
+                        <View className="px-4 pb-1 pt-4">
+                            <View className="relative">
+                                <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
+                                <TextInput
+                                    placeholder="Search your tasks"
+                                    placeholderTextColor={placeholderColor}
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
+                                    autoCapitalize="none"
+                                    className="h-14 rounded-2xl border border-outline-variant bg-surface pl-12 pr-4 text-base text-on-surface dark:border-outline-variant-dark dark:bg-surface-dark dark:text-on-surface-dark"
+                                />
+                            </View>
+                        </View>
+                        <View className="flex-row items-center justify-between px-4 py-4">
+                            <View>
+                                <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your tasks</NativeText>
+                                <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
+                                    {filteredTasks.length} open · {filteredCompletedTasks.length} completed · {dueSoonCount} due soon
+                                </NativeText>
+                            </View>
+                            {hasFilters && (
+                                <Pill
+                                    selected={false}
+                                    onPress={() => {
+                                        setSearchQuery('');
+                                        setSelectedProjectIDs(new Set());
+                                    }}
+                                    className="min-h-9 px-3"
+                                >
+                                    Clear filters
+                                </Pill>
+                            )}
+                        </View>
+                        {sortedProjects.length > 0 && (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 11 }}>
+                                <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
+                                    All tasks
+                                </Pill>
+                                {sortedProjects.map((project) => (
+                                    <Pill
+                                        key={project.recordID}
+                                        selected={selectedProjectIDs.has(project.recordID)}
+                                        onPress={() => toggleProjectFilter(project.recordID)}
+                                    >
+                                        {project.name} · {tasks.filter((task) => task.projectID === project.recordID).length}
+                                    </Pill>
+                                ))}
+                            </ScrollView>
+                        )}
+                    </>
+                )}
                 contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sections.length === 0 ? { flexGrow: 1 } : {}) }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
