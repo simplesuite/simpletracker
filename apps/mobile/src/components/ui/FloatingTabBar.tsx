@@ -43,11 +43,10 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
     return (
         <View
             onLayout={handleLayout}
-            className="absolute bottom-3 left-3 right-3 rounded-[20px] border px-1 pt-1"
+            className="absolute bottom-3 left-3 right-3 rounded-[30px] border px-1 py-1"
             style={{
-                backgroundColor: effectiveTheme === 'dark' ? 'rgba(32, 32, 35, 0.92)' : 'rgba(255, 255, 255, 0.9)',
+                backgroundColor: effectiveTheme === 'dark' ? 'rgba(32, 32, 35, 0.82)' : 'rgba(255, 255, 255, 0.9)',
                 borderColor: effectiveTheme === 'dark' ? 'rgba(71, 85, 105, 0.65)' : 'rgba(203, 213, 225, 0.7)',
-                paddingBottom: Math.max(insets.bottom, 4),
                 elevation: 4,
                 shadowColor: theme.scrim,
                 shadowOpacity: effectiveTheme === 'dark' ? 0.24 : 0.08,
@@ -93,7 +92,7 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
                             testID={options?.tabBarButtonTestID}
                             onPress={onPress}
                             onLongPress={onLongPress}
-                            className={`min-h-[52px] flex-1 flex-row items-center justify-center rounded-2xl px-1 active:opacity-70 ${focused ? 'bg-primary-container dark:bg-primary-container-dark' : ''}`}
+                            className={`min-h-[50px] rounded-[30px] flex-1 flex-row items-center justify-center rounded-2xl px-1 active:opacity-70 ${focused ? 'bg-primary-container dark:bg-primary-container-dark' : ''}`}
                         >
                             {icon}
                             <NativeText className={`ml-1 text-[11px] font-semibold ${focused ? 'text-on-primary-container dark:text-on-primary-container-dark' : 'text-on-surface-variant dark:text-on-surface-variant-dark'}`}>

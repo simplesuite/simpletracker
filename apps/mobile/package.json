@@ -1,6 +1,6 @@
 {
   "name": "@simpletracker/mobile",
-  "version": "v1.0.5-beta",
+  "version": "v1.0.7-beta",
   "private": true,
   "main": "index.ts",
   "scripts": {
