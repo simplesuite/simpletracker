@@ -1,8 +1,8 @@
 import './global.css';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
+import { createNavigationContainerRef, NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'nativewind';
 import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -18,9 +18,10 @@ import { AuthStack } from './src/navigation/AuthStack';
 import type { RootTabParamList } from './src/navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FloatingTabBar } from './src/components/ui/FloatingTabBar';
-import { syncLocalTaskNotifications } from './src/lib/notifications';
+import { cancelLocalTaskNotifications, subscribeToTaskNotificationResponses, syncLocalTaskNotifications } from './src/lib/notifications';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
+const navigationRef = createNavigationContainerRef<RootTabParamList>();
 
 export default function App() {
     const { effectiveTheme } = useThemeStore();
@@ -48,6 +49,35 @@ export default function App() {
     const tasks = useTaskStore((s) => s.tasks);
     const setSession = useAuthStore((s) => s.setSession);
     const [ready, setReady] = useState(false);
+    const [navigationReady, setNavigationReady] = useState(false);
+    const [pendingTaskID, setPendingTaskID] = useState<string | null>(null);
+
+    const queueTaskNotification = useCallback((taskID: string) => {
+        setPendingTaskID(taskID);
+    }, []);
+
+    const openPendingTask = useCallback(() => {
+        if (!pendingTaskID || !isAuthenticated || !navigationReady || !tasks.some((task) => task.recordID === pendingTaskID)) return;
+        navigationRef.navigate('Tasks', { screen: 'TaskDetail', params: { id: pendingTaskID } });
+        setPendingTaskID(null);
+    }, [isAuthenticated, navigationReady, pendingTaskID, tasks]);
+
+    useEffect(() => {
+        let cancelled = false;
+        let unsubscribe: () => void = () => undefined;
+        subscribeToTaskNotificationResponses(queueTaskNotification).then((remove) => {
+            if (cancelled) remove();
+            else unsubscribe = remove;
+        });
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
+    }, [queueTaskNotification]);
+
+    useEffect(() => {
+        openPendingTask();
+    }, [openPendingTask]);
 
     useEffect(() => {
         const apply = (userId: string | null) => {
@@ -75,7 +105,16 @@ export default function App() {
 
     useEffect(() => {
         if (isAuthenticated) void syncLocalTaskNotifications(tasks);
+        else void cancelLocalTaskNotifications();
     }, [isAuthenticated, tasks]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') void syncLocalTaskNotifications(useTaskStore.getState().tasks);
+        });
+        return () => subscription.remove();
+    }, [isAuthenticated]);
 
     if (!ready) {
         return (
@@ -89,7 +128,7 @@ export default function App() {
     return (
         <>
             <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
-            <NavigationContainer theme={navigationTheme}>
+            <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
                 {isAuthenticated ? (
                     <Tab.Navigator
                         tabBar={(props) => <FloatingTabBar {...props} />}

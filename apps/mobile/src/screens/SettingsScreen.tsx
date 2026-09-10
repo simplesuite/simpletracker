@@ -208,7 +208,7 @@ export function SettingsScreen() {
 
                 <Card className="overflow-hidden p-5">
                     <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Task notifications</Text><Text variant="bodySmall">Reminders for open tasks with due dates</Text></View><Switch value={notificationsEnabled} onValueChange={handleNotifications} disabled={notificationsLoading} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={notificationsEnabled ? theme.primary : theme.surface} /></View>
-                    {notificationsLoading ? <ActivityIndicator color={theme.primary} /> : <Text variant="bodySmall">Reminders are scheduled locally on this device for open tasks with due dates.</Text>}
+                    {notificationsLoading ? <ActivityIndicator color={theme.primary} /> : <Text variant="bodySmall">Each open task with a due date gets a day-of reminder, a 15-minute reminder for timed tasks, and a daily overdue reminder.</Text>}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
