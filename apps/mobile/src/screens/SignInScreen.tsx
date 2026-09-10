@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { Button, Card, Dialog, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { PRODUCTION_URL, supabase, SUPABASE_URL } from '../lib/supabase';
 import { resetBackendConfig, saveBackendConfig } from '../lib/backendConfig';
@@ -61,16 +61,18 @@ export function SignInScreen({ navigation }: { navigation: any }) {
     const resetBackend = () => {
         Alert.alert('Use production backend?', 'This removes the custom backend setting and applies production on the next app launch.', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Use production', style: 'destructive', onPress: async () => {
-                try {
-                    await resetBackendConfig();
-                    setUsingCustomBackend(false);
-                    setBackendDialogOpen(false);
-                    setNotice('Production backend restored. Restart the app to apply it.');
-                } catch {
-                    setError('Unable to restore the production backend.');
+            {
+                text: 'Use production', style: 'destructive', onPress: async () => {
+                    try {
+                        await resetBackendConfig();
+                        setUsingCustomBackend(false);
+                        setBackendDialogOpen(false);
+                        setNotice('Production backend restored. Restart the app to apply it.');
+                    } catch {
+                        setError('Unable to restore the production backend.');
+                    }
                 }
-            } },
+            },
         ]);
     };
 
@@ -80,7 +82,11 @@ export function SignInScreen({ navigation }: { navigation: any }) {
             className="flex-1"
             style={{ backgroundColor: theme.background }}
         >
-            <View className="flex-1 justify-center px-4">
+            <ScrollView
+                className="flex-1"
+                contentContainerClassName="grow justify-center px-4"
+                keyboardShouldPersistTaps="handled"
+            >
                 <View className="mb-5 items-center gap-1">
                     <Text variant="headline">simpleTracker</Text>
                     <Text variant="body" style={{ color: theme.onSurfaceVariant }}>
@@ -137,7 +143,7 @@ export function SignInScreen({ navigation }: { navigation: any }) {
                         Backend settings
                     </Button>
                 </View>
-            </View>
+            </ScrollView>
 
             <Dialog
                 visible={backendDialogOpen}

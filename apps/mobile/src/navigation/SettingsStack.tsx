@@ -21,7 +21,7 @@ export function SettingsStack() {
             }}
         >
             <Stack.Screen
-                name="Settings"
+                name="SettingsHome"
                 component={SettingsScreen}
                 options={{ title: 'Settings' }}
             />

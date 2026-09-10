@@ -18,7 +18,7 @@ export type ProjectsStackParamList = {
 };
 
 export type SettingsStackParamList = {
-    Settings: undefined;
+    SettingsHome: undefined;
 };
 
 export type AuthStackParamList = {

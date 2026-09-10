@@ -79,7 +79,7 @@ export function ProjectsListScreen() {
             <View className="px-4 pb-3 pt-5">
                 <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your projects</NativeText>
                 <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
-                    {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organised by activity
+                    {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organized by activity
                 </NativeText>
             </View>
 
