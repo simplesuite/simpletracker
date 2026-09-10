@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { Button, Dialog, Text, TextField } from '@simpletracker/ui';
+import { Button, Dialog, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
     getRecentlySharedWithUsers,
@@ -23,6 +23,7 @@ interface ShareProjectDialogProps {
 
 export function ShareProjectDialog({ visible, projectId, onClose }: ShareProjectDialogProps) {
     const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
     const userId = useAuthStore((s) => s.userId);
     const shareProject = useProjectStore((s) => s.shareProject);
     const unshareProject = useProjectStore((s) => s.unshareProject);
@@ -150,12 +151,12 @@ export function ShareProjectDialog({ visible, projectId, onClose }: ShareProject
                     value={query}
                     onChangeText={handleQueryChange}
                     autoCapitalize="none"
-                    leading={<MaterialCommunityIcons name="magnify" size={19} color={effectiveTheme === 'dark' ? '#94a3b8' : '#64748b'} />}
+                    leading={<MaterialCommunityIcons name="magnify" size={19} color={theme.onSurfaceVariant} />}
                     error={!!error}
                 />
                 {searchLoading ? <Text variant="bodySmall" className="py-3">Searching…</Text> : null}
                 {selectedUser ? (
-                    <View className="mt-3 rounded-2xl bg-indigo-50 p-3 dark:bg-indigo-950">
+                    <View className="mt-3 rounded-2xl bg-secondary-container dark:bg-secondary-container-dark">
                         <Text variant="bodySmall">Share this project with</Text>
                         <Text className="font-semibold">{selectedUser.fullName || selectedUser.email}</Text>
                         <Text variant="bodySmall">{selectedUser.email}</Text>
@@ -182,19 +183,19 @@ export function ShareProjectDialog({ visible, projectId, onClose }: ShareProject
                         ))}
                     </View>
                 ) : null}
-                <View className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <View className="mt-4 border-t border-outline-variant pt-3 dark:border-outline-variant-dark">
                     <Text variant="label">Currently shared with</Text>
                     {sharesLoading ? <Text variant="bodySmall" className="py-3">Loading shares…</Text> : shares.length === 0 ? <Text variant="bodySmall" className="py-3">Not shared with anyone.</Text> : shares.map((share) => (
-                        <View key={share.recordID} className="flex-row items-center border-b border-slate-200 py-2 dark:border-slate-800">
+                        <View key={share.recordID} className="flex-row items-center border-b border-outline-variant py-2 dark:border-outline-variant-dark">
                             <View className="min-w-0 flex-1">
                                 <Text numberOfLines={1} className="font-semibold">{share.fullName}</Text>
                                 {share.email ? <Text variant="bodySmall" numberOfLines={1}>{share.email}</Text> : null}
                             </View>
-                            <Button variant="danger" compact icon={<MaterialCommunityIcons name="account-remove-outline" size={17} color={effectiveTheme === 'dark' ? '#fca5a5' : '#dc2626'} />} accessibilityLabel={`Remove ${share.fullName}`} onPress={() => handleUnshare(share.sharedToID)}>Remove</Button>
+                            <Button variant="danger" compact icon={<MaterialCommunityIcons name="account-remove-outline" size={17} color={theme.error} />} accessibilityLabel={`Remove ${share.fullName}`} onPress={() => handleUnshare(share.sharedToID)}>Remove</Button>
                         </View>
                     ))}
                 </View>
-                {error ? <Text variant="bodySmall" className="mt-3" style={{ color: effectiveTheme === 'dark' ? '#fca5a5' : '#dc2626' }}>{error}</Text> : null}
+                {error ? <Text variant="bodySmall" className="mt-3" style={{ color: theme.error }}>{error}</Text> : null}
             </ScrollView>
         </Dialog>
     );

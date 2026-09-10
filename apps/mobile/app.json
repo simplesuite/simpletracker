@@ -5,13 +5,18 @@
     "scheme": "simpletracker",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.simplesuite.simpletracker"
     },
     "android": {
-      "package": "com.simplesuite.simpletracker"
+      "package": "com.simplesuite.simpletracker",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "web": {
       "bundler": "metro"
@@ -19,6 +24,11 @@
     "extra": {
       "supabaseUrl": "",
       "supabaseAnonKey": ""
-    }
+    },
+    "plugins": [
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-notifications"
+    ]
   }
 }

@@ -4,6 +4,7 @@ import { CommonActions } from '@react-navigation/native';
 import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'nativewind';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getUiTheme } from '@simpletracker/ui';
 import { useThemeStore } from '../../store/themeStore';
 
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
@@ -31,8 +32,9 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
         return null;
     }
 
-    const activeIconColor = effectiveTheme === 'dark' ? '#0f172a' : '#ffffff';
-    const inactiveIconColor = effectiveTheme === 'dark' ? '#94a3b8' : '#64748b';
+    const theme = getUiTheme(effectiveTheme);
+    const activeIconColor = theme.onPrimary;
+    const inactiveIconColor = theme.onSurfaceVariant;
 
     const handleLayout = (event: LayoutChangeEvent) => {
         onHeightChange?.(event.nativeEvent.layout.height);
@@ -41,11 +43,11 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
     return (
         <View
             onLayout={handleLayout}
-            className="absolute bottom-3 left-3 right-3 rounded-[28px] border border-slate-200 bg-white px-2 pt-2 dark:border-slate-700 dark:bg-slate-900"
+            className="absolute bottom-3 left-3 right-3 rounded-[28px] border border-outline-variant bg-surface px-2 pt-2 dark:border-outline-dark dark:bg-surface-dark"
             style={{
                 paddingBottom: Math.max(insets.bottom, 4),
                 elevation: 10,
-                shadowColor: effectiveTheme === 'dark' ? '#000000' : '#0f172a',
+                shadowColor: theme.scrim,
                 shadowOpacity: effectiveTheme === 'dark' ? 0.38 : 0.14,
                 shadowRadius: 18,
                 shadowOffset: { width: 0, height: 8 },
@@ -89,10 +91,10 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
                             testID={options?.tabBarButtonTestID}
                             onPress={onPress}
                             onLongPress={onLongPress}
-                            className={`min-h-14 flex-1 flex-row items-center justify-center rounded-3xl px-2 active:opacity-70 ${focused ? 'bg-indigo-600 dark:bg-indigo-400' : ''}`}
+                            className={`min-h-14 flex-1 flex-row items-center justify-center rounded-3xl px-2 active:opacity-70 ${focused ? 'bg-primary' : ''}`}
                         >
                             {icon}
-                            <NativeText className={`ml-1.5 text-xs font-bold ${focused ? 'text-white dark:text-slate-950' : 'text-slate-500 dark:text-slate-400'}`}>
+                            <NativeText className={`ml-1.5 text-xs font-bold ${focused ? 'text-on-primary dark:text-on-primary-dark' : 'text-on-surface-variant dark:text-on-surface-variant-dark'}`}>
                                 {label}
                             </NativeText>
                         </Pressable>

@@ -13,6 +13,7 @@ import type { ProjectsStackParamList, RootTabParamList } from '../navigation/typ
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { redirectToCheckout, useEntitlement } from '../lib/entitlement';
 
 type ProjectNavigation = CompositeNavigationProp<
     NativeStackNavigationProp<ProjectsStackParamList, 'ProjectDetail'>,
@@ -79,6 +80,7 @@ export function ProjectDetailScreen() {
     const [deletingCompleted, setDeletingCompleted] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [actionError, setActionError] = useState<string | null>(null);
+    const { subscriptionState, loading: entitlementLoading } = useEntitlement();
 
     useEffect(() => {
         if (project) {
@@ -142,6 +144,22 @@ export function ProjectDetailScreen() {
         if (!success) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
     };
 
+    const handleShareProject = async () => {
+        if (entitlementLoading) {
+            setActionError('Checking your plan…');
+            return;
+        }
+        if (subscriptionState === 'free') {
+            try {
+                await redirectToCheckout();
+            } catch (error) {
+                setActionError(error instanceof Error ? error.message : 'Unable to start Pro checkout.');
+            }
+            return;
+        }
+        setShareDialogOpen(true);
+    };
+
     const handleDeleteProject = async () => {
         setDeleteDialogOpen(false);
         const success = await deleteProject(id);
@@ -180,10 +198,10 @@ export function ProjectDetailScreen() {
     };
 
     const renderTask = (task: Task, completed = false) => (
-        <Pressable key={task.recordID} onPress={() => openTask(task.recordID)} className="flex-row items-center border-b border-slate-200 py-2 active:opacity-70 dark:border-slate-800">
+        <Pressable key={task.recordID} onPress={() => openTask(task.recordID)} className="flex-row items-center border-b border-outline-variant py-2 active:opacity-70 dark:border-outline-variant-dark">
             <MaterialCommunityIcons name={completed ? 'check-circle-outline' : 'circle-outline'} size={22} color={completed ? theme.primary : theme.onSurfaceVariant} />
             <View className="min-w-0 flex-1 pl-3">
-                <Text className={completed ? 'line-through text-slate-500 dark:text-slate-400' : ''} numberOfLines={1}>{task.title || '(untitled)'}</Text>
+                <Text className={completed ? 'line-through text-on-surface-variant dark:text-on-surface-variant-dark' : ''} numberOfLines={1}>{task.title || '(untitled)'}</Text>
                 {task.dueDate || task.isRecurring ? <Text variant="bodySmall">{task.dueDate ? formatDueDate(task.dueDate) : 'Recurring'}</Text> : null}
             </View>
             <Checkbox status={completed ? 'checked' : 'unchecked'} onPress={() => toggleTask(task, completed)} accessibilityLabel={`Mark ${task.title || 'task'} ${completed ? 'open' : 'complete'}`} />
@@ -206,22 +224,22 @@ export function ProjectDetailScreen() {
                     trailing={searchQuery ? <Pressable accessibilityLabel="Clear project search" onPress={() => setSearchQuery('')}><MaterialCommunityIcons name="close" size={18} color={theme.onSurfaceVariant} /></Pressable> : null}
                 />
                 <Card className="rounded-3xl p-4">
-                    <View className="mb-2 h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950">
+                    <View className="mb-2 h-11 w-11 items-center justify-center rounded-2xl bg-primary-container dark:bg-primary-container-dark">
                         <MaterialCommunityIcons name="folder-outline" size={23} color={theme.primary} />
                     </View>
                     <TextField placeholder="Project name" value={name} onChangeText={setName} onBlur={() => updateProject(id, { name })} inputClassName="text-2xl font-semibold" className="border-0" />
                     <TextField placeholder="Add a short description" value={description} onChangeText={setDescription} onBlur={() => updateProject(id, { description })} multiline inputClassName="min-h-20" className="mt-2 border-0" />
-                    <View className="mt-3 flex-row gap-6 border-t border-slate-200 pt-3 dark:border-slate-800">
+                    <View className="mt-3 flex-row gap-6 border-t border-outline-variant pt-3 dark:border-outline-variant-dark">
                         <Stat value={projectNotes.length} label="Notes" />
                         <Stat value={openTasks.length} label="Open tasks" />
                         <Stat value={completedTasks.length} label="Completed" />
                     </View>
                 </Card>
 
-                <View className="flex-row flex-wrap items-center gap-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                <View className="flex-row flex-wrap items-center gap-2 rounded-3xl border border-outline-variant bg-surface p-3 dark:border-outline-variant-dark dark:bg-surface-dark">
                     <Button variant="tonal" compact icon={<MaterialCommunityIcons name="note-plus-outline" size={17} color={theme.primary} />} onPress={addNote}>Add note</Button>
                     <Button variant="tonal" compact icon={<MaterialCommunityIcons name="checkbox-marked-circle-outline" size={17} color={theme.primary} />} onPress={addTask}>Add task</Button>
-                    {isCreator ? <Button variant="text" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={17} color={theme.primary} />} onPress={() => setShareDialogOpen(true)}>Share</Button> : null}
+                    {isCreator ? <Button variant="text" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={17} color={theme.primary} />} onPress={handleShareProject}>{entitlementLoading ? 'Checking plan…' : subscriptionState === 'free' ? 'Share (Pro)' : 'Share'}</Button> : null}
                     {isCreator ? <Button variant="danger" compact icon={<MaterialCommunityIcons name="delete-outline" size={17} color={theme.error} />} onPress={() => setDeleteDialogOpen(true)}>Delete</Button> : null}
                 </View>
 
@@ -231,7 +249,7 @@ export function ProjectDetailScreen() {
 
                 {projectArchivedNotes.length > 0 ? (
                     <Card className="mb-1 p-2">
-                        <DisclosureRow title={`Archived notes (${projectArchivedNotes.length})`} open={showArchived} onPress={() => setShowArchived((value) => !value)} />
+                        <DisclosureRow title={`Archived notes (${projectArchivedNotes.length})`} open={showArchived} onPress={() => setShowArchived((value) => !value)} iconColor={theme.onSurfaceVariant} />
                         {showArchived ? projectArchivedNotes.map((note) => renderNote(note, true)) : null}
                     </Card>
                 ) : null}
@@ -241,9 +259,9 @@ export function ProjectDetailScreen() {
                     <Card className="mb-2 p-4">
                         {openTasks.map((task) => renderTask(task))}
                         {completedTasks.length > 0 ? (
-                            <View className="mt-1 border-t border-slate-200 pt-1 dark:border-slate-800">
+                            <View className="mt-1 border-t border-outline-variant pt-1 dark:border-outline-variant-dark">
                                 <View className="flex-row items-center justify-between">
-                                    <DisclosureRow title={`Completed (${completedTasks.length})`} open={showCompleted} onPress={() => setShowCompleted((value) => !value)} />
+                                    <DisclosureRow title={`Completed (${completedTasks.length})`} open={showCompleted} onPress={() => setShowCompleted((value) => !value)} iconColor={theme.onSurfaceVariant} />
                                     <Button variant="danger" compact onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all</Button>
                                 </View>
                                 {showCompleted ? completedTasks.map((task) => renderTask(task, true)) : null}
@@ -294,10 +312,10 @@ function SectionHeader({ title, subtitle, onAdd }: { title: string; subtitle: st
     return <View className="mt-2 flex-row items-center justify-between"><View><Text variant="titleLarge">{title}</Text><Text variant="bodySmall">{subtitle}</Text></View><Button variant="text" compact onPress={onAdd}>Add</Button></View>;
 }
 
-function DisclosureRow({ title, open, onPress }: { title: string; open: boolean; onPress: () => void }) {
-    return <Pressable onPress={onPress} className="flex-row items-center py-2 active:opacity-70"><MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={20} color="#64748b" /><Text className="font-semibold">{title}</Text></Pressable>;
+function DisclosureRow({ title, open, onPress, iconColor }: { title: string; open: boolean; onPress: () => void; iconColor: string }) {
+    return <Pressable onPress={onPress} className="flex-row items-center py-2 active:opacity-70"><MaterialCommunityIcons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={iconColor} /><Text className="font-semibold">{title}</Text></Pressable>;
 }
 
 function EmptySection({ icon, text, themeColor }: { icon: keyof typeof MaterialCommunityIcons.glyphMap; text: string; themeColor: string }) {
-    return <View className="min-h-18 flex-row items-center gap-2 rounded-2xl bg-slate-100 px-3 dark:bg-slate-800"><MaterialCommunityIcons name={icon} size={22} color={themeColor} /><Text variant="bodySmall">{text}</Text></View>;
+    return <View className="min-h-18 flex-row items-center gap-2 rounded-2xl bg-surface-variant px-3 dark:bg-surface-variant-dark"><MaterialCommunityIcons name={icon} size={22} color={themeColor} /><Text variant="bodySmall">{text}</Text></View>;
 }

@@ -173,7 +173,7 @@ export function TaskDetailScreen() {
 
     const isTaskBlank = () => title.trim().length === 0 && body.trim().length === 0;
     const isCompleted = task?.status === 'completed';
-    const iconColor = effectiveTheme === 'dark' ? '#c4b5fd' : '#4f46e5';
+    const iconColor = theme.secondary;
 
     return (
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
@@ -244,7 +244,7 @@ export function TaskDetailScreen() {
                             <Switch value={isRecurring} onValueChange={setIsRecurring} accessibilityLabel="Recurring task" />
                         </View>
                         {isRecurring ? (
-                            <View className="mt-4 rounded-2xl bg-slate-100 p-3 dark:bg-slate-800">
+                            <View className="mt-4 rounded-2xl bg-surface-variant dark:bg-surface-variant-dark">
                                 <View className="flex-row flex-wrap items-center gap-2">
                                     <Text>Every</Text>
                                     <TextField value={String(recurrenceInterval)} onChangeText={(text) => {
@@ -274,9 +274,9 @@ export function TaskDetailScreen() {
                     </View>
                     {subtasks.length === 0 ? <Text variant="bodySmall" className="py-2">Break this task into smaller steps.</Text> : null}
                     {subtasks.map((subtask) => (
-                        <View key={subtask.recordID} className="flex-row items-center border-t border-slate-200 py-1 dark:border-slate-800">
+                        <View key={subtask.recordID} className="flex-row items-center border-t border-outline-variant dark:border-outline-variant-dark">
                             <Checkbox status={subtask.isCompleted ? 'checked' : 'unchecked'} onPress={() => toggleSubtask(subtask.recordID)} accessibilityLabel={`Toggle ${subtask.title}`} />
-                            <Text className={`min-w-0 flex-1 ${subtask.isCompleted ? 'text-slate-500 line-through dark:text-slate-400' : ''}`}>{subtask.title}</Text>
+                            <Text className={`min-w-0 flex-1 ${subtask.isCompleted ? 'text-on-surface-variant line-through dark:text-on-surface-variant-dark' : ''}`}>{subtask.title}</Text>
                             <Button variant="text" compact icon={<MaterialCommunityIcons name="delete-outline" size={19} color={theme.onSurfaceVariant} />} accessibilityLabel="Delete subtask" onPress={() => deleteSubtask(subtask.recordID)} />
                         </View>
                     ))}

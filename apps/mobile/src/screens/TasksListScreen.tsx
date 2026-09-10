@@ -9,7 +9,7 @@ import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/co
 import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import { useThemeStore } from '../store/themeStore';
-import { Button, Dialog, Pill, Snackbar, Surface } from '@simpletracker/ui';
+import { Button, Dialog, Pill, Snackbar, Surface, getUiTheme } from '@simpletracker/ui';
 import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
@@ -31,6 +31,7 @@ export function TasksListScreen() {
     const updateTask = useTaskStore((s) => s.updateTask);
     const projects = useProjectStore((s) => s.projects);
     const { effectiveTheme } = useThemeStore();
+    const theme = getUiTheme(effectiveTheme);
     const { setColorScheme } = useColorScheme();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -131,7 +132,7 @@ export function TasksListScreen() {
 
     const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
     const dueSoonCount = dueTodayTasks.length + dueTomorrowTasks.length;
-    const placeholderColor = effectiveTheme === 'dark' ? '#94a3b8' : '#64748b';
+    const placeholderColor = theme.onSurfaceVariant;
 
     const toggleProjectFilter = (projectID: string) => {
         setSelectedProjectIDs((previous) => {
@@ -194,9 +195,9 @@ export function TasksListScreen() {
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: isCompleted }}
                         onPress={() => toggleTask(item)}
-                        className={`mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 ${isCompleted ? 'border-indigo-600 bg-indigo-600 dark:border-indigo-400 dark:bg-indigo-400' : 'border-slate-300 bg-transparent dark:border-slate-600'}`}
+                        className={`mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 ${isCompleted ? 'border-primary bg-primary dark:border-primary dark:bg-primary' : 'border-outline bg-transparent dark:border-outline-dark'}`}
                     >
-                        {isCompleted ? <NativeText className="font-bold text-white dark:text-slate-950">✓</NativeText> : <MaterialCommunityIcons name="check" size={17} color="transparent" />}
+                        {isCompleted ? <NativeText className="font-bold text-on-primary dark:text-on-primary-dark">✓</NativeText> : <MaterialCommunityIcons name="check" size={17} color="transparent" />}
                     </Pressable>
                     <Pressable
                         accessibilityRole="button"
@@ -204,24 +205,24 @@ export function TasksListScreen() {
                         className="min-w-0 flex-1 flex-row items-center active:opacity-70"
                     >
                         <View className="min-w-0 flex-1">
-                            <NativeText numberOfLines={1} className={`text-base font-semibold text-slate-900 dark:text-slate-50 ${isCompleted ? 'line-through' : ''}`}>
+                            <NativeText numberOfLines={1} className={`text-base font-semibold text-on-surface dark:text-on-surface-dark ${isCompleted ? 'line-through' : ''}`}>
                                 {item.title || '(untitled)'}
                             </NativeText>
                             <View className="mt-1 flex-row items-center gap-2">
                                 {projectName && (
-                                    <NativeText numberOfLines={1} className="max-w-[55%] text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                                    <NativeText numberOfLines={1} className="max-w-[55%] text-xs font-medium text-primary dark:text-primary">
                                         {projectName}
                                     </NativeText>
                                 )}
                                 {item.isRecurring && (
-                                    <NativeText className="text-xs text-secondary-700 dark:text-secondary-300">Recurring</NativeText>
+                                    <NativeText className="text-xs text-secondary">Recurring</NativeText>
                                 )}
                             </View>
                         </View>
                         {item.dueDate != null && (
-                            <View className={`ml-3 flex-row items-center rounded-full px-3 py-2 ${isOverdue ? 'bg-red-100 dark:bg-red-950' : 'bg-indigo-100 dark:bg-indigo-950'}`}>
-                                <MaterialCommunityIcons name="calendar-outline" size={14} color={isOverdue ? '#ef4444' : '#6366f1'} />
-                                <NativeText className={`ml-1 text-xs font-semibold ${isOverdue ? 'text-red-700 dark:text-red-200' : 'text-indigo-700 dark:text-indigo-200'}`}>
+                            <View className={`ml-3 flex-row items-center rounded-full px-3 py-2 ${isOverdue ? 'bg-error-container dark:bg-error-container-dark' : 'bg-primary-container dark:bg-primary-container-dark'}`}>
+                                <MaterialCommunityIcons name="calendar-outline" size={14} color={isOverdue ? theme.error : theme.primary} />
+                                <NativeText className={`ml-1 text-xs font-semibold ${isOverdue ? 'text-error dark:text-error-dark' : 'text-on-primary-container dark:text-on-primary-container-dark'}`}>
                                     {formatDueDate(item.dueDate)}
                                 </NativeText>
                             </View>
@@ -233,7 +234,7 @@ export function TasksListScreen() {
     };
 
     return (
-        <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+        <View className="flex-1 bg-background dark:bg-background-dark">
             <View className="px-4 pb-1 pt-4">
                 <View className="relative">
                     <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
@@ -243,13 +244,13 @@ export function TasksListScreen() {
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         autoCapitalize="none"
-                        className="h-14 rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
+                        className="h-14 rounded-2xl border border-outline-variant bg-surface pl-12 pr-4 text-base text-on-surface dark:border-outline-variant-dark dark:bg-surface-dark dark:text-on-surface-dark"
                     />
                 </View>
                 <View className="flex-row items-center justify-between py-4">
                     <View>
-                        <NativeText className="text-lg font-bold text-slate-950 dark:text-slate-50">Your tasks</NativeText>
-                        <NativeText className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                        <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your tasks</NativeText>
+                        <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
                             {filteredTasks.length} open · {filteredCompletedTasks.length} completed · {dueSoonCount} due soon
                         </NativeText>
                     </View>
@@ -269,7 +270,7 @@ export function TasksListScreen() {
             </View>
 
             {sortedProjects.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 10 }}>
                     <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
                         All tasks
                     </Pill>
@@ -292,20 +293,20 @@ export function TasksListScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
                     <View className="flex-1 items-center justify-center px-8 pt-16">
-                        <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-indigo-100 dark:bg-indigo-950">
-                            <MaterialCommunityIcons name={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} size={30} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#4f46e5'} />
+                        <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-primary-container dark:bg-primary-container-dark">
+                            <MaterialCommunityIcons name={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} size={30} color={theme.primary} />
                         </View>
-                        <NativeText className="text-center text-lg font-bold text-slate-950 dark:text-slate-50">
+                        <NativeText className="text-center text-lg font-bold text-on-surface dark:text-on-surface-dark">
                             {hasFilters ? 'No tasks found' : 'No tasks yet'}
                         </NativeText>
-                        <NativeText className="mt-2 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
+                        <NativeText className="mt-2 text-center text-sm leading-5 text-on-surface-variant dark:text-on-surface-variant-dark">
                             {hasFilters ? 'Try a different search or clear your filters.' : 'Add a task to keep your next steps in view.'}
                         </NativeText>
                     </View>
                 }
                 renderSectionHeader={({ section }) => (
                     <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
-                        <NativeText className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        <NativeText className="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-surface-variant-dark">
                             {section.title}
                         </NativeText>
                         {section.action === 'reschedule' ? (
@@ -329,7 +330,7 @@ export function TasksListScreen() {
                     </>
                 )}
             >
-                <NativeText className="text-base leading-6 text-slate-700 dark:text-slate-200">
+                <NativeText className="text-base leading-6 text-on-surface-variant dark:text-on-surface-dark">
                     Move {overdueTasks.length} overdue {overdueTasks.length === 1 ? 'task' : 'tasks'} to today while keeping their existing times?
                 </NativeText>
             </Dialog>
@@ -344,7 +345,7 @@ export function TasksListScreen() {
                     </>
                 )}
             >
-                <NativeText className="text-base leading-6 text-slate-700 dark:text-slate-200">
+                <NativeText className="text-base leading-6 text-on-surface-variant dark:text-on-surface-dark">
                     This will permanently delete {filteredCompletedTasks.length} completed {filteredCompletedTasks.length === 1 ? 'task' : 'tasks'} and their subtasks.
                 </NativeText>
             </Dialog>
@@ -354,12 +355,12 @@ export function TasksListScreen() {
                 accessibilityLabel="New task"
                 accessibilityRole="button"
                 onPress={onAdd}
-                className="absolute right-4 items-center justify-center rounded-2xl bg-indigo-600 px-5 py-4 shadow-lg active:bg-indigo-700 dark:bg-indigo-400 dark:active:bg-indigo-300"
+                className="absolute right-4 items-center justify-center rounded-2xl bg-primary px-5 py-4 shadow-lg active:bg-primary-container dark:bg-primary dark:active:bg-primary-container-dark"
                 style={{ bottom: tabBarHeight + 24 }}
             >
                 <View className="flex-row items-center gap-2">
-                    <MaterialCommunityIcons name="plus" size={20} color={effectiveTheme === 'dark' ? '#0f172a' : '#ffffff'} />
-                    <NativeText className="font-bold text-white dark:text-slate-950">New task</NativeText>
+                    <MaterialCommunityIcons name="plus" size={20} color={theme.onPrimary} />
+                    <NativeText className="font-bold text-on-primary dark:text-on-primary-dark">New task</NativeText>
                 </View>
             </Pressable>
         </View>
