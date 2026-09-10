@@ -120,6 +120,21 @@ export function TaskDetailScreen() {
         if (!title.trim() && !body.trim()) setDeleteDialogOpen(true);
         else navigation.goBack();
     };
+    const adjustDueDate = (days: number) => {
+        const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
+        const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
+        setDueDate(baseDate.add(days, 'day').format('YYYY-MM-DD'));
+    };
+    const adjustDueTime = (hours: number) => {
+        let baseTime = dayjs().startOf('hour');
+        if (dueTime) {
+            const [currentHours, currentMinutes] = dueTime.split(':').map(Number);
+            if (Number.isInteger(currentHours) && Number.isInteger(currentMinutes) && currentHours >= 0 && currentHours <= 23 && currentMinutes >= 0 && currentMinutes <= 59) {
+                baseTime = baseTime.hour(currentHours).minute(currentMinutes);
+            }
+        }
+        setDueTime(baseTime.add(hours, 'hour').format('HH:mm'));
+    };
     const getPickerDate = () => {
         const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
         const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
@@ -197,6 +212,13 @@ export function TaskDetailScreen() {
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: tabBarHeight + 24, gap: 12 }} keyboardShouldPersistTaps="handled">
                 <Card className="rounded-3xl p-2">
+                    <View className="px-2 pb-2">
+                        <Text variant="label" className="mb-1">Project</Text>
+                        <Pressable onPress={() => setProjectDialogOpen(true)}>
+                            <TextField placeholder="No project" value={projects.find((p) => p.recordID === projectID)?.name ?? ''} editable={false} trailing={<MaterialCommunityIcons name="folder-outline" size={20} color={theme.onSurfaceVariant} />} />
+                        </Pressable>
+                    </View>
+                    <Text variant="label" className="mb-1">Title</Text>
                     <TextField
                         placeholder="Task title"
                         value={title}
@@ -209,15 +231,13 @@ export function TaskDetailScreen() {
                         inputClassName="text-2xl font-semibold"
                     />
                     <View className="flex-row flex-wrap gap-2 px-2 pb-2 pt-2">
-                        <Pill compact icon={<MaterialCommunityIcons name={isCompleted ? 'check-circle-outline' : 'checkbox-marked-circle-outline'} size={15} color={iconColor} />}>{isCompleted ? 'Completed task' : 'Open task'}</Pill>
-                        {isRecurring ? <Pill compact icon={<MaterialCommunityIcons name="repeat" size={15} color={iconColor} />}>Recurring</Pill> : null}
+                        <Pill compact icon={<MaterialCommunityIcons name={isCompleted ? 'check-circle-outline' : 'checkbox-marked-circle-outline'} size={15} color={iconColor} />}>{isCompleted ? 'Completed' : 'Open'}</Pill>
                     </View>
                 </Card>
 
                 <Card className="p-4">
                     <View className="mb-3">
                         <Text variant="title">Notes</Text>
-                        <Text variant="bodySmall">Optional details</Text>
                     </View>
                     <TextField placeholder="Add context or details…" value={body} onChangeText={setBody} multiline inputClassName="min-h-28" />
                 </Card>
@@ -225,56 +245,58 @@ export function TaskDetailScreen() {
                 <Card className="p-4">
                     <View className="mb-3 flex-row items-center justify-between gap-3">
                         <View>
-                            <Text variant="title">Details</Text>
-                            <Text variant="bodySmall">Schedule and organization</Text>
+                            <Text variant="title">Due</Text>
                         </View>
                         {isRecurring ? <Pill compact icon={<MaterialCommunityIcons name="repeat" size={15} color={iconColor} />}>Repeats</Pill> : null}
                     </View>
                     <View className="mb-3 mt-1">
-                        <Text variant="label" className="mb-1">Due date</Text>
-                        <Pressable onPress={openDatePicker}>
-                            <TextField placeholder="No due date" value={dueDate ?? ''} editable={false} trailing={<MaterialCommunityIcons name="calendar-outline" size={20} color={theme.onSurfaceVariant} />} />
-                        </Pressable>
-                        {Platform.OS === 'android' ? (
-                            <View className="mt-1 flex-row justify-end gap-1">
-                                <Button variant="text" compact onPress={() => { setDatePickerValue(dayjs().toDate()); setNativePickerMode('date'); }}>Today</Button>
-                                {dueDate ? <Button variant="text" compact onPress={clearDueDate}>Clear</Button> : null}
-                            </View>
-                        ) : null}
+                        <View className="flex-row items-center gap-1">
+                            <StepButton direction="down" color={theme.onSurfaceVariant} accessibilityLabel="Decrease due date by one day" onPress={() => adjustDueDate(-1)} />
+                            <Pressable onPress={openDatePicker} className="min-w-0 flex-1">
+                                <TextField
+                                    placeholder="No due date"
+                                    value={dueDate ?? ''}
+                                    editable={false}
+                                    trailing={(
+                                        <View className="flex-row items-center gap-1">
+                                            {dueDate ? <ClearButton color={theme.onSurfaceVariant} accessibilityLabel="Clear due date" onPress={clearDueDate} /> : null}
+                                            <MaterialCommunityIcons name="calendar-outline" size={20} color={theme.onSurfaceVariant} />
+                                        </View>
+                                    )}
+                                />
+                            </Pressable>
+                            <StepButton direction="up" color={theme.onSurfaceVariant} accessibilityLabel="Increase due date by one day" onPress={() => adjustDueDate(1)} />
+                        </View>
                     </View>
                     {dueDate ? (
+                        <>
                         <View className="mb-3 mt-1">
-                            <Text variant="label" className="mb-1">Time</Text>
-                            <Pressable onPress={openTimePicker}>
-                                <TextField placeholder="Any time" value={dueTime ?? ''} editable={false} trailing={<MaterialCommunityIcons name="clock-outline" size={20} color={theme.onSurfaceVariant} />} />
-                            </Pressable>
-                            {Platform.OS === 'android' ? (
-                                <View className="mt-1 flex-row justify-end gap-1">
-                                    <Button variant="text" compact onPress={() => { setTimePickerValue(dayjs().startOf('hour').toDate()); setNativePickerMode('time'); }}>Now</Button>
-                                    {dueTime ? <Button variant="text" compact onPress={clearDueTime}>Clear</Button> : null}
-                                </View>
-                            ) : null}
+                            <View className="flex-row items-center gap-1">
+                                <StepButton direction="down" color={theme.onSurfaceVariant} accessibilityLabel="Decrease due time by one hour" onPress={() => adjustDueTime(-1)} />
+                                <Pressable onPress={openTimePicker} className="min-w-0 flex-1">
+                                    <TextField
+                                        placeholder="Any time"
+                                        value={dueTime ?? ''}
+                                        editable={false}
+                                        trailing={(
+                                            <View className="flex-row items-center gap-1">
+                                                {dueTime ? <ClearButton color={theme.onSurfaceVariant} accessibilityLabel="Clear due time" onPress={clearDueTime} /> : null}
+                                                <MaterialCommunityIcons name="clock-outline" size={20} color={theme.onSurfaceVariant} />
+                                            </View>
+                                        )}
+                                    />
+                                </Pressable>
+                                <StepButton direction="up" color={theme.onSurfaceVariant} accessibilityLabel="Increase due time by one hour" onPress={() => adjustDueTime(1)} />
+                            </View>
                         </View>
-                    ) : null}
-                    <View className="mb-0 mt-1">
-                        <Text variant="label" className="mb-1">Project</Text>
-                        <Pressable onPress={() => setProjectDialogOpen(true)}>
-                            <TextField placeholder="No project" value={projects.find((p) => p.recordID === projectID)?.name ?? ''} editable={false} trailing={<MaterialCommunityIcons name="folder-outline" size={20} color={theme.onSurfaceVariant} />} />
-                        </Pressable>
-                    </View>
-                </Card>
-
-                {dueDate ? (
-                    <Card className="p-4">
                         <View className="flex-row items-center justify-between gap-3">
                             <View className="min-w-0 flex-1">
                                 <Text variant="title">Recurring task</Text>
-                                <Text variant="bodySmall">Create the next occurrence when completed</Text>
                             </View>
                             <Switch value={isRecurring} onValueChange={setIsRecurring} accessibilityLabel="Recurring task" />
                         </View>
                         {isRecurring ? (
-                            <View className="mt-4 rounded-2xl bg-surface-variant dark:bg-surface-variant-dark">
+                            <View className="mt-4 p-4 rounded-2xl bg-surface-variant dark:bg-surface-variant-dark">
                                 <View className="flex-row flex-wrap items-center gap-2">
                                     <Text>Every</Text>
                                     <TextField value={String(recurrenceInterval)} onChangeText={(text) => {
@@ -294,15 +316,15 @@ export function TaskDetailScreen() {
                                 </View>
                             </View>
                         ) : null}
-                    </Card>
-                ) : null}
+                        </>
+                    ) : null}
+                </Card>
 
                 <Card className="p-4">
                     <View className="mb-3">
                         <Text variant="title">Subtasks</Text>
                         <Text variant="bodySmall">{subtasks.filter((s) => s.isCompleted).length} of {subtasks.length} complete</Text>
                     </View>
-                    {subtasks.length === 0 ? <Text variant="bodySmall" className="py-2">Break this task into smaller steps.</Text> : null}
                     {subtasks.map((subtask) => (
                         <View key={subtask.recordID} className="flex-row items-center border-t border-outline-variant dark:border-outline-variant-dark">
                             <Checkbox status={subtask.isCompleted ? 'checked' : 'unchecked'} onPress={() => toggleSubtask(subtask.recordID)} accessibilityLabel={`Toggle ${subtask.title}`} />
@@ -340,13 +362,7 @@ export function TaskDetailScreen() {
                 visible={dateDialogOpen}
                 onDismiss={() => setDateDialogOpen(false)}
                 title="Set due date"
-                actions={(
-                    <>
-                        <Button variant="text" compact onPress={clearDueDate}>Clear</Button>
-                        <Button variant="text" compact onPress={() => { setDatePickerValue(dayjs().toDate()); }}>Today</Button>
-                        <Button compact onPress={handleDateSave}>Save</Button>
-                    </>
-                )}
+                actions={<Button compact onPress={handleDateSave}>Save</Button>}
             >
                 <View className="items-center">
                     <DateTimePicker
@@ -366,13 +382,7 @@ export function TaskDetailScreen() {
                 visible={timeDialogOpen}
                 onDismiss={() => setTimeDialogOpen(false)}
                 title="Set due time"
-                actions={(
-                    <>
-                        <Button variant="text" compact onPress={clearDueTime}>Clear</Button>
-                        <Button variant="text" compact onPress={() => { setTimePickerValue(dayjs().startOf('hour').toDate()); }}>Now</Button>
-                        <Button compact onPress={handleTimeSave}>Save</Button>
-                    </>
-                )}
+                actions={<Button compact onPress={handleTimeSave}>Save</Button>}
             >
                 <View className="items-center">
                     <DateTimePicker
@@ -425,6 +435,35 @@ export function TaskDetailScreen() {
             </Dialog>
             <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
         </View>
+    );
+}
+
+function ClearButton({ color, accessibilityLabel, onPress }: { color: string; accessibilityLabel: string; onPress: () => void }) {
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            onPress={(event) => {
+                event.stopPropagation();
+                onPress();
+            }}
+            className="h-8 w-8 items-center justify-center rounded-lg active:bg-surface-variant dark:active:bg-surface-variant-dark"
+        >
+            <MaterialCommunityIcons name="close" size={18} color={color} />
+        </Pressable>
+    );
+}
+
+function StepButton({ direction, color, accessibilityLabel, onPress }: { direction: 'up' | 'down'; color: string; accessibilityLabel: string; onPress: () => void }) {
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            onPress={onPress}
+            className="h-10 w-10 items-center justify-center rounded-xl active:bg-surface-variant dark:active:bg-surface-variant-dark"
+        >
+            <MaterialCommunityIcons name={direction === 'up' ? 'chevron-up' : 'chevron-down'} size={24} color={color} />
+        </Pressable>
     );
 }
 
