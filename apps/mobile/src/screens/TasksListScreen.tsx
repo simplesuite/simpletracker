@@ -1,12 +1,16 @@
-import { useState } from 'react';
-import { RefreshControl, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, SectionList, Text as NativeText, TextInput, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Card, Checkbox, Chip, FAB, List, Searchbar, Text, useTheme } from 'react-native-paper';
+import { useColorScheme } from 'nativewind';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/core';
 import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
+import { useThemeStore } from '../store/themeStore';
+import { Pill } from '../components/ui/Pill';
+import { Surface } from '../components/ui/Surface';
 import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
@@ -17,17 +21,22 @@ type TaskSection = {
 };
 
 export function TasksListScreen() {
-    const theme = useTheme();
     const tabBarHeight = useBottomTabBarHeight();
     const navigation = useNavigation<Nav>();
     const tasks = useTaskStore((s) => s.tasks);
     const createBlankTask = useTaskStore((s) => s.createBlankTask);
     const completeTask = useTaskStore((s) => s.completeTask);
     const projects = useProjectStore((s) => s.projects);
+    const { effectiveTheme } = useThemeStore();
+    const { setColorScheme } = useColorScheme();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProjectIDs, setSelectedProjectIDs] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+        setColorScheme(effectiveTheme);
+    }, [effectiveTheme, setColorScheme]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -112,6 +121,7 @@ export function TasksListScreen() {
 
     const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
     const dueSoonCount = dueTodayTasks.length + dueTomorrowTasks.length;
+    const placeholderColor = effectiveTheme === 'dark' ? '#94a3b8' : '#64748b';
 
     const toggleProjectFilter = (projectID: string) => {
         setSelectedProjectIDs((previous) => {
@@ -138,106 +148,102 @@ export function TasksListScreen() {
             ? projects.find((project) => project.recordID === item.projectID)?.name
             : undefined;
         const isOverdue = item.dueDate != null && item.dueDate < new Date().setHours(0, 0, 0, 0);
-        const dueColor = isOverdue ? theme.colors.error : theme.colors.primary;
-        const dueBackground = isOverdue ? theme.colors.errorContainer : theme.colors.primaryContainer;
 
         return (
-            <Card
-                mode="contained"
-                onPress={() => navigation.navigate('TaskDetail', { id: item.recordID })}
-                style={[styles.taskCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
-            >
-                <Card.Content style={styles.taskCardContent}>
-                    <Checkbox
-                        status="unchecked"
+            <Surface className="mx-4 mb-3 overflow-hidden">
+                <View className="flex-row items-center px-4 py-3">
+                    <Pressable
+                        accessibilityLabel={`Complete ${item.title || 'task'}`}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: false }}
                         onPress={() => completeTask(item.recordID)}
-                    />
-                    <View style={styles.taskDetails}>
-                        <Text variant="titleMedium" numberOfLines={1}>
-                            {item.title || '(untitled)'}
-                        </Text>
-                        <View style={styles.taskMeta}>
-                            {projectName && (
-                                <Text variant="labelSmall" numberOfLines={1} style={[styles.projectMeta, { color: theme.colors.primary }]}>
-                                    {projectName}
-                                </Text>
-                            )}
-                            {item.isRecurring && (
-                                <Text variant="labelSmall" style={{ color: theme.colors.onSurfaceVariant }}>
-                                    Recurring
-                                </Text>
-                            )}
+                        className="mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 border-slate-300 bg-transparent dark:border-slate-600"
+                    >
+                        <MaterialCommunityIcons name="check" size={17} color="transparent" />
+                    </Pressable>
+                    <Pressable
+                        accessibilityRole="button"
+                        onPress={() => navigation.navigate('TaskDetail', { id: item.recordID })}
+                        className="min-w-0 flex-1 flex-row items-center active:opacity-70"
+                    >
+                        <View className="min-w-0 flex-1">
+                            <NativeText numberOfLines={1} className="text-base font-semibold text-slate-900 dark:text-slate-50">
+                                {item.title || '(untitled)'}
+                            </NativeText>
+                            <View className="mt-1 flex-row items-center gap-2">
+                                {projectName && (
+                                    <NativeText numberOfLines={1} className="max-w-[55%] text-xs font-medium text-indigo-600 dark:text-indigo-300">
+                                        {projectName}
+                                    </NativeText>
+                                )}
+                                {item.isRecurring && (
+                                    <NativeText className="text-xs text-slate-500 dark:text-slate-400">Recurring</NativeText>
+                                )}
+                            </View>
                         </View>
-                    </View>
-                    {item.dueDate != null && (
-                        <Chip
-                            compact
-                            icon="calendar"
-                            mode="flat"
-                            style={[styles.dueChip, { backgroundColor: dueBackground }]}
-                            textStyle={{ color: dueColor }}
-                        >
-                            {formatDueDate(item.dueDate)}
-                        </Chip>
-                    )}
-                </Card.Content>
-            </Card>
+                        {item.dueDate != null && (
+                            <View className={`ml-3 flex-row items-center rounded-full px-3 py-2 ${isOverdue ? 'bg-red-100 dark:bg-red-950' : 'bg-indigo-100 dark:bg-indigo-950'}`}>
+                                <MaterialCommunityIcons name="calendar-outline" size={14} color={isOverdue ? '#ef4444' : '#6366f1'} />
+                                <NativeText className={`ml-1 text-xs font-semibold ${isOverdue ? 'text-red-700 dark:text-red-200' : 'text-indigo-700 dark:text-indigo-200'}`}>
+                                    {formatDueDate(item.dueDate)}
+                                </NativeText>
+                            </View>
+                        )}
+                    </Pressable>
+                </View>
+            </Surface>
         );
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-            <View style={styles.controls}>
-                <Searchbar
-                    placeholder="Search your tasks"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    style={[styles.searchbar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outlineVariant }]}
-                    inputStyle={styles.searchInput}
-                    elevation={0}
-                />
-                <View style={styles.summaryRow}>
+        <View className="flex-1 bg-slate-50 dark:bg-slate-950">
+            <View className="px-4 pb-1 pt-4">
+                <View className="relative">
+                    <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
+                    <TextInput
+                        placeholder="Search your tasks"
+                        placeholderTextColor={placeholderColor}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoCapitalize="none"
+                        className="h-14 rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base text-slate-900 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-50"
+                    />
+                </View>
+                <View className="flex-row items-center justify-between py-4">
                     <View>
-                        <Text variant="titleMedium">Your tasks</Text>
-                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                        <NativeText className="text-lg font-bold text-slate-950 dark:text-slate-50">Your tasks</NativeText>
+                        <NativeText className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                             {filteredTasks.length} open · {dueSoonCount} due soon
-                        </Text>
+                        </NativeText>
                     </View>
                     {hasFilters && (
-                        <Chip
-                            compact
-                            icon="close"
+                        <Pill
+                            selected={false}
                             onPress={() => {
                                 setSearchQuery('');
                                 setSelectedProjectIDs(new Set());
                             }}
+                            className="min-h-9 px-3"
                         >
                             Clear filters
-                        </Chip>
+                        </Pill>
                     )}
                 </View>
             </View>
 
             {sortedProjects.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.projectChips}>
-                    <Chip
-                        compact
-                        selected={selectedProjectIDs.size === 0}
-                        onPress={() => setSelectedProjectIDs(new Set())}
-                        style={styles.projectChip}
-                    >
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+                    <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
                         All tasks
-                    </Chip>
+                    </Pill>
                     {sortedProjects.map((project) => (
-                        <Chip
+                        <Pill
                             key={project.recordID}
-                            compact
                             selected={selectedProjectIDs.has(project.recordID)}
                             onPress={() => toggleProjectFilter(project.recordID)}
-                            style={styles.projectChip}
                         >
                             {project.name} · {tasks.filter((task) => task.projectID === project.recordID).length}
-                        </Chip>
+                        </Pill>
                     ))}
                 </ScrollView>
             )}
@@ -245,75 +251,43 @@ export function TasksListScreen() {
             <SectionList
                 sections={sections}
                 keyExtractor={(item) => item.recordID}
-                contentContainerStyle={sections.length === 0
-                    ? [styles.emptyListContent, { paddingBottom: tabBarHeight + 96 }]
-                    : [styles.listContent, { paddingBottom: tabBarHeight + 96 }]}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />}
+                contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sections.length === 0 ? { flexGrow: 1 } : {}) }}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
-                    <View style={styles.empty}>
-                        <View style={[styles.emptyIcon, { backgroundColor: theme.colors.primaryContainer }]}>
-                            <List.Icon icon={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} color={theme.colors.primary} />
+                    <View className="flex-1 items-center justify-center px-8 pt-16">
+                        <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-indigo-100 dark:bg-indigo-950">
+                            <MaterialCommunityIcons name={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} size={30} color={effectiveTheme === 'dark' ? '#a5b4fc' : '#4f46e5'} />
                         </View>
-                        <Text variant="titleMedium" style={styles.emptyTitle}>
+                        <NativeText className="text-center text-lg font-bold text-slate-950 dark:text-slate-50">
                             {hasFilters ? 'No tasks found' : 'No tasks yet'}
-                        </Text>
-                        <Text variant="bodyMedium" style={[styles.emptyDescription, { color: theme.colors.onSurfaceVariant }]}>
+                        </NativeText>
+                        <NativeText className="mt-2 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
                             {hasFilters ? 'Try a different search or clear your filters.' : 'Add a task to keep your next steps in view.'}
-                        </Text>
+                        </NativeText>
                     </View>
                 }
                 renderSectionHeader={({ section }) => (
-                    <View style={styles.sectionHeader}>
-                        <Text variant="labelLarge" style={{ color: theme.colors.onSurfaceVariant }}>
-                            {section.title.toUpperCase()}
-                        </Text>
+                    <View className="px-5 pb-2 pt-4">
+                        <NativeText className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            {section.title}
+                        </NativeText>
                     </View>
                 )}
                 renderItem={renderTask}
             />
 
-            <FAB
-                icon="plus"
-                size="small"
+            <Pressable
                 accessibilityLabel="New task"
-                style={[styles.fab, { bottom: tabBarHeight + 24 }]}
+                accessibilityRole="button"
                 onPress={onAdd}
-            />
+                className="absolute right-4 items-center justify-center rounded-2xl bg-indigo-600 px-5 py-4 shadow-lg active:bg-indigo-700 dark:bg-indigo-400 dark:active:bg-indigo-300"
+                style={{ bottom: tabBarHeight + 24 }}
+            >
+                <View className="flex-row items-center gap-2">
+                    <MaterialCommunityIcons name="plus" size={20} color={effectiveTheme === 'dark' ? '#0f172a' : '#ffffff'} />
+                    <NativeText className="font-bold text-white dark:text-slate-950">New task</NativeText>
+                </View>
+            </Pressable>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    controls: { paddingHorizontal: 16, paddingTop: 12 },
-    searchbar: { borderWidth: 1, borderRadius: 16 },
-    searchInput: { fontSize: 16 },
-    summaryRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-    },
-    projectChips: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    projectChip: { minHeight: 36 },
-    listContent: { paddingTop: 4 },
-    emptyListContent: { flexGrow: 1 },
-    sectionHeader: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-    taskCard: { marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderRadius: 16 },
-    taskCardContent: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingRight: 12 },
-    taskDetails: { flex: 1, marginLeft: 4 },
-    taskMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-    projectMeta: { flexShrink: 1 },
-    dueChip: { marginLeft: 8 },
-    empty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 72 },
-    emptyIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-    emptyTitle: { textAlign: 'center', marginBottom: 6 },
-    emptyDescription: { textAlign: 'center', lineHeight: 21 },
-    fab: { position: 'absolute', right: 16 },
-});

@@ -7,5 +7,10 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "index.ts", "App.tsx"]
+  "include": [
+    "src",
+    "index.ts",
+    "App.tsx",
+    "nativewind-env.d.ts"
+  ]
 }

@@ -3,6 +3,7 @@
 // from both the app and the root node_modules. disableHierarchicalLookup is
 // required for pnpm's isolated (symlinked) node_modules layout.
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
 
 const projectRoot = __dirname;
@@ -23,4 +24,7 @@ config.resolver.nodeModulesPaths = [
 // flat, so we do NOT set resolver.disableHierarchicalLookup — Expo's default
 // (false) is correct and expo-doctor flags overriding it as risky.
 
-module.exports = config;
+module.exports = withNativeWind(config, {
+    input: path.resolve(projectRoot, 'global.css'),
+    configPath: path.resolve(projectRoot, 'tailwind.config.js'),
+});
