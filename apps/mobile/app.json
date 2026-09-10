@@ -3,7 +3,7 @@
     "name": "simpleTracker",
     "slug": "simpletracker",
     "scheme": "simpletracker",
-    "version": "0.1.0",
+    "version": "v1.0.8-beta",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

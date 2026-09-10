@@ -179,13 +179,10 @@ export function SettingsScreen() {
     return (
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingTop: 20, paddingBottom: tabBarHeight + 24, gap: 12 }}>
-                <View className="mb-2 gap-1">
-                    <Text variant="body" style={{ color: theme.onSurfaceVariant }}>Manage your account, reminders, exports, and app appearance.</Text>
-                </View>
 
                 <Card className="overflow-hidden p-5">
                     <View className="mb-2 flex-row items-center justify-between gap-3">
-                        <View><Text variant="titleLarge">Account</Text><Text variant="bodySmall">Your current signed-in account</Text></View>
+                        <View><Text variant="titleLarge">Account</Text></View>
                         <View className="h-11 w-11 items-center justify-center rounded-2xl bg-primary-container dark:bg-primary-container-dark"><MaterialCommunityIcons name="account-outline" size={22} color={theme.primary} /></View>
                     </View>
                     <View className="flex-row items-center py-3">
@@ -200,30 +197,30 @@ export function SettingsScreen() {
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Plan</Text><Text variant="bodySmall">Exports and project sharing access</Text></View><Pill compact>{entitlementLoading ? 'Loading…' : subscriptionLabel}</Pill></View>
+                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Plan</Text></View><Pill compact>{entitlementLoading ? 'Loading…' : subscriptionLabel}</Pill></View>
                     {entitlementError ? <Text variant="bodySmall" style={{ color: theme.error }}>{entitlementError}</Text> : null}
                     {subscriptionState === 'free' ? <Button variant="contained" icon={<MaterialCommunityIcons name="star-outline" size={18} color={theme.onPrimary} />} onPress={async () => { try { await redirectToCheckout(); await refreshEntitlement(); } catch (error) { setStatusMessage(error instanceof Error ? error.message : 'Unable to start checkout.'); } }}>Upgrade to Pro</Button> : <Button variant="outlined" icon={<MaterialCommunityIcons name="credit-card-outline" size={18} color={theme.primary} />} onPress={async () => { try { await redirectToBillingPortal(); await refreshEntitlement(); } catch (error) { setStatusMessage(error instanceof Error ? error.message : 'Unable to open billing.'); } }}>Manage subscription</Button>}
                     {entitlement?.current_period_end ? <Text variant="bodySmall" className="mt-2">Plan date: {new Date(entitlement.current_period_end).toLocaleDateString()}</Text> : null}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Task notifications</Text><Text variant="bodySmall">Reminders for open tasks with due dates</Text></View><Switch value={notificationsEnabled} onValueChange={handleNotifications} disabled={notificationsLoading} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={notificationsEnabled ? theme.primary : theme.surface} /></View>
+                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Task notifications</Text></View><Switch value={notificationsEnabled} onValueChange={handleNotifications} disabled={notificationsLoading} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={notificationsEnabled ? theme.primary : theme.surface} /></View>
                     {notificationsLoading ? <ActivityIndicator color={theme.primary} /> : <Text variant="bodySmall">Each open task with a due date gets a day-of reminder, a 15-minute reminder for timed tasks, and a daily overdue reminder.</Text>}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3"><Text variant="titleLarge">Export data</Text><Text variant="bodySmall">Share your notes, tasks, or projects as CSV files.</Text></View>
+                    <View className="mb-3"><Text variant="titleLarge">Export data</Text><Text variant="bodySmall">All your data as CSV files.</Text></View>
                     {hasPro ? <View className="gap-2"><Button variant="outlined" compact onPress={() => exportData('notes')}>Notes ({exportCounts.notes})</Button><Button variant="outlined" compact onPress={() => exportData('tasks')}>Tasks ({exportCounts.tasks})</Button><Button variant="outlined" compact onPress={() => exportData('projects')}>Projects ({exportCounts.projects})</Button></View> : <View className="flex-row items-center gap-2"><MaterialCommunityIcons name="lock-outline" size={18} color={theme.onSurfaceVariant} /><Text variant="bodySmall">Exports are available with Pro.</Text></View>}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Appearance</Text><Text variant="bodySmall">Choose how SimpleTracker looks</Text></View><Pill compact icon={<MaterialCommunityIcons name="palette-outline" size={15} color={theme.onSurfaceVariant} />}>{themeLabel}</Pill></View>
-                    {([['system', 'Use system setting', 'Follow your device theme'], ['light', 'Light', 'A bright interface'], ['dark', 'Dark', 'A darker interface']] as const).map(([value, title, description]) => <View key={value} className="min-h-16 flex-row items-center justify-between border-b border-outline-variant py-1 dark:border-outline-variant-dark"><View className="min-w-0 flex-1 gap-0.5"><Text variant="bodyLarge">{title}</Text><Text variant="bodySmall">{description}</Text></View><Radio checked={themeMode === value} onPress={() => setThemeMode(value)} accessibilityLabel={title} /></View>)}
+                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Appearance</Text></View><Pill compact icon={<MaterialCommunityIcons name="palette-outline" size={15} color={theme.onSurfaceVariant} />}>{themeLabel}</Pill></View>
+                    {([['system', 'Use system setting'], ['light', 'Light'], ['dark', 'Dark']] as const).map(([value, title]) => <View key={value} className="min-h-16 flex-row items-center justify-between border-b border-outline-variant py-1 dark:border-outline-variant-dark"><View className="min-w-0 flex-1 gap-0.5"><Text variant="bodyLarge">{title}</Text></View><Radio checked={themeMode === value} onPress={() => setThemeMode(value)} accessibilityLabel={title} /></View>)}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Support</Text><Text variant="bodySmall">Documentation and feedback</Text></View><MaterialCommunityIcons name="help-circle-outline" size={22} color={theme.primary} /></View>
-                    <View className="gap-2"><Button variant="outlined" compact icon={<MaterialCommunityIcons name="book-open-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(guidesUrl)}>Guides</Button><Button variant="outlined" compact icon={<MaterialCommunityIcons name="bug-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(bugUrl)}>Report a bug</Button><Button variant="tonal" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={18} color={theme.primary} />} onPress={() => shareText(`Try SimpleTracker: ${appUrl}`, 'App link ready to share.')}>Share app link</Button></View>
+                    <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Support</Text></View><MaterialCommunityIcons name="help-circle-outline" size={22} color={theme.primary} /></View>
+                    <View className="gap-2"><Button variant="outlined" compact icon={<MaterialCommunityIcons name="book-open-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(guidesUrl)}>Guides</Button><Button variant="outlined" compact icon={<MaterialCommunityIcons name="bug-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(bugUrl)}>Report a bug / Suggest a Feature</Button><Button variant="tonal" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={18} color={theme.primary} />} onPress={() => shareText(`Try SimpleTracker: ${appUrl}`, 'App link ready to share.')}>Share app link</Button></View>
                 </Card>
 
                 <View className="mt-1 flex-row items-center justify-between gap-3 rounded-3xl border p-4" style={{ backgroundColor: theme.errorContainer, borderColor: theme.error }}><View className="min-w-0 flex-1 gap-1"><Text variant="title">Sign out</Text><Text variant="bodySmall" style={{ color: theme.onErrorContainer }}>Local synced data will be cleared from this device.</Text></View><Button variant="outlined" compact icon={<MaterialCommunityIcons name="logout" size={18} color={theme.error} />} textClassName="text-error dark:text-error-dark" className="border-error dark:border-error-dark" onPress={signOut}>Sign out</Button></View>

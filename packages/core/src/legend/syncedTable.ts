@@ -3,7 +3,7 @@
  *
  * Wraps `syncedSupabase` with simpleTracker's standard options so store code
  * only expresses what's specific to a collection: the table name, which rows to
- * pull (the `filter`), and which actions are allowed. Everything else — id/date
+ * pull (the `filter`), and which actions are allowed. Everything else — id
  * field mapping, local persistence, retry behavior, the auth gate — comes from
  * the shared config here and in ./config.
  *
@@ -61,16 +61,25 @@ export function syncedTable<TRow extends Record<string, any>>(
         syncedSupabase({
             supabase: getSupabase(),
             collection,
+            onError: (error: unknown, params: any) => {
+                const message = error instanceof Error ? error.message : String(error);
+                const input = params?.input ?? params?.setParams?.input;
+                const recordID = input?.recordID;
+                console.error(`[simpleTracker sync] ${collection} ${params?.source ?? 'unknown'} failed: ${message}`, {
+                    recordID,
+                    retryNum: params?.retry?.retryNum,
+                });
+            },
             // Only sync while authenticated; flipped by the auth flow.
             enabled: syncEnabled$,
             actions: actions ?? ['read', 'create', 'update', 'delete'],
             ...(filter
                 ? {
-                      // `select` is a Supabase PostgrestFilterBuilder; typed
-                      // loosely to avoid depending on @supabase/postgrest-js
-                      // internals (keeps this portable for the shared core).
-                      filter: (select: any) => filter(select),
-                  }
+                    // `select` is a Supabase PostgrestFilterBuilder; typed
+                    // loosely to avoid depending on @supabase/postgrest-js
+                    // internals (keeps this portable for the shared core).
+                    filter: (select: any) => filter(select),
+                }
                 : {}),
             persist: {
                 name: persistName,

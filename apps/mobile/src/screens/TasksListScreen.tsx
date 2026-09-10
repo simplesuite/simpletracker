@@ -14,6 +14,14 @@ import dayjs from 'dayjs';
 
 type Nav = NativeStackNavigationProp<TasksStackParamList, 'TasksList'>;
 
+async function waitForStoreRecord(isPresent: () => boolean): Promise<boolean> {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+        if (isPresent()) return true;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
+    return isPresent();
+}
+
 type TaskSection = {
     title: string;
     data: Task[];
@@ -58,7 +66,14 @@ export function TasksListScreen() {
 
     const onAdd = async () => {
         const task = await createBlankTask();
-        navigation.navigate('TaskDetail', { id: task.recordID });
+        const createError = useTaskStore.getState().error;
+        if (createError) {
+            setActionError(createError);
+            return;
+        }
+        const visible = await waitForStoreRecord(() => useTaskStore.getState().tasks.some((item) => item.recordID === task.recordID));
+        if (visible) navigation.navigate('TaskDetail', { id: task.recordID });
+        else setActionError(useTaskStore.getState().error ?? 'Unable to create task. Check your connection and try again.');
     };
 
     const openTasks = tasks.filter((task) => task.status === 'open');
@@ -147,11 +162,14 @@ export function TasksListScreen() {
         const today = dayjs().startOf('day');
         const date = dayjs(dueDate);
         const diffDays = date.startOf('day').diff(today, 'day');
-        if (diffDays < 0) return 'Overdue';
-        if (diffDays === 0) return 'Today';
-        if (diffDays === 1) return 'Tomorrow';
-        if (diffDays <= 7) return date.format('ddd');
-        return date.format('MMM D');
+        const timeSuffix = date.hour() !== 0 || date.minute() !== 0
+            ? ` ${date.toDate().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+            : '';
+        if (diffDays < 0) return `Overdue${timeSuffix}`;
+        if (diffDays === 0) return `Today${timeSuffix}`;
+        if (diffDays === 1) return `Tomorrow${timeSuffix}`;
+        if (diffDays <= 7) return `${date.format('ddd')}${timeSuffix}`;
+        return `${date.format('MMM D')}${timeSuffix}`;
     };
 
     const rescheduleOverdue = async () => {
