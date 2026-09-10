@@ -1,4 +1,7 @@
 {
+    "buildCommand": "pnpm --filter @simpletracker/web build",
+    "installCommand": "pnpm install",
+    "outputDirectory": "apps/web/dist",
     "headers": [
         {
             "source": "/sw.js",

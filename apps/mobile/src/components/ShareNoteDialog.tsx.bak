@@ -1,0 +1,252 @@
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList, ActivityIndicator, Text } from 'react-native';
+import { Dialog, Portal, Button, TextInput, Chip, Avatar } from 'react-native-paper';
+import { useNoteStore } from '@simpletracker/core';
+import { supabase } from '../lib/supabase';
+
+interface ShareNoteDialogProps {
+    visible: boolean;
+    noteId: string;
+    onClose: () => void;
+}
+
+export function ShareNoteDialog({ visible, noteId, onClose }: ShareNoteDialogProps) {
+    const [shareEmail, setShareEmail] = useState('');
+    const [shares, setShares] = useState<{ email: string; fullName: string; userId: string }[]>([]);
+    const [searchResults, setSearchResults] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [shareLoading, setShareLoading] = useState(false);
+    const [shareError, setShareError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const shareNote = useNoteStore((s) => s.shareNote);
+    const getSharesForNote = useNoteStore((s) => s.getSharesForNote);
+
+    useEffect(() => {
+        if (visible) {
+            loadShares();
+        }
+    }, [visible, noteId]);
+
+    const loadShares = async () => {
+        if (!noteId) return;
+        setLoading(true);
+        try {
+            const noteShares = await getSharesForNote(noteId);
+            const sharesWithDetails = await Promise.all(
+                noteShares.map(async (share) => {
+                    const { data } = await supabase
+                        .from('users')
+                        .select('fullName, email')
+                        .eq('recordID', share.sharedToID)
+                        .single();
+                    return {
+                        email: data?.email || '',
+                        fullName: data?.fullName || '',
+                        userId: share.sharedToID,
+                    };
+                })
+            );
+            setShares(sharesWithDetails);
+        } catch (error) {
+            console.error('Failed to load shares:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSearchUsers = async (query: string) => {
+        setShareEmail(query);
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearchLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('recordID, fullName, email')
+                .ilike('email', `%${query}%`)
+                .limit(10);
+
+            if (error) throw error;
+
+            // Filter out already-shared users
+            const sharedIDs = new Set(shares.map((s) => s.userId));
+            setSearchResults(
+                (data || []).filter((u) => !sharedIDs.has(u.recordID))
+            );
+        } catch (error) {
+            console.error('Search error:', error);
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const handleShare = async () => {
+        if (!noteId || !shareEmail.trim()) return;
+        setShareLoading(true);
+        setShareError(null);
+
+        try {
+            const success = await shareNote(noteId, shareEmail.trim());
+            if (success) {
+                setShareEmail('');
+                setSearchResults([]);
+                await loadShares();
+            } else {
+                setShareError('Failed to share note. Please check the email address.');
+            }
+        } catch (error) {
+            setShareError('Failed to share note. Please try again.');
+        } finally {
+            setShareLoading(false);
+        }
+    };
+
+    const handleUnshare = async (userId: string) => {
+        try {
+            const unshareNote = useNoteStore.getState().unshareNote;
+            const success = await unshareNote(noteId, userId);
+            if (success) {
+                await loadShares();
+            }
+        } catch (error) {
+            console.error('Failed to unshare:', error);
+        }
+    };
+
+    const getAvatarName = (fullName: string, email: string) => {
+        if (fullName) {
+            const words = fullName.split(' ');
+            if (words.length >= 2) {
+                return words[0][0] + words[1][0];
+            }
+            return words[0].slice(0, 2);
+        }
+        return email.slice(0, 2).toUpperCase();
+    };
+
+    return (
+        <Portal>
+            <Dialog visible={visible} onDismiss={onClose}>
+                <Dialog.Title>Share Note</Dialog.Title>
+                <Dialog.Content>
+                    {/* Search for users to share with */}
+                    <TextInput
+                        mode="outlined"
+                        placeholder="Search by email..."
+                        value={shareEmail}
+                        onChangeText={setShareEmail}
+                        onSubmitEditing={() => handleSearchUsers(shareEmail)}
+                        left={<TextInput.Icon icon="account-search" />}
+                        right={
+                            searchLoading ? (
+                                <ActivityIndicator size="small" />
+                            ) : shareEmail ? (
+                                <TextInput.Icon icon="close" onPress={() => { setShareEmail(''); setSearchResults([]); }} />
+                            ) : null
+                        }
+                        style={styles.searchInput}
+                    />
+
+                    {/* Search results */}
+                    {searchResults.length > 0 && (
+                        <FlatList
+                            data={searchResults}
+                            keyExtractor={(item) => item.recordID}
+                            renderItem={({ item }) => (
+                                <View style={styles.searchResultItem}>
+                                    <Avatar.Text
+                                        size={40}
+                                        label={getAvatarName(item.fullName, item.email)}
+                                    />
+                                    <View style={styles.searchResultInfo}>
+                                        <Text style={styles.searchResultName}>{item.fullName || 'Unknown'}</Text>
+                                        <Text style={styles.searchResultEmail}>{item.email}</Text>
+                                    </View>
+                                    <Button
+                                        mode="text"
+                                        onPress={() => {
+                                            setShareEmail(item.email);
+                                            setSearchResults([]);
+                                        }}
+                                    >
+                                        Share
+                                    </Button>
+                                </View>
+                            )}
+                        />
+                    )}
+
+                    {/* Current shares */}
+                    {loading && <ActivityIndicator />}
+                    {shares.length > 0 && (
+                        <FlatList
+                            data={shares}
+                            keyExtractor={(item) => item.userId}
+                            renderItem={({ item }) => (
+                                <View style={styles.shareItem}>
+                                    <Avatar.Text
+                                        size={32}
+                                        label={getAvatarName(item.fullName, item.email)}
+                                    />
+                                    <View style={styles.shareInfo}>
+                                        <Text style={styles.shareName}>{item.fullName || 'Unknown'}</Text>
+                                        <Text style={styles.shareEmail}>{item.email}</Text>
+                                    </View>
+                                    <Button
+                                        mode="text"
+                                        icon="close"
+                                        onPress={() => handleUnshare(item.userId)}
+                                    >
+                                        Remove
+                                    </Button>
+                                </View>
+                            )}
+                        />
+                    )}
+                    {shareError && (
+                        <Text variant="bodySmall" style={styles.errorText}>
+                            {shareError}
+                        </Text>
+                    )}
+                    {!loading && shares.length === 0 && (
+                        <Text variant="bodyMedium" style={styles.noShares}>
+                            No one has access to this note yet.
+                        </Text>
+                    )}
+                </Dialog.Content>
+                <Dialog.Actions>
+                    <Button onPress={onClose}>Close</Button>
+                </Dialog.Actions>
+            </Dialog>
+        </Portal>
+    );
+}
+
+const styles = StyleSheet.create({
+    searchInput: { marginBottom: 16 },
+    searchResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    searchResultInfo: { marginLeft: 12, flex: 1 },
+    searchResultName: { fontSize: 16 },
+    searchResultEmail: { fontSize: 12, color: '#666' },
+    shareItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    shareInfo: { marginLeft: 12, flex: 1 },
+    shareName: { fontSize: 16 },
+    shareEmail: { fontSize: 12, color: '#666' },
+    noShares: { textAlign: 'center', paddingVertical: 16, color: '#666' },
+    errorText: { color: 'red', marginTop: 8 },
+});

@@ -1,0 +1,1241 @@
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import MenuItem from '@mui/material/MenuItem';
+import Autocomplete from '@mui/material/Autocomplete';
+import Alert from '@mui/material/Alert';
+import Divider from '@mui/material/Divider';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogActions from '@mui/material/DialogActions';
+import Stack from '@mui/material/Stack';
+import Menu from '@mui/material/Menu';
+import Checkbox from '@mui/material/Checkbox';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Collapse from '@mui/material/Collapse';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CloseIcon from '@mui/icons-material/Close';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import UnarchiveIcon from '@mui/icons-material/Unarchive';
+import ShareIcon from '@mui/icons-material/Share';
+import PersonRemoveIcon from '@mui/icons-material/PersonRemove';
+import PushPinIcon from '@mui/icons-material/PushPin';
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
+import AddIcon from '@mui/icons-material/Add';
+import ChecklistIcon from '@mui/icons-material/Checklist';
+import NotesIcon from '@mui/icons-material/Notes';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import MarkdownEditor from './MarkdownEditor';
+import { useNoteStore } from '@simpletracker/core';
+import { useProjectStore } from '@simpletracker/core';
+import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
+import { useOfflineStore } from '@simpletracker/core';
+import { supabase } from '../lib/supabase';
+import { ensureSession } from '@simpletracker/core';
+import { useEntitlement } from '../lib/checkout';
+import { searchUsers, getRecentlySharedWithUsers } from '@simpletracker/core';
+import Avatar from '@mui/material/Avatar';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemButton from '@mui/material/ListItemButton';
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
+import type { Note, NoteShared, NoteListItem, ProjectShared } from '@simpletracker/core';
+
+/** Inline editable text field that only persists on blur (not on every keystroke). */
+function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
+    const [localValue, setLocalValue] = useState(value);
+    const localRef = useRef(localValue);
+    localRef.current = localValue;
+
+    // Sync incoming prop changes (e.g. from toggling completion status)
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    // Save on unmount if changed
+    useEffect(() => {
+        return () => {
+            if (localRef.current !== value) {
+                onSave(localRef.current);
+            }
+        };
+    }, [value]);
+
+    return (
+        <TextField
+            variant="standard"
+            fullWidth
+            multiline
+            inputRef={(el) => {
+                if (el && autoFocus) {
+                    el.focus();
+                }
+            }}
+            value={localValue}
+            onChange={(e) => {
+                if (e.target.value.length <= 255) {
+                    setLocalValue(e.target.value);
+                }
+            }}
+            onBlur={() => {
+                if (localValue !== value) {
+                    onSave(localValue);
+                }
+            }}
+            inputProps={{ maxLength: 255 }}
+            sx={{ '& .MuiInput-input': { py: 0.5 } }}
+        />
+    );
+}
+
+export default function NoteDetailPage() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const updateNote = useNoteStore((s) => s.updateNote);
+    const togglePinNote = useNoteStore((s) => s.togglePinNote);
+    const archiveNote = useNoteStore((s) => s.archiveNote);
+    const unarchiveNote = useNoteStore((s) => s.unarchiveNote);
+    const deleteNote = useNoteStore((s) => s.deleteNote);
+    const shareNote = useNoteStore((s) => s.shareNote);
+    const unshareNote = useNoteStore((s) => s.unshareNote);
+    const getSharesForNote = useNoteStore((s) => s.getSharesForNote);
+    const storeError = useNoteStore((s) => s.error);
+
+    // List item store selectors
+    const listItems = useNoteStore((s) => s.listItems);
+    const fetchListItems = useNoteStore((s) => s.fetchListItems);
+    const addListItem = useNoteStore((s) => s.addListItem);
+    const toggleListItem = useNoteStore((s) => s.toggleListItem);
+    const updateListItemTitle = useNoteStore((s) => s.updateListItemTitle);
+    const deleteListItem = useNoteStore((s) => s.deleteListItem);
+    const reorderListItems = useNoteStore((s) => s.reorderListItems);
+
+    const projects = useProjectStore((s) => s.projects);
+    const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
+    const setSnackText = useGlobalStore((s) => s.setSnackBarText);
+    const setSnackSev = useGlobalStore((s) => s.setSnackBarSeverity);
+    const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
+    const isOnline = useOfflineStore((s) => s.isOnline);
+    const { subscriptionState, loading: entitlementLoading } = useEntitlement();
+    const hasPro = entitlementLoading || subscriptionState !== 'free';
+
+    const [title, setTitle] = useState('');
+    const [body, setBody] = useState('');
+    const [noteType, setNoteType] = useState<'text' | 'list'>('text');
+    const [projectID, setProjectID] = useState<string | null>(null);
+    const [archived, setArchived] = useState(false);
+    const [pinned, setPinned] = useState(false);
+    const [creatorID, setCreatorID] = useState('');
+    const [createdAt, setCreatedAt] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [titleError, setTitleError] = useState<string | null>(null);
+    const [bodyError, setBodyError] = useState<string | null>(null);
+    const [isShared, setIsShared] = useState(false);
+    const [offlineMessage, setOfflineMessage] = useState<string | null>(null);
+
+    // Share management state
+    const [shares, setShares] = useState<(NoteShared & { fullName?: string; email?: string })[]>(() => {
+        try {
+            const raw = localStorage.getItem(`cachedNoteShares_${id}`);
+            if (raw) return JSON.parse(raw);
+        } catch { /* ignore */ }
+        return [];
+    });
+    const [shareEmail, setShareEmail] = useState('');
+    const [shareError, setShareError] = useState<string | null>(null);
+    const [shareLoading, setShareLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [pendingShareUser, setPendingShareUser] = useState<{ recordID: string; fullName: string; email: string } | null>(null);
+    const [recentUsers, setRecentUsers] = useState<{ recordID: string; fullName: string; email: string }[]>([]);
+
+    // Delete confirmation dialog
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+    // Menu state
+    const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+    const menuOpen = Boolean(menuAnchorEl);
+
+    // Share dialog state
+    const [shareDialogOpen, setShareDialogOpen] = useState(false);
+
+    // Delete completed list items state
+    const [completedItemsMenuAnchor, setCompletedItemsMenuAnchor] = useState<null | HTMLElement>(null);
+    const [deleteCompletedItemsDialogOpen, setDeleteCompletedItemsDialogOpen] = useState(false);
+    const [deletingCompletedItems, setDeletingCompletedItems] = useState(false);
+
+    // Drag-to-reorder state
+    const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+    const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
+    const [dragOverPosition, setDragOverPosition] = useState<'above' | 'below' | null>(null);
+
+    // Selected list item (shows delete button)
+    const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
+    // Completed items collapsed state (persisted in localStorage)
+    const [completedCollapsed, setCompletedCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem('noteListCompletedCollapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const toggleCompletedCollapsed = () => {
+        setCompletedCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem('noteListCompletedCollapsed', String(next));
+            } catch { /* ignore */ }
+            return next;
+        });
+    };
+
+    // Newly added item that should receive focus
+    const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+
+    // Clear focused item after it receives focus
+    useEffect(() => {
+        if (focusedItemId) {
+            const timer = setTimeout(() => setFocusedItemId(null), 100);
+            return () => clearTimeout(timer);
+        }
+    }, [focusedItemId]);
+
+    // Debounce timer ref
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const isCreator = creatorID === currentUserID;
+
+    // Find note from local state or fetch from server
+    useEffect(() => {
+        if (!id) return;
+
+        const loadNote = async () => {
+            setLoading(true);
+            setError(null);
+            setOfflineMessage(null);
+
+            // Read latest store state directly to avoid stale closure from render
+            const storeState = useNoteStore.getState();
+            const allLocalNotes = [...storeState.notes, ...storeState.sharedNotes, ...storeState.archivedNotes];
+            const localNote = allLocalNotes.find((n) => n.recordID === id);
+
+            if (localNote) {
+                // Check if this is a shared item
+                const shared = localNote.creatorID !== currentUserID;
+                setIsShared(shared);
+
+                if (shared) {
+                    // Shared items: must fetch from server
+                    if (!isOnline) {
+                        setOfflineMessage('Shared items require an internet connection.');
+                        setTitle(localNote.title);
+                        setBody(localNote.body);
+                        setProjectID(localNote.projectID);
+                        setArchived(localNote.archived);
+                        setPinned(localNote.pinned);
+                        setCreatorID(localNote.creatorID);
+                        setCreatedAt(localNote.createdAt);
+                        setNoteType(localNote.noteType || 'text');
+                        setLoading(false);
+                        return;
+                    }
+
+                    try {
+                        await ensureSession();
+                        const { data, error: fetchError } = await supabase
+                            .from('notes')
+                            .select('*')
+                            .eq('recordID', id)
+                            .single();
+
+                        if (fetchError || !data) {
+                            setError('Failed to load note from server.');
+                            setLoading(false);
+                            return;
+                        }
+
+                        setTitle(data.title);
+                        setBody(data.body);
+                        setProjectID(data.projectID);
+                        setArchived(data.archived);
+                        setPinned(data.pinned);
+                        setCreatorID(data.creatorID);
+                        setCreatedAt(data.createdAt);
+                        setNoteType(data.noteType || 'text');
+                    } catch {
+                        setError('Failed to load note from server.');
+                    }
+                } else {
+                    setTitle(localNote.title);
+                    setBody(localNote.body);
+                    setProjectID(localNote.projectID);
+                    setArchived(localNote.archived);
+                    setPinned(localNote.pinned);
+                    setCreatorID(localNote.creatorID);
+                    setCreatedAt(localNote.createdAt);
+                    setNoteType(localNote.noteType || 'text');
+                }
+            } else {
+                // Not in local state — try fetching from server
+                if (!isOnline) {
+                    setError('Note not found. You may be offline.');
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    await ensureSession();
+                    const { data, error: fetchError } = await supabase
+                        .from('notes')
+                        .select('*')
+                        .eq('recordID', id)
+                        .single();
+
+                    if (fetchError || !data) {
+                        setError('Note not found.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    const shared = data.creatorID !== currentUserID;
+                    setIsShared(shared);
+                    setTitle(data.title);
+                    setBody(data.body);
+                    setProjectID(data.projectID);
+                    setArchived(data.archived);
+                    setPinned(data.pinned);
+                    setCreatorID(data.creatorID);
+                    setCreatedAt(data.createdAt);
+                    setNoteType(data.noteType || 'text');
+                } catch {
+                    setError('Failed to load note.');
+                }
+            }
+
+            setLoading(false);
+        };
+
+        loadNote();
+    }, [id, currentUserID, isOnline]);
+
+    // Load shares for creator
+    useEffect(() => {
+        if (!id || !isCreator) return;
+
+        const loadShares = async () => {
+            const noteShares = await getSharesForNote(id);
+            // Fetch user details for each share
+            const sharesWithDetails: (NoteShared & { fullName?: string; email?: string })[] = [];
+            for (const share of noteShares) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('fullName, email')
+                    .eq('recordID', share.sharedToID)
+                    .single();
+                sharesWithDetails.push({
+                    ...share,
+                    fullName: data?.fullName || share.sharedToID,
+                    email: data?.email || '',
+                });
+            }
+            setShares(sharesWithDetails);
+            try {
+                localStorage.setItem(`cachedNoteShares_${id}`, JSON.stringify(sharesWithDetails));
+            } catch { /* ignore */ }
+        };
+
+        loadShares();
+    }, [id, isCreator, getSharesForNote]);
+
+    // Load recently shared-with users when share dialog opens
+    useEffect(() => {
+        if (!shareDialogOpen || !currentUserID) return;
+        getRecentlySharedWithUsers(currentUserID).then(setRecentUsers);
+    }, [shareDialogOpen, currentUserID]);
+
+    // Load list items for list-type notes
+    useEffect(() => {
+        if (!id || noteType !== 'list') return;
+        fetchListItems(id);
+    }, [id, noteType, fetchListItems]);
+
+    const currentListItems: NoteListItem[] = id ? (listItems[id] || []) : [];
+
+    // Track pending fields so we can flush on unmount
+    const pendingFieldsRef = useRef<Partial<Pick<Note, 'title' | 'body' | 'projectID'>> | null>(null);
+
+    // Auto-save with debounce
+    const debouncedSave = useCallback(
+        (fields: Partial<Pick<Note, 'title' | 'body' | 'projectID'>>) => {
+            if (!id) return;
+
+            if (isShared && !isOnline) {
+                setOfflineMessage('Shared items require an internet connection.');
+                return;
+            }
+
+            // Merge with any existing pending fields so we don't lose earlier changes
+            pendingFieldsRef.current = { ...pendingFieldsRef.current, ...fields };
+
+            if (saveTimerRef.current) {
+                clearTimeout(saveTimerRef.current);
+            }
+
+            saveTimerRef.current = setTimeout(async () => {
+                const fieldsToSave = pendingFieldsRef.current;
+                pendingFieldsRef.current = null;
+                if (!fieldsToSave) return;
+
+                const success = await updateNote(id, fieldsToSave);
+                if (!success) {
+                    setError(useNoteStore.getState().error || 'Failed to save note.');
+                } else {
+                    setError(null);
+                }
+            }, 1200);
+        },
+        [id, updateNote, isShared, isOnline]
+    );
+
+    // Flush any pending save immediately (used on unmount and back-navigation)
+    const flushPendingSave = useCallback(() => {
+        if (saveTimerRef.current) {
+            clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        const fieldsToSave = pendingFieldsRef.current;
+        pendingFieldsRef.current = null;
+        if (fieldsToSave && id) {
+            // Fire the save — don't await since we may be unmounting
+            updateNote(id, fieldsToSave);
+        }
+    }, [id, updateNote]);
+
+    // Flush pending save on unmount so data is never lost
+    useEffect(() => {
+        return () => {
+            flushPendingSave();
+        };
+    }, [flushPendingSave]);
+
+    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newTitle = e.target.value;
+        if (newTitle.length > 255) {
+            setTitleError('Title must not exceed 255 characters');
+            return;
+        }
+        setTitleError(null);
+        setTitle(newTitle);
+        debouncedSave({ title: newTitle });
+    };
+
+    const handleProjectChange = (newProjectID: string) => {
+        const value = newProjectID === '' ? null : newProjectID;
+        setProjectID(value);
+        debouncedSave({ projectID: value });
+    };
+
+    const handleArchive = async () => {
+        if (!id) return;
+        const success = archived ? await unarchiveNote(id) : await archiveNote(id);
+        if (success) {
+            setArchived(!archived);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to update archive status.');
+        }
+    };
+
+    const handleTogglePin = async () => {
+        if (!id) return;
+        const success = await togglePinNote(id);
+        if (success) {
+            setPinned(!pinned);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to update pin status.');
+        }
+    };
+
+    const handleToggleNoteType = async () => {
+        if (!id) return;
+        const newType: 'text' | 'list' = noteType === 'text' ? 'list' : 'text';
+
+        if (newType === 'list') {
+            // Text → List: split body by lines into list items
+            const lines = body.split('\n').filter((line) => line.trim().length > 0);
+
+            // Create list items BEFORE switching the view so the list isn't empty on render
+            for (const line of lines) {
+                const trimmed = line.trim().slice(0, 255);
+                await addListItem(id, trimmed);
+            }
+
+            // Now update note type and clear body
+            const success = await updateNote(id, { noteType: newType, body: '' });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            // Switch the UI only after items are ready
+            setBody('');
+            setNoteType(newType);
+        } else {
+            // List → Text: combine list items into body lines
+            const items = currentListItems;
+            const combinedBody = items.map((item) => item.title).join('\n');
+
+            // Update note type and set body
+            const success = await updateNote(id, { noteType: newType, body: combinedBody });
+            if (!success) {
+                setError('Failed to change note type.');
+                return;
+            }
+
+            setNoteType(newType);
+            setBody(combinedBody);
+
+            // Delete all list items
+            for (const item of items) {
+                await deleteListItem(item.recordID);
+            }
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        setDeleteDialogOpen(false);
+        const success = await deleteNote(id);
+        if (success) {
+            navigate(-1);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to delete note.');
+        }
+    };
+
+    const handleDeleteEmptyNote = () => {
+        if (!id) return;
+        // Navigate immediately to avoid glitch where the note briefly appears on the list
+        setSnackText('Empty note discarded');
+        setSnackSev('info');
+        setSnackOpen(true);
+        navigate(-1);
+        // Fire-and-forget: store already removes the note optimistically
+        deleteNote(id);
+    };
+
+    const handleBack = () => {
+        // Flush any pending debounced save so data isn't lost
+        flushPendingSave();
+
+        if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
+            handleDeleteEmptyNote();
+        } else {
+            navigate(-1);
+        }
+    };
+
+    const handleShare = async (userID?: string) => {
+        const targetID = userID || shareEmail.trim();
+        if (!id || !targetID) return;
+        setShareLoading(true);
+        setShareError(null);
+
+        const success = await shareNote(id, targetID);
+        if (success) {
+            setShareEmail('');
+            setSearchResults([]);
+            // Reload shares with user details
+            const updatedShares = await getSharesForNote(id);
+            const sharesWithDetails: (NoteShared & { fullName?: string; email?: string })[] = [];
+            for (const share of updatedShares) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('fullName, email')
+                    .eq('recordID', share.sharedToID)
+                    .single();
+                sharesWithDetails.push({
+                    ...share,
+                    fullName: data?.fullName || share.sharedToID,
+                    email: data?.email || '',
+                });
+            }
+            setShares(sharesWithDetails);
+            setIsShared(true);
+        } else {
+            setShareError(useNoteStore.getState().error || 'Failed to share note.');
+        }
+        setShareLoading(false);
+    };
+
+    const handleSearchUsers = async (query: string) => {
+        setShareEmail(query);
+        if (query.trim().length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearchLoading(true);
+        const results = await searchUsers(query, currentUserID);
+        // Filter out already-shared users
+        const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+        setSearchResults(results.filter((u) => !sharedIDs.has(u.recordID)));
+        setSearchLoading(false);
+    };
+
+    const handleUnshare = async (sharedToID: string) => {
+        if (!id) return;
+        const success = await unshareNote(id, sharedToID);
+        if (success) {
+            const updatedShares = await getSharesForNote(id);
+            setShares(updatedShares);
+            if (updatedShares.length === 0) {
+                setIsShared(false);
+            }
+        } else {
+            setShareError(useNoteStore.getState().error || 'Failed to remove share.');
+        }
+    };
+
+    // ─── List Item Handlers ─────────────────────────────────────────────
+
+    const handleAddListItem = async () => {
+        if (!id) return;
+        const item = await addListItem(id, '');
+        if (item) {
+            setFocusedItemId(item.recordID);
+        } else {
+            setError(useNoteStore.getState().error || 'Failed to add item.');
+        }
+    };
+
+    const handleToggleListItem = async (itemID: string) => {
+        await toggleListItem(itemID);
+    };
+
+    const handleDeleteListItem = async (itemID: string) => {
+        await deleteListItem(itemID);
+    };
+
+    const handleDeleteAllCompletedItems = async () => {
+        setDeleteCompletedItemsDialogOpen(false);
+        setDeletingCompletedItems(true);
+        const completedItems = currentListItems.filter((i) => i.isCompleted);
+        for (const item of completedItems) {
+            await deleteListItem(item.recordID);
+        }
+        setDeletingCompletedItems(false);
+    };
+
+    const handleListItemTitleSave = (itemID: string, newTitle: string) => {
+        updateListItemTitle(itemID, newTitle);
+    };
+
+    // ─── Drag-to-Reorder Handlers ──────────────────────────────────────
+
+    const handleDragStart = (e: React.DragEvent, itemID: string) => {
+        setDraggedItemId(itemID);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragEnd = (_e: React.DragEvent) => {
+        setDraggedItemId(null);
+        setDragOverItemId(null);
+        setDragOverPosition(null);
+    };
+
+    const handleDragOver = (e: React.DragEvent, itemID: string) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (itemID === draggedItemId) {
+            setDragOverItemId(null);
+            setDragOverPosition(null);
+            return;
+        }
+        // Determine if cursor is above or below the midpoint of the target element
+        const rect = e.currentTarget.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const position = e.clientY < midpoint ? 'above' : 'below';
+        setDragOverItemId(itemID);
+        setDragOverPosition(position);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if actually leaving the element (not entering a child)
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverItemId(null);
+            setDragOverPosition(null);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent, targetItemID: string) => {
+        e.preventDefault();
+        if (!draggedItemId || draggedItemId === targetItemID || !id) return;
+
+        const uncompleted = currentListItems.filter((i) => !i.isCompleted);
+        const draggedIndex = uncompleted.findIndex((i) => i.recordID === draggedItemId);
+        const targetIndex = uncompleted.findIndex((i) => i.recordID === targetItemID);
+
+        if (draggedIndex === -1 || targetIndex === -1) return;
+
+        const reordered = [...uncompleted];
+        const [removed] = reordered.splice(draggedIndex, 1);
+
+        // Insert based on cursor position relative to target midpoint
+        let insertIndex = targetIndex;
+        // After removing the dragged item, adjust target index if dragged was before target
+        if (draggedIndex < targetIndex) {
+            insertIndex = targetIndex - 1;
+        }
+        if (dragOverPosition === 'below') {
+            insertIndex += 1;
+        }
+        reordered.splice(insertIndex, 0, removed);
+
+        // Combine reordered uncompleted with completed items
+        const completed = currentListItems.filter((i) => i.isCompleted);
+        const allReordered = [...reordered, ...completed];
+
+        reorderListItems(id, allReordered);
+        setDraggedItemId(null);
+        setDragOverItemId(null);
+        setDragOverPosition(null);
+    };
+
+    if (loading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="40vh">
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error && !title && !body) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <IconButton onClick={handleBack} sx={{ mb: 1 }}>
+                    <ArrowBackIcon />
+                </IconButton>
+                <Alert severity="error">{error}</Alert>
+            </Box>
+        );
+    }
+
+    return (
+        <Box sx={{ maxWidth: 600, mx: 'auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
+            {/* Header with back button and menu */}
+            <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
+                <IconButton onClick={handleBack} aria-label="Back to notes">
+                    <ArrowBackIcon />
+                </IconButton>
+                {/* Shared indicator avatars */}
+                {isShared && !isCreator && (
+                    <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${creatorID}`}
+                        sx={{ width: 28, height: 28, mt: 0.75, mr: 0.75 }}
+                    />
+                )}
+                {isCreator && shares.length > 0 && (
+                    <Box sx={{ display: 'flex', mt: 0.75, mr: 0.75 }}>
+                        {shares.slice(0, 3).map((share) => (
+                            <Avatar
+                                key={share.sharedToID}
+                                src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                sx={{ width: 28, height: 28, ml: -0.5, '&:first-of-type': { ml: 0 } }}
+                            />
+                        ))}
+                    </Box>
+                )}
+                {/* Project assignment */}
+                {/* Project assignment */}
+                <Autocomplete
+                    size="small"
+                    options={projects}
+                    getOptionLabel={(option) => option.name}
+                    value={projects.find((p) => p.recordID === projectID) || null}
+                    onChange={(_, newValue) => handleProjectChange(newValue?.recordID || '')}
+                    disabled={!!offlineMessage && isShared}
+                    sx={{ flex: 1, minWidth: 0 }}
+                    renderInput={(params) => (
+                        <TextField {...params} placeholder="Project" variant="outlined" />
+                    )}
+                />
+                <IconButton
+                    onClick={(e) => setMenuAnchorEl(e.currentTarget)}
+                    aria-label="More options"
+                    aria-controls={menuOpen ? 'note-actions-menu' : undefined}
+                    aria-haspopup="true"
+                    aria-expanded={menuOpen ? 'true' : undefined}
+                >
+                    <MoreVertIcon />
+                </IconButton>
+                <Menu
+                    id="note-actions-menu"
+                    anchorEl={menuAnchorEl}
+                    open={menuOpen}
+                    onClose={() => setMenuAnchorEl(null)}
+                >
+                    {isCreator && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); setShareDialogOpen(true); }} disabled={!hasPro}>
+                            <ListItemIcon><ShareIcon fontSize="small" /></ListItemIcon>
+                            <ListItemText>{hasPro ? 'Share' : 'Share (Pro)'}</ListItemText>
+                        </MenuItem>
+                    )}
+                    {!archived && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); handleTogglePin(); }}>
+                            <ListItemIcon>
+                                {pinned ? <PushPinIcon fontSize="small" /> : <PushPinOutlinedIcon fontSize="small" />}
+                            </ListItemIcon>
+                            <ListItemText>{pinned ? 'Unpin' : 'Pin to top'}</ListItemText>
+                        </MenuItem>
+                    )}
+                    <MenuItem onClick={() => { setMenuAnchorEl(null); handleToggleNoteType(); }}>
+                        <ListItemIcon>
+                            {noteType === 'text' ? <ChecklistIcon fontSize="small" /> : <NotesIcon fontSize="small" />}
+                        </ListItemIcon>
+                        <ListItemText>{noteType === 'text' ? 'Convert to checklist' : 'Convert to text note'}</ListItemText>
+                    </MenuItem>
+                    <MenuItem onClick={() => { setMenuAnchorEl(null); handleArchive(); }}>
+                        <ListItemIcon>
+                            {archived ? <UnarchiveIcon fontSize="small" /> : <ArchiveIcon fontSize="small" />}
+                        </ListItemIcon>
+                        <ListItemText>{archived ? 'Unarchive' : 'Archive'}</ListItemText>
+                    </MenuItem>
+                    {isCreator && (
+                        <MenuItem onClick={() => { setMenuAnchorEl(null); setDeleteDialogOpen(true); }}>
+                            <ListItemIcon><DeleteIcon fontSize="small" color="error" /></ListItemIcon>
+                            <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
+                        </MenuItem>
+                    )}
+                </Menu>
+            </Box>
+
+            {/* Error messages */}
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            {offlineMessage && <Alert severity="warning" sx={{ mb: 2 }}>{offlineMessage}</Alert>}
+
+            {/* Title input */}
+            <TextField
+                fullWidth
+                variant="standard"
+                placeholder="Untitled"
+                value={title}
+                onChange={handleTitleChange}
+                error={!!titleError}
+                helperText={titleError || (createdAt ? `${new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : '')}
+                disabled={!!offlineMessage && isShared}
+                inputProps={{ maxLength: 255 }}
+                sx={{ my: 2, '& .MuiInput-input': { fontSize: '1.5rem', fontWeight: 500 } }}
+            />
+
+            {/* Markdown live-preview editor (text notes only) */}
+            {noteType !== 'list' && (
+                <Box sx={{
+                    border: { xs: 'none', sm: '1px solid' },
+                    borderColor: 'divider',
+                    borderRadius: { xs: 0, sm: 1 },
+                    mb: 2,
+                    mx: { xs: -2, sm: 0 },
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    overflow: { xs: 'visible', sm: 'hidden' },
+                }}>
+                    <MarkdownEditor
+                        value={body}
+                        onChange={(newBody) => {
+                            if (newBody.length > 100000) {
+                                setBodyError('Body must not exceed 100,000 characters');
+                                return;
+                            }
+                            setBodyError(null);
+                            setBody(newBody);
+                            debouncedSave({ body: newBody });
+                        }}
+                        placeholder="Write your note in markdown..."
+                        disabled={!!offlineMessage && isShared}
+                    />
+                    {bodyError && (
+                        <Typography variant="caption" color="error" sx={{ px: 2, py: 0.5 }}>
+                            {bodyError}
+                        </Typography>
+                    )}
+                </Box>
+            )}
+
+            {/* Checklist editor (list notes only) */}
+            {noteType === 'list' && (
+                <Box sx={{ mb: 2 }}>
+                    <List dense disablePadding>
+                        {currentListItems.filter((i) => !i.isCompleted).map((item) => (
+                            <ListItem
+                                key={item.recordID}
+                                disablePadding
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, item.recordID)}
+                                onDragEnd={handleDragEnd}
+                                onDragOver={(e) => handleDragOver(e, item.recordID)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, item.recordID)}
+                                onClick={() => setSelectedItemId(item.recordID)}
+                                secondaryAction={
+                                    selectedItemId === item.recordID ? (
+                                        <IconButton
+                                            edge="end"
+                                            size="small"
+                                            onClick={() => handleDeleteListItem(item.recordID)}
+                                            aria-label="Delete item"
+                                        >
+                                            <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                    ) : undefined
+                                }
+                                sx={{
+                                    pr: 5,
+                                    alignItems: 'flex-start',
+                                    borderTop: dragOverItemId === item.recordID && dragOverPosition === 'above' && draggedItemId !== item.recordID
+                                        ? '2px solid'
+                                        : '2px solid transparent',
+                                    borderBottom: dragOverItemId === item.recordID && dragOverPosition === 'below' && draggedItemId !== item.recordID
+                                        ? '2px solid'
+                                        : '2px solid transparent',
+                                    borderTopColor: dragOverItemId === item.recordID && dragOverPosition === 'above' && draggedItemId !== item.recordID
+                                        ? 'primary.main'
+                                        : 'transparent',
+                                    borderBottomColor: dragOverItemId === item.recordID && dragOverPosition === 'below' && draggedItemId !== item.recordID
+                                        ? 'primary.main'
+                                        : 'transparent',
+                                    transition: 'border-color 0.15s ease',
+                                    opacity: draggedItemId === item.recordID ? 0.5 : 1,
+                                }}
+                            >
+                                <ListItemIcon sx={{ minWidth: 28, mt: 1.5, cursor: 'grab', touchAction: 'none' }}>
+                                    <DragIndicatorIcon fontSize="small" color="action" />
+                                </ListItemIcon>
+                                <ListItemIcon sx={{ minWidth: 28, mt: 0.5 }}>
+                                    <Checkbox
+                                        edge="start"
+                                        checked={false}
+                                        onChange={() => handleToggleListItem(item.recordID)}
+                                        size="small"
+                                    />
+                                </ListItemIcon>
+                                <ListItemTextField
+                                    value={item.title}
+                                    onSave={(newTitle) => handleListItemTitleSave(item.recordID, newTitle)}
+                                    autoFocus={focusedItemId === item.recordID}
+                                />
+                            </ListItem>
+                        ))}
+                    </List>
+
+                    {/* Add new item button */}
+                    <Button
+                        fullWidth
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddListItem}
+                        sx={{ mt: 1, ml: 1, textTransform: 'none' }}
+                    >
+                        Add item
+                    </Button>
+
+                    {/* Completed items */}
+                    {currentListItems.filter((i) => i.isCompleted).length > 0 && (
+                        <>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Box sx={{ display: 'flex', alignItems: 'center', px: 1 }}>
+                                <Box
+                                    sx={{ display: 'flex', alignItems: 'center', flex: 1, cursor: 'pointer' }}
+                                    onClick={() => toggleCompletedCollapsed()}
+                                >
+                                    <IconButton size="small" aria-label={completedCollapsed ? 'Expand completed items' : 'Collapse completed items'}>
+                                        {completedCollapsed ? <ExpandMoreIcon fontSize="small" /> : <ExpandLessIcon fontSize="small" />}
+                                    </IconButton>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Completed ({currentListItems.filter((i) => i.isCompleted).length})
+                                    </Typography>
+                                </Box>
+                                <IconButton
+                                    size="small"
+                                    onClick={(e) => setCompletedItemsMenuAnchor(e.currentTarget)}
+                                    aria-label="Completed items options"
+                                >
+                                    <MoreVertIcon fontSize="small" />
+                                </IconButton>
+                                <Menu
+                                    anchorEl={completedItemsMenuAnchor}
+                                    open={Boolean(completedItemsMenuAnchor)}
+                                    onClose={() => setCompletedItemsMenuAnchor(null)}
+                                >
+                                    <MenuItem
+                                        onClick={() => {
+                                            setCompletedItemsMenuAnchor(null);
+                                            setDeleteCompletedItemsDialogOpen(true);
+                                        }}
+                                    >
+                                        <ListItemIcon><DeleteSweepIcon fontSize="small" color="error" /></ListItemIcon>
+                                        <ListItemText sx={{ color: 'error.main' }}>Delete all completed</ListItemText>
+                                    </MenuItem>
+                                </Menu>
+                            </Box>
+                            <Collapse in={!completedCollapsed}>
+                                <List dense disablePadding>
+                                    {currentListItems.filter((i) => i.isCompleted).map((item) => (
+                                        <ListItem
+                                            key={item.recordID}
+                                            disablePadding
+                                            onClick={() => setSelectedItemId(item.recordID)}
+                                            secondaryAction={
+                                                selectedItemId === item.recordID ? (
+                                                    <IconButton
+                                                        edge="end"
+                                                        size="small"
+                                                        onClick={() => handleDeleteListItem(item.recordID)}
+                                                        aria-label="Delete item"
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                ) : undefined
+                                            }
+                                            sx={{ pr: 5, alignItems: 'flex-start' }}
+                                        >
+                                            <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
+                                                <Checkbox
+                                                    edge="start"
+                                                    checked={true}
+                                                    onChange={() => handleToggleListItem(item.recordID)}
+                                                    size="small"
+                                                />
+                                            </ListItemIcon>
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    textDecoration: 'line-through',
+                                                    color: 'text.secondary',
+                                                    flex: 1,
+                                                    py: 0.5,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word',
+                                                }}
+                                            >
+                                                {item.title}
+                                            </Typography>
+                                        </ListItem>
+                                    ))}
+                                </List>
+                            </Collapse>
+                        </>
+                    )}
+                </Box>
+            )}
+
+
+            {/* Share dialog — creator only */}
+            {isCreator && (
+                <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} fullWidth maxWidth="sm" slotProps={{ paper: dialogPaperStyles }}>
+                    <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                        <DialogTitle>Share Note</DialogTitle>
+                        <DialogContent>
+                            {shareError && <Alert severity="error" sx={{ mb: 2 }}>{shareError}</Alert>}
+
+                            <TextField
+                                size="small"
+                                placeholder="Search by name or email"
+                                value={shareEmail}
+                                onChange={(e) => handleSearchUsers(e.target.value)}
+                                fullWidth
+                                sx={{ mt: 1, mb: 1 }}
+                                slotProps={{
+                                    input: {
+                                        startAdornment: (
+                                            <InputAdornment position="start">
+                                                <SearchIcon fontSize="small" />
+                                            </InputAdornment>
+                                        ),
+                                    },
+                                }}
+                            />
+
+                            {/* Recent users (shown when not searching) */}
+                            {!shareEmail.trim() && !pendingShareUser && (() => {
+                                const sharedIDs = new Set(shares.map((s) => s.sharedToID));
+                                const filtered = recentUsers.filter((u) => !sharedIDs.has(u.recordID));
+                                if (filtered.length === 0) return null;
+                                return (
+                                    <>
+                                        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                                            Recently shared with
+                                        </Typography>
+                                        <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                            {filtered.map((user) => (
+                                                <ListItemButton
+                                                    key={user.recordID}
+                                                    onClick={() => setPendingShareUser(user)}
+                                                    disabled={shareLoading}
+                                                >
+                                                    <ListItemAvatar>
+                                                        <Avatar
+                                                            src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                            sx={{ width: 32, height: 32 }}
+                                                        />
+                                                    </ListItemAvatar>
+                                                    <ListItemText
+                                                        primary={user.fullName || 'Unnamed'}
+                                                        secondary={user.email}
+                                                    />
+                                                </ListItemButton>
+                                            ))}
+                                        </List>
+                                    </>
+                                );
+                            })()}
+
+                            {/* Search results */}
+                            {searchResults.length > 0 && !pendingShareUser && (
+                                <List dense sx={{ mb: 2, maxHeight: 200, overflow: 'auto' }}>
+                                    {searchResults.map((user) => (
+                                        <ListItemButton
+                                            key={user.recordID}
+                                            onClick={() => setPendingShareUser(user)}
+                                            disabled={shareLoading}
+                                        >
+                                            <ListItemAvatar>
+                                                <Avatar
+                                                    src={`https://api.dicebear.com/9.x/shapes/svg?seed=${user.recordID}`}
+                                                    sx={{ width: 32, height: 32 }}
+                                                />
+                                            </ListItemAvatar>
+                                            <ListItemText
+                                                primary={user.fullName || 'Unnamed'}
+                                                secondary={user.email}
+                                            />
+                                        </ListItemButton>
+                                    ))}
+                                </List>
+                            )}
+                            {searchLoading && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', mb: 2 }} />}
+
+                            {/* Confirm share prompt */}
+                            {pendingShareUser && (
+                                <Box sx={{ mb: 2, p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+                                    <Typography variant="body2" sx={{ mb: 1.5 }}>
+                                        Share this note with <strong>{pendingShareUser.fullName || pendingShareUser.email}</strong>?
+                                    </Typography>
+                                    <Stack direction="row" spacing={1}>
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            onClick={() => {
+                                                handleShare(pendingShareUser.recordID);
+                                                setPendingShareUser(null);
+                                            }}
+                                            disabled={shareLoading}
+                                        >
+                                            {shareLoading ? <CircularProgress size={16} /> : 'Confirm'}
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            onClick={() => setPendingShareUser(null)}
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </Stack>
+                                </Box>
+                            )}
+
+                            {shares.length > 0 && (
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                        Shared with:
+                                    </Typography>
+                                    <List dense>
+                                        {shares.map((share) => (
+                                            <ListItem
+                                                key={share.recordID}
+                                                secondaryAction={
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleUnshare(share.sharedToID)}
+                                                        aria-label="Remove share"
+                                                    >
+                                                        <PersonRemoveIcon fontSize="small" />
+                                                    </IconButton>
+                                                }
+                                            >
+                                                <ListItemAvatar>
+                                                    <Avatar
+                                                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${share.sharedToID}`}
+                                                        sx={{ width: 32, height: 32 }}
+                                                    />
+                                                </ListItemAvatar>
+                                                <ListItemText
+                                                    primary={share.fullName || share.sharedToID}
+                                                    secondary={share.email}
+                                                />
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Box>
+                            )}
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setShareDialogOpen(false)}>Done</Button>
+                        </DialogActions>
+                    </Box>
+                </Dialog>
+            )}
+
+            {/* Delete confirmation dialog */}
+            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} slotProps={{ paper: dialogPaperStyles }}>
+                <Box sx={{ bgcolor: 'background.paper', height: '100%' }}>
+                    <DialogTitle>Delete Note</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Are you sure you want to permanently delete this note? This action cannot be undone.
+                        </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleDelete} color="error" variant="contained">
+                            Delete
+                        </Button>
+                    </DialogActions>
+                </Box>
+            </Dialog>
+
+            {/* Delete all completed list items dialog */}
+            <Dialog open={deleteCompletedItemsDialogOpen} onClose={() => setDeleteCompletedItemsDialogOpen(false)}>
+                <DialogTitle>Delete Completed Items</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete {currentListItems.filter((i) => i.isCompleted).length} completed item{currentListItems.filter((i) => i.isCompleted).length !== 1 ? 's' : ''}? This cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteCompletedItemsDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleDeleteAllCompletedItems} color="error" variant="contained" disabled={deletingCompletedItems}>
+                        {deletingCompletedItems ? 'Deleting…' : 'Delete All'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
+    );
+}

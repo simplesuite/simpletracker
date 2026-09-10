@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "simpleTracker",
+    "slug": "simpletracker",
+    "scheme": "simpletracker",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.simplesuite.simpletracker"
+    },
+    "android": {
+      "package": "com.simplesuite.simpletracker"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": ""
+    }
+  }
+}
