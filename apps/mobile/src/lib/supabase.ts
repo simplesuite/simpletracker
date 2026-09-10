@@ -10,7 +10,7 @@ const extra = (Constants.expoConfig?.extra ?? {}) as {
 
 export const PRODUCTION_URL = 'https://psdmjjcvaxejxktqwdcm.supabase.co';
 export const PRODUCTION_KEY =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzZG1qamN2YXhleGp4a3Rxd2RjbSIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNjcwMzMwNDgzLCJleHAiOjE5ODU5MDY0ODN9.7Uqw2v3Ny5FvPBRBbbvtcUxJj_ReNDjRBUn6cWlal_o';
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzZG1qamN2YXhlanhrdHF3ZGNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE2NzAzMzA0ODMsImV4cCI6MTk4NTkwNjQ4M30.7Uqw2v3Ny5FvPBRBbbvtcUxJj_ReNDjRBUn6cWlal_o';
 
 const CONFIG_STORAGE_KEY = 'simpletracker.backend.config';
 const configuredUrl = extra.supabaseUrl || PRODUCTION_URL;

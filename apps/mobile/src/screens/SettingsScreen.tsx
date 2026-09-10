@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, Share, Switch, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, Share, Switch, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -9,13 +9,12 @@ import { Button, Card, Dialog, Divider, Pill, Radio, Snackbar, Text, TextField, 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { clearLocalData, useNoteStore, useProjectStore, useTaskStore } from '@simpletracker/core';
 import type { Note, Project, Task } from '@simpletracker/core';
-import { supabase, SUPABASE_URL } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useEntitlement, redirectToBillingPortal, redirectToCheckout } from '../lib/entitlement';
 import { getNotificationsEnabled, setTaskNotificationsEnabled } from '../lib/notifications';
 import { toCsv } from '../lib/csv';
-import { resetBackendConfig, saveBackendConfig } from '../lib/backendConfig';
 
 const appUrl = 'https://tracker.simplesuite.dev';
 const guidesUrl = 'https://simplesuite.dev/guides';
@@ -85,10 +84,6 @@ export function SettingsScreen() {
     const [qrDialogOpen, setQrDialogOpen] = useState(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
-    const [backendDialogOpen, setBackendDialogOpen] = useState(false);
-    const [backendUrl, setBackendUrl] = useState(SUPABASE_URL);
-    const [backendKey, setBackendKey] = useState('');
-    const [backendSaving, setBackendSaving] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -176,32 +171,6 @@ export function SettingsScreen() {
         catch { setStatusMessage('Unable to open that link.'); }
     };
 
-    const saveBackend = async () => {
-        const url = backendUrl.trim().replace(/\/$/, '');
-        const key = backendKey.trim();
-        if (!/^https:\/\//i.test(url) || key.length < 20) {
-            setStatusMessage('Enter a valid HTTPS Supabase URL and anon key.');
-            return;
-        }
-        setBackendSaving(true);
-        await saveBackendConfig({ url, anonKey: key });
-        setBackendSaving(false);
-        setBackendDialogOpen(false);
-        setBackendKey('');
-        setStatusMessage('Backend saved. Restart the app to apply it.');
-    };
-
-    const resetBackend = () => {
-        Alert.alert('Use production backend?', 'This clears the custom backend setting and applies on the next app launch.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Reset', style: 'destructive', onPress: async () => {
-                await resetBackendConfig();
-                setBackendUrl(SUPABASE_URL);
-                setStatusMessage('Production backend restored. Restart the app to apply it.');
-            } },
-        ]);
-    };
-
     const themeLabel = themeMode === 'system' ? 'System default' : themeMode === 'light' ? 'Light' : 'Dark';
     const hasPro = subscriptionState !== 'free';
     const subscriptionLabel = subscriptionState === 'canceling' ? 'Canceling' : subscriptionState === 'trialing' ? 'Trial' : hasPro ? 'Pro' : 'Free';
@@ -254,12 +223,6 @@ export function SettingsScreen() {
                 </Card>
 
                 <Card className="overflow-hidden p-5">
-                    <View className="mb-3"><Text variant="titleLarge">Backend configuration</Text><Text variant="bodySmall" numberOfLines={1}>Current: {SUPABASE_URL}</Text></View>
-                    <View className="flex-row flex-wrap gap-2"><Button variant="outlined" compact onPress={() => { setBackendUrl(SUPABASE_URL); setBackendKey(''); setBackendDialogOpen(true); }}>Configure backend</Button><Button variant="text" compact onPress={resetBackend}>Use production</Button></View>
-                    <Text variant="bodySmall" className="mt-2">Only use a public Supabase URL and anon key. Changes apply after restarting the app.</Text>
-                </Card>
-
-                <Card className="overflow-hidden p-5">
                     <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Support</Text><Text variant="bodySmall">Documentation and feedback</Text></View><MaterialCommunityIcons name="help-circle-outline" size={22} color={theme.primary} /></View>
                     <View className="gap-2"><Button variant="outlined" compact icon={<MaterialCommunityIcons name="book-open-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(guidesUrl)}>Guides</Button><Button variant="outlined" compact icon={<MaterialCommunityIcons name="bug-outline" size={18} color={theme.primary} />} onPress={() => openSupportLink(bugUrl)}>Report a bug</Button><Button variant="tonal" compact icon={<MaterialCommunityIcons name="share-variant-outline" size={18} color={theme.primary} />} onPress={() => shareText(`Try SimpleTracker: ${appUrl}`, 'App link ready to share.')}>Share app link</Button></View>
                 </Card>
@@ -274,10 +237,6 @@ export function SettingsScreen() {
             </Dialog>
             <Dialog visible={qrDialogOpen} onDismiss={() => setQrDialogOpen(false)} title="My user ID" actions={<><Button variant="text" compact onPress={() => setQrDialogOpen(false)}>Close</Button><Button compact onPress={copyUserId}>Copy ID</Button></>}>
                 <View className="items-center gap-3"><QRCode value={userId || ''} size={190} backgroundColor={theme.surface} color={theme.onSurface} /><Text variant="bodySmall" className="text-center">{userId}</Text></View>
-            </Dialog>
-            <Dialog visible={backendDialogOpen} onDismiss={() => setBackendDialogOpen(false)} title="Configure backend" actions={<><Button variant="text" compact onPress={() => setBackendDialogOpen(false)}>Cancel</Button><Button compact loading={backendSaving} onPress={saveBackend}>Save</Button></>}>
-                <TextField label="Supabase URL" value={backendUrl} onChangeText={setBackendUrl} autoCapitalize="none" keyboardType="url" className="mb-3" />
-                <TextField label="Supabase anon key" value={backendKey} onChangeText={setBackendKey} autoCapitalize="none" secureTextEntry helperText="The key is stored locally and takes effect after restart." />
             </Dialog>
             <Snackbar visible={!!statusMessage} onDismiss={() => setStatusMessage('')} onAction={() => setStatusMessage('')} bottomOffset={tabBarHeight + 24}>{statusMessage}</Snackbar>
         </View>

@@ -18,6 +18,8 @@ type LocalNotificationApi = {
 };
 
 let localNotificationApiPromise: Promise<LocalNotificationApi> | null = null;
+let androidChannelAttempted = false;
+let androidChannelConfigured = Platform.OS !== 'android';
 
 async function loadLocalNotificationApi(): Promise<LocalNotificationApi> {
     if (!localNotificationApiPromise) {
@@ -66,18 +68,31 @@ export async function getNotificationsEnabled(): Promise<boolean> {
     return (await AsyncStorage.getItem(ENABLED_KEY)) === 'true';
 }
 
+async function ensureAndroidNotificationChannel(api: LocalNotificationApi): Promise<boolean> {
+    if (Platform.OS !== 'android' || androidChannelAttempted) return androidChannelConfigured;
+
+    androidChannelAttempted = true;
+    try {
+        await api.setNotificationChannelAsync(CHANNEL_ID, {
+            name: 'Task reminders',
+            importance: api.androidImportance.DEFAULT,
+            vibrationPattern: [0, 250, 250, 250],
+            sound: 'default',
+        });
+        androidChannelConfigured = true;
+    } catch {
+        // Some runtimes expose the channel API without registering its provider.
+        // Let Expo use its built-in fallback channel for these runtimes.
+        androidChannelConfigured = false;
+    }
+    return androidChannelConfigured;
+}
+
 export async function requestNotificationPermission(): Promise<boolean> {
     const api = await getLocalNotificationApi();
     if (!api) return false;
     try {
-        if (Platform.OS === 'android') {
-            await api.setNotificationChannelAsync(CHANNEL_ID, {
-                name: 'Task reminders',
-                importance: api.androidImportance.DEFAULT,
-                vibrationPattern: [0, 250, 250, 250],
-                sound: 'default',
-            });
-        }
+        await ensureAndroidNotificationChannel(api);
         const current = await api.getPermissionsAsync();
         if (current.granted) return true;
         const requested = await api.requestPermissionsAsync();
@@ -102,6 +117,7 @@ export async function syncLocalTaskNotifications(tasks: Task[]): Promise<void> {
     const api = await getLocalNotificationApi();
     if (!api) return;
     try {
+        const channelConfigured = await ensureAndroidNotificationChannel(api);
         const scheduled = JSON.parse(await AsyncStorage.getItem(SCHEDULED_KEY) || '[]') as string[];
         await Promise.all(scheduled.map((id) => api.cancelScheduledNotificationAsync(id).catch(() => undefined)));
         const now = Date.now();
@@ -119,7 +135,7 @@ export async function syncLocalTaskNotifications(tasks: Task[]): Promise<void> {
                 trigger: {
                     type: api.triggerTypes.DATE,
                     date,
-                    channelId: CHANNEL_ID,
+                    ...(channelConfigured ? { channelId: CHANNEL_ID } : {}),
                 } as never,
             });
             nextIds.push(id);

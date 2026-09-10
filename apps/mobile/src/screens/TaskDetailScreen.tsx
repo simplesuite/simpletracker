@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, Platform, ScrollView, View } from 'react-native';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -48,9 +49,9 @@ export function TaskDetailScreen() {
     const [dateDialogOpen, setDateDialogOpen] = useState(false);
     const [timeDialogOpen, setTimeDialogOpen] = useState(false);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
-    const [dateInput, setDateInput] = useState(dueDate ?? dayjs().format('YYYY-MM-DD'));
-    const [timeInput, setTimeInput] = useState(dueTime ?? dayjs().startOf('hour').format('HH:mm'));
-    const [scheduleError, setScheduleError] = useState<string | null>(null);
+    const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
+    const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
+    const [nativePickerMode, setNativePickerMode] = useState<'date' | 'time' | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
 
     const titleRef = useRef(title);
@@ -119,28 +120,45 @@ export function TaskDetailScreen() {
         if (!title.trim() && !body.trim()) setDeleteDialogOpen(true);
         else navigation.goBack();
     };
+    const getPickerDate = () => {
+        const parsedDate = dueDate ? dayjs(dueDate) : dayjs();
+        const baseDate = parsedDate.isValid() ? parsedDate : dayjs();
+        if (!dueTime) return baseDate.startOf('hour').toDate();
+        const [hours, minutes] = dueTime.split(':').map(Number);
+        if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+            return baseDate.startOf('hour').toDate();
+        }
+        const pickerDate = baseDate.hour(hours).minute(minutes).second(0).millisecond(0).toDate();
+        return Number.isNaN(pickerDate.getTime()) ? new Date() : pickerDate;
+    };
+    const openDatePicker = () => {
+        const value = getPickerDate();
+        setDatePickerValue(value);
+        if (Platform.OS === 'android') setNativePickerMode('date');
+        else setDateDialogOpen(true);
+    };
+    const openTimePicker = () => {
+        const value = getPickerDate();
+        setTimePickerValue(value);
+        if (Platform.OS === 'android') setNativePickerMode('time');
+        else setTimeDialogOpen(true);
+    };
+    const handleNativePickerValueChange = (mode: 'date' | 'time', value: Date) => {
+        if (Number.isNaN(value.getTime())) {
+            setNativePickerMode(null);
+            return;
+        }
+        if (mode === 'date') setDueDate(dayjs(value).format('YYYY-MM-DD'));
+        else setDueTime(dayjs(value).format('HH:mm'));
+        setNativePickerMode(null);
+    };
     const handleDateSave = () => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
-            setScheduleError('Use the date format YYYY-MM-DD.');
-            return;
-        }
-        const parsed = dayjs(dateInput);
-        if (!parsed.isValid() || parsed.format('YYYY-MM-DD') !== dateInput) {
-            setScheduleError('Enter a valid calendar date.');
-            return;
-        }
-        setDueDate(dateInput);
-        setScheduleError(null);
+        setDueDate(dayjs(datePickerValue).format('YYYY-MM-DD'));
         setDateDialogOpen(false);
     };
 
     const handleTimeSave = () => {
-        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeInput)) {
-            setScheduleError('Use the time format HH:mm, for example 09:30.');
-            return;
-        }
-        setDueTime(timeInput);
-        setScheduleError(null);
+        setDueTime(dayjs(timePickerValue).format('HH:mm'));
         setTimeDialogOpen(false);
     };
 
@@ -150,14 +168,14 @@ export function TaskDetailScreen() {
         setIsRecurring(false);
         setRecurrenceUnit('days');
         setDateDialogOpen(false);
-        setScheduleError(null);
+        setNativePickerMode(null);
     };
 
     const clearDueTime = () => {
         setDueTime(undefined);
         if (recurrenceUnit === 'minutes' || recurrenceUnit === 'hours') setRecurrenceUnit('days');
         setTimeDialogOpen(false);
-        setScheduleError(null);
+        setNativePickerMode(null);
     };
 
     const selectProject = (nextProjectID: string) => {
@@ -214,16 +232,28 @@ export function TaskDetailScreen() {
                     </View>
                     <View className="mb-3 mt-1">
                         <Text variant="label" className="mb-1">Due date</Text>
-                        <Pressable onPress={() => { setDateInput(dueDate ?? dayjs().format('YYYY-MM-DD')); setDateDialogOpen(true); }}>
+                        <Pressable onPress={openDatePicker}>
                             <TextField placeholder="No due date" value={dueDate ?? ''} editable={false} trailing={<MaterialCommunityIcons name="calendar-outline" size={20} color={theme.onSurfaceVariant} />} />
                         </Pressable>
+                        {Platform.OS === 'android' ? (
+                            <View className="mt-1 flex-row justify-end gap-1">
+                                <Button variant="text" compact onPress={() => { setDatePickerValue(dayjs().toDate()); setNativePickerMode('date'); }}>Today</Button>
+                                {dueDate ? <Button variant="text" compact onPress={clearDueDate}>Clear</Button> : null}
+                            </View>
+                        ) : null}
                     </View>
                     {dueDate ? (
                         <View className="mb-3 mt-1">
                             <Text variant="label" className="mb-1">Time</Text>
-                            <Pressable onPress={() => { setTimeInput(dueTime ?? dayjs().startOf('hour').format('HH:mm')); setTimeDialogOpen(true); }}>
+                            <Pressable onPress={openTimePicker}>
                                 <TextField placeholder="Any time" value={dueTime ?? ''} editable={false} trailing={<MaterialCommunityIcons name="clock-outline" size={20} color={theme.onSurfaceVariant} />} />
                             </Pressable>
+                            {Platform.OS === 'android' ? (
+                                <View className="mt-1 flex-row justify-end gap-1">
+                                    <Button variant="text" compact onPress={() => { setTimePickerValue(dayjs().startOf('hour').toDate()); setNativePickerMode('time'); }}>Now</Button>
+                                    {dueTime ? <Button variant="text" compact onPress={clearDueTime}>Clear</Button> : null}
+                                </View>
+                            ) : null}
                         </View>
                     ) : null}
                     <View className="mb-0 mt-1">
@@ -292,6 +322,20 @@ export function TaskDetailScreen() {
                 </Card>
             </ScrollView>
 
+            {Platform.OS === 'android' && nativePickerMode ? (
+                <DateTimePicker
+                    mode={nativePickerMode}
+                    value={nativePickerMode === 'date' ? datePickerValue : timePickerValue}
+                    presentation="dialog"
+                    positiveButton={{ label: 'Save' }}
+                    negativeButton={{ label: 'Cancel' }}
+                    is24Hour={nativePickerMode === 'time'}
+                    accentColor={theme.primary}
+                    onValueChange={(_, value) => handleNativePickerValueChange(nativePickerMode, value)}
+                    onDismiss={() => setNativePickerMode(null)}
+                />
+            ) : null}
+            {Platform.OS !== 'android' ? (
             <Dialog
                 visible={dateDialogOpen}
                 onDismiss={() => setDateDialogOpen(false)}
@@ -299,22 +343,25 @@ export function TaskDetailScreen() {
                 actions={(
                     <>
                         <Button variant="text" compact onPress={clearDueDate}>Clear</Button>
-                        <Button variant="text" compact onPress={() => { setDateInput(dayjs().format('YYYY-MM-DD')); setScheduleError(null); }}>Today</Button>
+                        <Button variant="text" compact onPress={() => { setDatePickerValue(dayjs().toDate()); }}>Today</Button>
                         <Button compact onPress={handleDateSave}>Save</Button>
                     </>
                 )}
             >
-                <TextField
-                    label="Date"
-                    value={dateInput}
-                    onChangeText={(value) => { setDateInput(value); setScheduleError(null); }}
-                    placeholder="YYYY-MM-DD"
-                    autoCapitalize="none"
-                    keyboardType="numbers-and-punctuation"
-                    error={!!scheduleError}
-                    helperText={scheduleError ?? 'Example: 2026-09-10'}
-                />
+                <View className="items-center">
+                    <DateTimePicker
+                        mode="date"
+                        display="default"
+                        presentation="inline"
+                        value={datePickerValue}
+                        accentColor={theme.primary}
+                        themeVariant={effectiveTheme}
+                        onChange={(_, value) => { if (value) setDatePickerValue(value); }}
+                    />
+                </View>
             </Dialog>
+            ) : null}
+            {Platform.OS !== 'android' ? (
             <Dialog
                 visible={timeDialogOpen}
                 onDismiss={() => setTimeDialogOpen(false)}
@@ -322,22 +369,25 @@ export function TaskDetailScreen() {
                 actions={(
                     <>
                         <Button variant="text" compact onPress={clearDueTime}>Clear</Button>
-                        <Button variant="text" compact onPress={() => { setTimeInput(dayjs().startOf('hour').format('HH:mm')); setScheduleError(null); }}>Now</Button>
+                        <Button variant="text" compact onPress={() => { setTimePickerValue(dayjs().startOf('hour').toDate()); }}>Now</Button>
                         <Button compact onPress={handleTimeSave}>Save</Button>
                     </>
                 )}
             >
-                <TextField
-                    label="Time"
-                    value={timeInput}
-                    onChangeText={(value) => { setTimeInput(value); setScheduleError(null); }}
-                    placeholder="HH:mm"
-                    autoCapitalize="none"
-                    keyboardType="numbers-and-punctuation"
-                    error={!!scheduleError}
-                    helperText={scheduleError ?? 'Use 24-hour time, for example 09:30'}
-                />
+                <View className="items-center">
+                    <DateTimePicker
+                        mode="time"
+                        display="default"
+                        presentation="inline"
+                        value={timePickerValue}
+                        is24Hour
+                        accentColor={theme.primary}
+                        themeVariant={effectiveTheme}
+                        onChange={(_, value) => { if (value) setTimePickerValue(value); }}
+                    />
+                </View>
             </Dialog>
+            ) : null}
             <Dialog
                 visible={projectDialogOpen}
                 onDismiss={() => setProjectDialogOpen(false)}
