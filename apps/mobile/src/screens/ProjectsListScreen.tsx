@@ -76,16 +76,18 @@ export function ProjectsListScreen() {
 
     return (
         <View className="flex-1 bg-background dark:bg-background-dark">
-            <View className="px-4 pb-3 pt-5">
-                <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your projects</NativeText>
-                <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
-                    {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organized by activity
-                </NativeText>
-            </View>
-
             <FlatList
+                style={{ flex: 1 }}
                 data={sortedProjects}
                 keyExtractor={(project) => project.recordID}
+                ListHeaderComponent={(
+                    <View className="px-4 pb-3 pt-5">
+                        <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your projects</NativeText>
+                        <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
+                            {projects.length} {projects.length === 1 ? 'project' : 'projects'} · Organized by activity
+                        </NativeText>
+                    </View>
+                )}
                 contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sortedProjects.length === 0 ? { flexGrow: 1 } : {}) }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 ListEmptyComponent={
@@ -120,8 +122,6 @@ export function ProjectsListScreen() {
                                         </NativeText>
                                     </View>
                                     <View className="ml-3 min-w-[46px] items-end">
-                                        <NativeText className="text-base font-bold text-primary dark:text-primary">{stats.taskCount}</NativeText>
-                                        <NativeText className="text-xs text-on-surface-variant dark:text-on-surface-variant-dark">tasks</NativeText>
                                         {stats.overdueTaskCount > 0 && (
                                             <NativeText className="mt-1 text-right text-xs font-semibold text-error dark:text-error-dark">
                                                 {stats.overdueTaskCount} overdue

@@ -366,6 +366,8 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             return false;
         }
 
+        clearTaskSyncError();
+
         // Single delete. DB ON DELETE CASCADE removes task_subtasks rows.
         tasks$[id].delete();
 
@@ -375,6 +377,15 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             if (allSubs[subID]?.taskID === id) {
                 subtasks$[subID].delete();
             }
+        }
+
+        // The observable mutation is optimistic. Wait for the task DELETE to
+        // settle so callers do not navigate away or report success while the
+        // server row is still present (or the request has failed).
+        const deleted = await waitForTaskWritesToSettle();
+        if (!deleted.saved) {
+            setTaskWriteError(set, 'delete task', deleted);
+            return false;
         }
 
         set({ error: null });
