@@ -1,5 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import NoteDetailPage from './NoteDetailPage';
+import TaskDetailPage from './TaskDetailPage';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -57,10 +61,61 @@ import Avatar from '@mui/material/Avatar';
 import ListItemAvatar from '@mui/material/ListItemAvatar';
 import type { Task, ProjectShared } from '@simpletracker/core';
 
-export default function ProjectDetailPage() {
-    const { id } = useParams<{ id: string }>();
+interface ProjectDetailPageProps {
+    /** When provided, use this id instead of the route param (embedded/split-view mode). */
+    id?: string;
+    /** When provided, called instead of navigating to /projects (embedded/split-view mode). */
+    onBack?: () => void;
+}
+
+export default function ProjectDetailPage({ id: idProp, onBack }: ProjectDetailPageProps = {}) {
+    const params = useParams<{ id: string }>();
+    const id = idProp ?? params.id;
     const navigate = useNavigate();
     const location = useLocation();
+    // Close the detail view: use the provided callback (split-view) or navigate to the list.
+    const closeDetail = useCallback(() => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate('/projects');
+        }
+    }, [onBack, navigate]);
+
+    const theme = useTheme();
+    const fullScreenDialog = useMediaQuery(theme.breakpoints.down('md'));
+
+    // A note or task opened from within this project. Rendered in a dialog so
+    // the user stays on the project page (no section switch); closing it returns
+    // here. On mobile the dialog is full-screen and the browser/hardware back
+    // button also returns to the project since we never navigated away.
+    const [openChild, setOpenChild] = useState<{ type: 'note' | 'task'; id: string } | null>(null);
+
+    // Opening a child pushes a history entry so the browser back button closes
+    // the dialog (returning to the project) instead of leaving the page.
+    const openChildNote = useCallback((noteID: string) => {
+        window.history.pushState({ childOpen: true }, '');
+        setOpenChild({ type: 'note', id: noteID });
+    }, []);
+    const openChildTask = useCallback((taskID: string) => {
+        window.history.pushState({ childOpen: true }, '');
+        setOpenChild({ type: 'task', id: taskID });
+    }, []);
+
+    // In-app close (the dialog's own back/close button): step back through the
+    // history entry we pushed. The popstate listener below clears the state,
+    // keeping both close paths (button + browser back) consistent.
+    const closeChild = useCallback(() => {
+        window.history.back();
+    }, []);
+
+    // When a child dialog is open, browser/hardware back closes it.
+    useEffect(() => {
+        if (!openChild) return;
+        const handlePop = () => setOpenChild(null);
+        window.addEventListener('popstate', handlePop);
+        return () => window.removeEventListener('popstate', handlePop);
+    }, [openChild]);
 
     const projects = useProjectStore((s) => s.projects);
     const loading = useProjectStore((s) => s.loading);
@@ -280,13 +335,13 @@ export default function ProjectDetailPage() {
         }
         return (
             <Box sx={{ p: 2 }}>
-                <IconButton onClick={() => navigate('/projects')} aria-label="Back to projects" sx={{ mb: 1 }}>
+                <IconButton onClick={closeDetail} aria-label="Back to projects" sx={{ mb: 1 }}>
                     <ArrowBackIcon />
                 </IconButton>
                 <Typography variant="h6" color="error">
                     Project not found
                 </Typography>
-                <Button onClick={() => navigate('/projects')} sx={{ mt: 2 }}>
+                <Button onClick={closeDetail} sx={{ mt: 2 }}>
                     Back to Projects
                 </Button>
             </Box>
@@ -315,7 +370,7 @@ export default function ProjectDetailPage() {
                 deleteProject(project.recordID);
             }
         }
-        navigate('/projects');
+        closeDetail();
     };
 
     const handleDescriptionBlur = async () => {
@@ -366,7 +421,7 @@ export default function ProjectDetailPage() {
         setDeleteDialogOpen(false);
         const success = await deleteProject(project.recordID);
         if (success) {
-            navigate('/projects');
+            closeDetail();
         } else {
             setError('Failed to delete project');
         }
@@ -375,13 +430,13 @@ export default function ProjectDetailPage() {
     const handleAddNote = async () => {
         const newNote = await createNote(project.recordID);
         if (newNote) {
-            navigate(`/notes/${newNote.recordID}`);
+            openChildNote(newNote.recordID);
         }
     };
 
     const handleAddTask = async () => {
         const task = await createBlankTask(project.recordID);
-        navigate(`/tasks/${task.recordID}`);
+        openChildTask(task.recordID);
     };
 
     const handleDeleteAllCompletedInProject = async () => {
@@ -429,8 +484,11 @@ export default function ProjectDetailPage() {
         return { label: `${label}${timeSuffix}`, color: 'default' };
     };
 
+    // Embedded (split-view) mode fills the pane; full-page mode keeps the centered column.
+    const embedded = idProp != null;
+
     return (
-        <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+        <Box sx={{ maxWidth: embedded ? '100%' : 600, mx: 'auto', width: '100%' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 1 }}>
                 <IconButton onClick={handleBack} aria-label="Back to projects">
@@ -597,7 +655,7 @@ export default function ProjectDetailPage() {
                                     cursor: 'pointer',
                                     height: '100%',
                                 }}
-                                onClick={() => navigate(`/notes/${note.recordID}`)}
+                                onClick={() => openChildNote(note.recordID)}
                             >
                                 <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
@@ -697,7 +755,7 @@ export default function ProjectDetailPage() {
                                             height: '100%',
                                             opacity: 0.7,
                                         }}
-                                        onClick={() => navigate(`/notes/${note.recordID}`)}
+                                        onClick={() => openChildNote(note.recordID)}
                                     >
                                         <Box sx={{ p: 1, py: 1.5, display: 'flex', flexDirection: 'column', height: '100%' }}>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
@@ -797,7 +855,7 @@ export default function ProjectDetailPage() {
                                             <RadioButtonUncheckedIcon color="action" />
                                         </IconButton>
                                     </ListItemIcon>
-                                    <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                    <ListItemButton onClick={() => openChildTask(task.recordID)}>
                                         <ListItemText
                                             primary={task.title}
                                             secondary={
@@ -903,7 +961,7 @@ export default function ProjectDetailPage() {
                                                     <CheckCircleIcon color="success" />
                                                 </IconButton>
                                             </ListItemIcon>
-                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                            <ListItemButton onClick={() => openChildTask(task.recordID)}>
                                                 <ListItemText
                                                     primary={task.title}
                                                     secondary={
@@ -1143,6 +1201,36 @@ export default function ProjectDetailPage() {
                         {deletingCompleted ? 'Deleting…' : 'Delete All'}
                     </Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* Note/Task opened from within this project — shown in a dialog so the
+                user stays on the project page. The embedded detail has its own
+                back button (wired to closeChild) for dismissing it. */}
+            <Dialog
+                open={openChild != null}
+                onClose={closeChild}
+                fullScreen={fullScreenDialog}
+                maxWidth="md"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        minHeight: fullScreenDialog ? undefined : '80vh',
+                        // Match the app's normal note background (see App.tsx).
+                        backgroundImage: theme.palette.mode === 'dark'
+                            ? 'linear-gradient(to bottom right, #161616, #252525)'
+                            : 'linear-gradient(to bottom right, #eee, #fff)',
+                        bgcolor: theme.palette.mode === 'dark' ? '#171717' : 'grey.100',
+                    },
+                }}
+            >
+                <Box sx={{ p: 2 }}>
+                    {openChild?.type === 'note' && (
+                        <NoteDetailPage key={openChild.id} id={openChild.id} onBack={closeChild} />
+                    )}
+                    {openChild?.type === 'task' && (
+                        <TaskDetailPage key={openChild.id} id={openChild.id} onBack={closeChild} />
+                    )}
+                </Box>
             </Dialog>
 
         </Box>

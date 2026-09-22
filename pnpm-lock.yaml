@@ -167,6 +167,9 @@ importers:
       '@simpletracker/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@simpletracker/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/supabase-js':
         specifier: ^2.47.10
         version: 2.110.5

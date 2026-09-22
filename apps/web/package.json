@@ -16,6 +16,7 @@
     "@fontsource/roboto": "^5.2.10",
     "@legendapp/state": "^3.0.0-beta.48",
     "@simpletracker/core": "workspace:*",
+    "@simpletracker/ui": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@mui/icons-material": "^7.3.9",
     "@mui/lab": "^7.0.1-beta.23",

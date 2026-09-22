@@ -104,9 +104,25 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
     );
 }
 
-export default function NoteDetailPage() {
-    const { id } = useParams<{ id: string }>();
+interface NoteDetailPageProps {
+    /** When provided, use this id instead of the route param (embedded/split-view mode). */
+    id?: string;
+    /** When provided, called instead of router back navigation (embedded/split-view mode). */
+    onBack?: () => void;
+}
+
+export default function NoteDetailPage({ id: idProp, onBack }: NoteDetailPageProps = {}) {
+    const params = useParams<{ id: string }>();
+    const id = idProp ?? params.id;
     const navigate = useNavigate();
+    // Close the detail view: use the provided callback (split-view) or router back (full page).
+    const closeDetail = useCallback(() => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate(-1);
+        }
+    }, [onBack, navigate]);
     const updateNote = useNoteStore((s) => s.updateNote);
     const togglePinNote = useNoteStore((s) => s.togglePinNote);
     const archiveNote = useNoteStore((s) => s.archiveNote);
@@ -525,7 +541,7 @@ export default function NoteDetailPage() {
         setDeleteDialogOpen(false);
         const success = await deleteNote(id);
         if (success) {
-            navigate(-1);
+            closeDetail();
         } else {
             setError(useNoteStore.getState().error || 'Failed to delete note.');
         }
@@ -537,7 +553,7 @@ export default function NoteDetailPage() {
         setSnackText('Empty note discarded');
         setSnackSev('info');
         setSnackOpen(true);
-        navigate(-1);
+        closeDetail();
         // Fire-and-forget: store already removes the note optimistically
         deleteNote(id);
     };
@@ -549,7 +565,7 @@ export default function NoteDetailPage() {
         if (!title.trim() && !body.trim() && (noteType !== 'list' || currentListItems.length === 0)) {
             handleDeleteEmptyNote();
         } else {
-            navigate(-1);
+            closeDetail();
         }
     };
 
@@ -738,8 +754,11 @@ export default function NoteDetailPage() {
         );
     }
 
+    // Embedded (split-view) mode fills the pane; full-page mode keeps the centered column.
+    const embedded = idProp != null;
+
     return (
-        <Box sx={{ maxWidth: 600, mx: 'auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
+        <Box sx={{ maxWidth: embedded ? '100%' : 600, mx: 'auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: embedded ? 0 : 'calc(100vh - 120px)' }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
                 <IconButton onClick={handleBack} aria-label="Back to notes">
