@@ -874,8 +874,8 @@ export default function TasksPage() {
                 onClick={handleFabClick}
                 sx={{
                     position: 'fixed',
-                    bottom: 72,
-                    right: 16,
+                    bottom: 88,
+                    right: 24,
                 }}
             >
                 <AddIcon />

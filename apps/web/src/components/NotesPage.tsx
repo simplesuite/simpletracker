@@ -18,7 +18,8 @@ import Fade from "@mui/material/Fade";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
-import Grid from "@mui/material/Grid";
+import Stack from "@mui/material/Stack";
+import NoteOutlinedIcon from "@mui/icons-material/NoteOutlined";
 import { useNavigate } from "react-router-dom";
 import { useNoteStore } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
@@ -232,122 +233,139 @@ export default function NotesPage() {
   };
 
   const renderNoteGrid = (noteList: Note[]) => (
-    <Grid container spacing={1.5}>
-      {noteList.map((note) => (
-        <Grid size={6} key={note.recordID}>
+    <Stack spacing={1.25}>
+      {noteList.map((note) => {
+        const listPreview =
+          note.noteType === "list" ? listItems[note.recordID] : undefined;
+        return (
           <Paper
             key={note.recordID}
-            elevation={4}
             sx={{
+              borderRadius: 4,
+              border: "1px solid",
               borderColor: note.pinned ? "primary.main" : "divider",
-              borderRadius: 5,
+              boxShadow: "none",
               cursor: "pointer",
-              height: "100%",
+              overflow: "hidden",
+              transition: "background-color 0.15s ease",
+              "&:hover": { bgcolor: "action.hover" },
             }}
             onClick={() => navigate(`/notes/${note.recordID}`)}
           >
-            <Box sx={{ p: 1, py: 1.5, display: "flex", flexDirection: "column", height: "100%" }}>
-              <Box
-                sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 0.5 }}
-              >
-                {note.pinned && (
-                  <PushPinIcon color="primary" sx={{ fontSize: 14 }} />
-                )}
-                {note.noteType === "list" && (
-                  <ChecklistIcon color="action" sx={{ fontSize: 14 }} />
-                )}
-                <Typography
-                  variant="subtitle2"
-                  noWrap
-                  sx={{
-                    flex: 1,
-                    fontStyle: note.title ? "normal" : "italic",
-                    color: note.title ? "text.primary" : "text.secondary",
-                  }}
-                >
-                  {note.title || "Untitled"}
-                </Typography>
-              </Box>
-              {note.noteType !== "list" && note.body && (
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                    mb: 0.5,
-                    fontSize: "0.75rem",
-                  }}
-                >
-                  {note.body}
-                </Typography>
-              )}
-              {note.noteType === "list" && listItems[note.recordID] && listItems[note.recordID].length > 0 && (
-                <Box sx={{ mb: 0.5 }}>
-                  {listItems[note.recordID].slice(0, 2).map((item) => (
-                    <Typography
-                      key={item.recordID}
-                      variant="body2"
-                      color="text.secondary"
-                      noWrap
-                      sx={{
-                        fontSize: "0.75rem",
-                        textDecoration: item.isCompleted ? "line-through" : "none",
-                        opacity: item.isCompleted ? 0.6 : 1,
-                      }}
-                    >
-                      {item.isCompleted ? "☑" : "☐"} {item.title || "Untitled"}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
+            <Box sx={{ display: "flex", alignItems: "center", px: 2, py: 1.5, gap: 1.5 }}>
               <Box
                 sx={{
+                  flexShrink: 0,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2.5,
                   display: "flex",
-                  gap: 0.5,
                   alignItems: "center",
-                  mt: "auto",
+                  justifyContent: "center",
+                  bgcolor: "action.selected",
+                  color: "primary.main",
                 }}
               >
-                <Typography variant="caption" color="text.secondary">
-                  {formatTimestamp(note.updatedAt)}
-                </Typography>
-                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", ml: "auto" }}>
-                  {isSharedNote(note) && (
-                    <Avatar
-                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${note.creatorID}`}
-                      sx={{ width: 22, height: 22 }}
-                    />
+                {note.noteType === "list" ? (
+                  <ChecklistIcon fontSize="small" />
+                ) : (
+                  <NoteOutlinedIcon fontSize="small" />
+                )}
+              </Box>
+
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+                  {note.pinned && (
+                    <PushPinIcon color="primary" sx={{ fontSize: 15 }} />
                   )}
-                  {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
-                    <Avatar
-                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeNoteUserMap.get(note.recordID) || ''}`}
-                      sx={{ width: 22, height: 22 }}
-                    />
-                  )}
-                  {!isSharedNote(note) && !sharedByMeNoteIDs.has(note.recordID) && note.projectID && sharedProjectIDs.has(note.projectID) && (
-                    <Avatar
-                      src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeProjectUserMap.get(note.projectID) || note.projectID}`}
-                      sx={{ width: 22, height: 22 }}
-                    />
-                  )}
-                  {note.projectID && projectNameMap.has(note.projectID) && (
-                    <Chip
-                      label={projectNameMap.get(note.projectID)}
-                      size="small"
-                      variant="outlined"
-                      sx={{ height: 18, fontSize: "0.65rem" }}
-                    />
-                  )}
+                  <Typography
+                    variant="subtitle2"
+                    noWrap
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontWeight: 600,
+                      fontStyle: note.title ? "normal" : "italic",
+                      color: note.title ? "text.primary" : "text.secondary",
+                    }}
+                  >
+                    {note.title || "Untitled"}
+                  </Typography>
+                </Box>
+
+                {note.noteType !== "list" && note.body && (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {note.body}
+                  </Typography>
+                )}
+
+                {note.noteType === "list" && listPreview && listPreview.length > 0 && (
+                  <Box>
+                    {listPreview.slice(0, 2).map((item) => (
+                      <Typography
+                        key={item.recordID}
+                        variant="body2"
+                        color="text.secondary"
+                        noWrap
+                        sx={{
+                          textDecoration: item.isCompleted ? "line-through" : "none",
+                          opacity: item.isCompleted ? 0.6 : 1,
+                        }}
+                      >
+                        {item.isCompleted ? "☑" : "☐"} {item.title || "Untitled"}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatTimestamp(note.updatedAt)}
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", ml: "auto" }}>
+                    {isSharedNote(note) && (
+                      <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${note.creatorID}`}
+                        sx={{ width: 20, height: 20 }}
+                      />
+                    )}
+                    {!isSharedNote(note) && sharedByMeNoteIDs.has(note.recordID) && (
+                      <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeNoteUserMap.get(note.recordID) || ''}`}
+                        sx={{ width: 20, height: 20 }}
+                      />
+                    )}
+                    {!isSharedNote(note) && !sharedByMeNoteIDs.has(note.recordID) && note.projectID && sharedProjectIDs.has(note.projectID) && (
+                      <Avatar
+                        src={`https://api.dicebear.com/9.x/shapes/svg?seed=${sharedByMeProjectUserMap.get(note.projectID) || note.projectID}`}
+                        sx={{ width: 20, height: 20 }}
+                      />
+                    )}
+                    {note.projectID && projectNameMap.has(note.projectID) && (
+                      <Chip
+                        label={projectNameMap.get(note.projectID)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 20, fontSize: "0.65rem" }}
+                      />
+                    )}
+                  </Box>
                 </Box>
               </Box>
             </Box>
           </Paper>
-        </Grid>
-      ))}
-    </Grid>
+        );
+      })}
+    </Stack>
   );
 
   const toggleProjectFilter = (projectID: string) => {
@@ -490,8 +508,8 @@ export default function NotesPage() {
         onClick={handleCreateNote}
         sx={{
           position: "fixed",
-          bottom: 72,
-          right: 16,
+          bottom: 88,
+          right: 24,
         }}
       >
         <AddIcon />

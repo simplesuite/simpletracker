@@ -15,18 +15,10 @@ import Toolbar from '@mui/material/Toolbar';
 import { Navigate, Outlet } from "react-router-dom";
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
-import BottomNavigation from '@mui/material/BottomNavigation';
-import BottomNavigationAction from '@mui/material/BottomNavigationAction';
-import Paper from '@mui/material/Paper';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import Button from '@mui/material/Button';
-import SettingsIcon from '@mui/icons-material/Settings';
-import NotesIcon from '@mui/icons-material/Notes';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import FolderIcon from '@mui/icons-material/Folder';
-import { redirect, useLocation } from "react-router-dom";
-import {
-  Link as RouterLink,
-} from 'react-router-dom';
+import { useLocation } from "react-router-dom";
+import FloatingTabBar from './components/subcomponents/FloatingTabBar';
 import CircularProgress from "@mui/material/CircularProgress";
 import Backdrop from "@mui/material/Backdrop";
 import AreYouSure from "./components/subcomponents/AreYouSure";
@@ -54,7 +46,6 @@ export default function App() {
   const snackAction = useGlobalStore(s => s.snackBarAction);
   const setSnackAction = useGlobalStore(s => s.setSnackBarAction);
   const [actTheme, setTheme] = React.useState(themes.darkTheme);
-  const [tabValue, setTabValue] = React.useState(location.pathname);
   const needRefresh = usePwaStore(s => s.needRefresh);
   const setNeedRefresh = usePwaStore(s => s.setNeedRefresh);
   const pwaUpdateSW = usePwaStore(s => s.updateSW);
@@ -62,6 +53,7 @@ export default function App() {
   const setLoadingOpen = useGlobalStore(s => s.setMainLoading);
   const [authChecked, setAuthChecked] = React.useState(() => hasSupabaseSession());
   const [isAuthenticated, setIsAuthenticated] = React.useState(() => hasSupabaseSession());
+  const isLargeScreen = useMediaQuery(actTheme.breakpoints.up('md'));
 
   // Listen for auth state changes to handle login/logout properly
   React.useEffect(() => {
@@ -142,20 +134,6 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  // Update tab value when location changes (browser navigation or deep link)
-  React.useEffect(() => {
-    const path = location.pathname;
-    if (path.startsWith('/notes')) {
-      setTabValue('/notes');
-    } else if (path.startsWith('/tasks')) {
-      setTabValue('/tasks');
-    } else if (path.startsWith('/projects')) {
-      setTabValue('/projects');
-    } else if (path.startsWith('/settings')) {
-      setTabValue('/settings');
-    }
-  }, [location.pathname]);
-
   React.useEffect(() => {
     if (currentTheme === 'dark') {
       setTheme(themes.darkTheme);
@@ -173,8 +151,11 @@ export default function App() {
 
   if (location.pathname === '/') { return <Navigate to="/notes" /> }
 
-  // Hide app chrome (toolbar + bottom nav) on detail pages
-  const isDetailPage = /^\/(notes|tasks|projects)\/.+/.test(location.pathname);
+  // On large screens, detail pages render as a side pane next to the list, so
+  // the app chrome (toolbar + bottom nav) should stay visible. On small screens
+  // detail pages are full-screen, so we hide the chrome as before.
+  const isDetailRoute = /^\/(notes|tasks|projects)\/.+/.test(location.pathname);
+  const isDetailPage = isDetailRoute && !isLargeScreen;
 
   const snackClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') { return }
@@ -189,32 +170,16 @@ export default function App() {
         <Box sx={{
           display: 'flex',
           minHeight: window.innerHeight,
-          backgroundImage: (currentTheme === 'dark' ? 'linear-gradient(to bottom right, #161616, #252525)' : 'linear-gradient(to bottom right,#eee,#fff)'),
-          bgcolor: (currentTheme === 'dark' ? '#171717' : 'grey.100')
+          bgcolor: 'background.default',
         }}>
           <Box sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>{!isDetailPage && <AppToolbar />}</Box>
           <Box component="main"
-            sx={{ width: '100%', p: 2, mb: isDetailPage ? 0 : 8, height: '100%', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))' }}>
+            sx={{ width: '100%', p: 2, mb: isDetailPage ? 0 : 11, height: '100%', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))' }}>
             {!isDetailPage && <Toolbar />}<Outlet />
           </Box>
-          {!isDetailPage && (
-          <Paper sx={{ position: 'fixed', bottom: 0, left: 0, right: 0, paddingBottom: 'env(safe-area-inset-bottom, 0px)', zIndex: (theme) => theme.zIndex.appBar }} elevation={3}>
-            <BottomNavigation
-              showLabels
-              value={tabValue}
-              onChange={(event, newValue: string) => {
-                setTabValue(newValue);
-                redirect("/" + newValue);
-              }}>
-              <BottomNavigationAction label="Notes" value='/notes' component={RouterLink} to="notes" icon={<NotesIcon />} />
-              <BottomNavigationAction label="Tasks" value='/tasks' component={RouterLink} to="tasks" icon={<TaskAltIcon />} />
-              <BottomNavigationAction label="Projects" value='/projects' component={RouterLink} to="projects" icon={<FolderIcon />} />
-              <BottomNavigationAction label="Settings" value='/settings' component={RouterLink} to="settings" icon={<SettingsIcon />} />
-            </BottomNavigation>
-          </Paper>
-          )}
+          {!isDetailPage && <FloatingTabBar />}
         </Box>
-        <Snackbar open={snackOpen} autoHideDuration={snackAction ? 5000 : 2000} onClose={snackClose} sx={{ mb: 8 }}>
+        <Snackbar open={snackOpen} autoHideDuration={snackAction ? 5000 : 2000} onClose={snackClose} sx={{ mb: 11 }}>
           {/*@ts-ignore*/}
           <Alert onClose={snackClose} severity={snackSev} sx={{ width: '100%' }} action={snackAction && (
             <Button color="inherit" size="small" onClick={() => { snackAction(); snackClose(); }}>
