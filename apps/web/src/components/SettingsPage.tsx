@@ -270,7 +270,7 @@ export default function SettingsPage() {
                 <Stack spacing={2.5} alignItems="stretch" sx={{ maxWidth: 560, width: '100%' }}>
 
                     {/* ─── Profile Card ─── */}
-                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 2.5 }}>
                             <Avatar
                                 src={`https://api.dicebear.com/9.x/shapes/svg?seed=${currentUserDetails.recordID}`}
@@ -314,7 +314,7 @@ export default function SettingsPage() {
                     {/* ─── Upgrade Banner (free only) ─── */}
                     {subscriptionState === 'free' && (
                         <Paper elevation={4} sx={{
-                            borderRadius: 4,
+                            borderRadius: "20px",
                             p: 3,
                             background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)}, ${alpha(theme.palette.secondary.main, 0.06)})`,
                             display: 'flex',
@@ -336,7 +336,7 @@ export default function SettingsPage() {
                         </Paper>
                     )}
                     {subscriptionState === 'canceling' && (
-                        <Alert severity="info" sx={{ borderRadius: 3 }}>
+                        <Alert severity="info" sx={{ borderRadius: "20px" }}>
                             Plan active until {entitlement?.current_period_end
                                 ? new Date(entitlement.current_period_end).toLocaleDateString()
                                 : 'end of billing period'}
@@ -344,7 +344,7 @@ export default function SettingsPage() {
                     )}
 
                     {/* ─── Preferences Card ─── */}
-                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
                         <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 2.5, textTransform: 'uppercase' }}>
                             Preferences
                         </Typography>
@@ -391,7 +391,7 @@ export default function SettingsPage() {
                     </Paper>
 
                     {/* ─── Account Card ─── */}
-                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
                             <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, textTransform: 'uppercase' }}>
                                 Account
@@ -427,7 +427,7 @@ export default function SettingsPage() {
                     </Paper>
 
                     {/* ─── Export Card ─── */}
-                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
                         <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 1, textTransform: 'uppercase' }}>
                             Export Data
                         </Typography>
@@ -474,7 +474,7 @@ export default function SettingsPage() {
                     </Paper>
 
                     {/* ─── Support Card ─── */}
-                    <Paper elevation={4} sx={{ borderRadius: 4, p: 3 }}>
+                    <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
                         <Typography color="text.secondary" variant="subtitle2" sx={{ fontWeight: 800, mb: 2.5, textTransform: 'uppercase' }}>
                             Support
                         </Typography>

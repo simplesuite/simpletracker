@@ -22,12 +22,19 @@ const tabs: TabDef[] = [
 
 /**
  * Web counterpart to the mobile FloatingTabBar: an absolutely-positioned,
- * frosted, rounded pill bar. The active tab gets a primary-container fill
- * with on-primary-container icon/label; inactive tabs use the muted
- * secondary text color. Colors come from the shared MUI theme.
+ * frosted, rounded pill bar. A single primary-container "pill" indicator
+ * slides horizontally to the active tab. Icons/labels cross-fade between the
+ * active (on-primary-container) and inactive (muted secondary) colors. Colors
+ * come from the shared MUI theme.
  */
 export default function FloatingTabBar() {
     const location = useLocation();
+
+    const activeIndex = Math.max(
+        0,
+        tabs.findIndex((tab) => tab.match.test(location.pathname)),
+    );
+    const hasActive = tabs.some((tab) => tab.match.test(location.pathname));
 
     return (
         <Box
@@ -56,6 +63,24 @@ export default function FloatingTabBar() {
                         : '0 4px 12px rgba(0, 0, 0, 0.08)',
             }}
         >
+            {/* Sliding active-tab indicator. Positioned over one tab's width and
+                translated horizontally to the active index. */}
+            <Box
+                aria-hidden
+                sx={{
+                    position: 'absolute',
+                    top: 4,
+                    bottom: 4,
+                    left: 4,
+                    width: `calc((100% - 8px - ${(tabs.length - 1) * 4}px) / ${tabs.length})`,
+                    borderRadius: '30px',
+                    bgcolor: 'primary.main',
+                    opacity: hasActive ? 1 : 0,
+                    transform: `translateX(calc(${activeIndex} * (100% + 4px)))`,
+                    transition: 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease',
+                    pointerEvents: 'none',
+                }}
+            />
             {tabs.map((tab) => {
                 const active = tab.match.test(location.pathname);
                 return (
@@ -66,6 +91,8 @@ export default function FloatingTabBar() {
                         aria-label={tab.label}
                         aria-current={active ? 'page' : undefined}
                         sx={{
+                            position: 'relative',
+                            zIndex: 1,
                             flex: 1,
                             minHeight: 50,
                             borderRadius: '30px',
@@ -76,11 +103,10 @@ export default function FloatingTabBar() {
                             gap: 0.5,
                             px: 1,
                             textDecoration: 'none',
-                            transition: 'background-color 0.15s ease, color 0.15s ease',
+                            transition: 'color 0.28s ease',
                             color: active ? 'primary.contrastText' : 'text.secondary',
-                            bgcolor: active ? 'primary.main' : 'transparent',
                             '&:hover': {
-                                bgcolor: active ? 'primary.main' : 'action.hover',
+                                bgcolor: active ? 'transparent' : 'action.hover',
                             },
                         }}
                     >

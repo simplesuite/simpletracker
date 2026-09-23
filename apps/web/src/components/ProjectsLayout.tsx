@@ -10,6 +10,13 @@ import ProjectDetailPage from './ProjectDetailPage';
 const COLUMN_MAX_WIDTH = 600;
 
 /**
+ * Height of the split-view container so each column scrolls on its own.
+ * Subtracts the fixed top chrome (dense AppBar toolbar + the main element's top
+ * padding) and safe-area insets from the viewport height.
+ */
+const SPLIT_VIEW_HEIGHT = 'calc(100vh - 96px - env(safe-area-inset-top, 0px))';
+
+/**
  * Responsive layout for Projects.
  *
  * Split-view only kicks in on large screens (md+) AND when a project is
@@ -40,20 +47,40 @@ export default function ProjectsLayout() {
     }
 
     return (
-        <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start', justifyContent: 'center', width: '100%' }}>
+        <Box
+            sx={{
+                display: 'flex',
+                gap: 3,
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                width: '100%',
+                height: SPLIT_VIEW_HEIGHT,
+            }}
+        >
             <Box
                 sx={{
                     flex: 1,
                     minWidth: 0,
                     maxWidth: COLUMN_MAX_WIDTH,
-                    position: 'sticky',
-                    top: 0,
-                    alignSelf: 'stretch',
+                    height: '100%',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    pb: '96px',
                 }}
             >
                 <ProjectsPage />
             </Box>
-            <Box sx={{ flex: 1, minWidth: 0, maxWidth: COLUMN_MAX_WIDTH }}>
+            <Box
+                sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    maxWidth: COLUMN_MAX_WIDTH,
+                    height: '100%',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
+                    pb: '96px',
+                }}
+            >
                 <ProjectDetailPage key={id} id={id} onBack={handleCloseDetail} />
             </Box>
         </Box>

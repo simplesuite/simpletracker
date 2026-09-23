@@ -9,7 +9,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Alert from "@mui/material/Alert";
 import Avatar from "@mui/material/Avatar";
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useProjectStore } from '@simpletracker/core';
 import { useNoteStore } from '@simpletracker/core';
 import { useTaskStore } from '@simpletracker/core';
@@ -30,6 +30,7 @@ export default function ProjectsPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const currentUserID = useGlobalStore((s) => s.currentUser.recordID);
   const navigate = useNavigate();
+  const { id: selectedProjectID } = useParams<{ id: string }>();
 
   const [sharedByMeProjectIDs, setSharedByMeProjectIDs] = React.useState<
     Set<string>
@@ -199,20 +200,45 @@ export default function ProjectsPage() {
                 })();
                 const isSharedToMe = currentUserID ? project.creatorID !== currentUserID : false;
                 const isSharedByMe = sharedByMeProjectIDs.has(project.recordID);
+                const selected = project.recordID === selectedProjectID;
 
                 return (
                   <Paper
                     key={project.recordID}
+                    aria-current={selected ? "true" : undefined}
                     sx={{
-                      borderRadius: 4,
+                      position: "relative",
+                      borderRadius: "20px",
                       border: "1px solid",
-                      borderColor:
-                        isSharedToMe || isSharedByMe ? "info.main" : "divider",
-                      boxShadow: "none",
+                      borderColor: selected
+                        ? "primary.main"
+                        : isSharedToMe || isSharedByMe
+                          ? "info.main"
+                          : "divider",
+                      boxShadow: selected
+                        ? (theme) => `0 0 0 1px ${theme.palette.primary.main}`
+                        : "none",
                       cursor: "pointer",
                       overflow: "hidden",
-                      transition: "background-color 0.15s ease",
-                      "&:hover": { bgcolor: "action.hover" },
+                      transition: "background-color 0.15s ease, box-shadow 0.15s ease",
+                      bgcolor: selected ? "action.selected" : undefined,
+                      "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+                      // Sliding accent bar on the left edge of the selected item.
+                      "&::before": {
+                        content: '""',
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: 4,
+                        bgcolor: "primary.main",
+                        borderTopLeftRadius: "20px",
+                        borderBottomLeftRadius: "20px",
+                        transform: selected ? "scaleX(1)" : "scaleX(0)",
+                        transformOrigin: "left center",
+                        opacity: selected ? 1 : 0,
+                        transition: "transform 0.2s ease, opacity 0.2s ease",
+                      },
                     }}
                     onClick={() => navigate(`/projects/${project.recordID}`)}
                   >
@@ -222,7 +248,7 @@ export default function ProjectsPage() {
                           flexShrink: 0,
                           width: 44,
                           height: 44,
-                          borderRadius: 2.5,
+                          borderRadius: "15px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
