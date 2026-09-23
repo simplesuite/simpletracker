@@ -38,6 +38,7 @@ import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
+import type { Theme } from "@mui/material/styles";
 
 import { useTaskStore } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
@@ -556,6 +557,47 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
 
   if (!task) return null;
 
+  // Conditional due-date status color, mirroring the task list chips:
+  // overdue -> error, today -> warning, otherwise no emphasis.
+  const dueDateStatusColor = ((): "warning" | "error" | null => {
+    if (!dueDate) return null;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const date = dueDate.toDate();
+    const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round(
+      (dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+    );
+    if (diffDays < 0) return "error";
+    if (diffDays === 0) return "warning";
+    return null;
+  })();
+
+  // Status-based outline styling for the due date/time fields.
+  const dueDateStatusSx = dueDateStatusColor
+    ? {
+      // MUI X v8 pickers render their own PickersOutlinedInput, so the outline
+      // element is .MuiPickersOutlinedInput-notchedOutline (not MuiOutlinedInput).
+      "& .MuiPickersOutlinedInput-notchedOutline": {
+        borderColor: (theme: Theme) => theme.palette[dueDateStatusColor].main,
+        borderWidth: 2,
+      },
+      "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
+        borderColor: (theme: Theme) => theme.palette[dueDateStatusColor].main,
+      },
+      "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
+        borderColor: (theme: Theme) => theme.palette[dueDateStatusColor].main,
+      },
+      // Match the label color to the outline, including when focused.
+      "& .MuiInputLabel-root, & .MuiInputLabel-root.Mui-focused": {
+        color: (theme: Theme) => theme.palette[dueDateStatusColor].main,
+      },
+    }
+    : undefined;
+
+  // Only color the Due Time field once an actual time has been entered.
+  const dueTimeStatusSx = dueTime ? dueDateStatusSx : undefined;
+
   // Embedded (split-view) mode fills the pane; full-page mode keeps the centered column.
   const embedded = idProp != null;
 
@@ -697,8 +739,9 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
                 label="Due Date"
                 value={dueDate}
                 onChange={handleDueDateChange}
+                closeOnSelect
                 slotProps={{
-                  textField: { fullWidth: true, size: "small" },
+                  textField: { fullWidth: true, size: "small", sx: dueDateStatusSx },
                   field: { clearable: true },
                   actionBar: { actions: ['today', 'clear'] },
                 }}
@@ -730,7 +773,7 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
                   value={dueTime}
                   onChange={handleDueTimeChange}
                   slotProps={{
-                    textField: { fullWidth: true, size: "small" },
+                    textField: { fullWidth: true, size: "small", sx: dueTimeStatusSx },
                     field: { clearable: true },
                   }}
                   disabled={(isShared && !isOnline) || !dueDate}
@@ -891,6 +934,12 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
                 onChange={(e) =>
                   updateSubtaskTitle(st.recordID, e.target.value)
                 }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddSubtask();
+                  }
+                }}
                 disabled={isShared && !isOnline}
                 inputProps={{ maxLength: 255 }}
                 sx={{

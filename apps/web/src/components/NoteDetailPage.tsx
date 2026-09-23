@@ -58,7 +58,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import type { Note, NoteShared, NoteListItem, ProjectShared } from '@simpletracker/core';
 
 /** Inline editable text field that only persists on blur (not on every keystroke). */
-function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave: (newValue: string) => void; autoFocus?: boolean }) {
+function ListItemTextField({ value, onSave, onEnter, autoFocus }: { value: string; onSave: (newValue: string) => void; onEnter?: () => void; autoFocus?: boolean }) {
     const [localValue, setLocalValue] = useState(value);
     const localRef = useRef(localValue);
     localRef.current = localValue;
@@ -96,6 +96,16 @@ function ListItemTextField({ value, onSave, autoFocus }: { value: string; onSave
             onBlur={() => {
                 if (localValue !== value) {
                     onSave(localValue);
+                }
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && onEnter) {
+                    e.preventDefault();
+                    // Persist the current value before creating the next item so edits aren't lost
+                    if (localRef.current !== value) {
+                        onSave(localRef.current);
+                    }
+                    onEnter();
                 }
             }}
             inputProps={{ maxLength: 255 }}
@@ -959,6 +969,7 @@ export default function NoteDetailPage({ id: idProp, onBack }: NoteDetailPagePro
                                 <ListItemTextField
                                     value={item.title}
                                     onSave={(newTitle) => handleListItemTitleSave(item.recordID, newTitle)}
+                                    onEnter={handleAddListItem}
                                     autoFocus={focusedItemId === item.recordID}
                                 />
                             </ListItem>
