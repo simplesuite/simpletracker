@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#d79a00" />
+    <meta name="theme-color" content="#161719" />
     <meta name="description" content="A simple app to track your notes and tasks." />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -16,8 +16,10 @@
     <script>
         try {
             var t = localStorage.getItem('userTheme');
-            if (t === 'light') document.documentElement.style.backgroundColor = '#f8fafc';
-            else document.documentElement.style.backgroundColor = '#161719';
+            var color = t === 'light' ? '#f8fafc' : '#161719';
+            document.documentElement.style.backgroundColor = color;
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', color);
         } catch (e) { }
     </script>
 </head>

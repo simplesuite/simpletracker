@@ -192,6 +192,9 @@ export default function SettingsPage() {
         const mode = newDark ? 'dark' : 'light';
         setTheme(mode);
         localStorage.setItem('userTheme', mode);
+        // Keep the PWA status-bar / browser chrome color in sync with the theme
+        const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeColorMeta) themeColorMeta.setAttribute('content', newDark ? '#161719' : '#f8fafc');
         setSnackSev('success');
         setSnackText(newDark ? 'Dark mode activated!' : 'Set to light mode.');
         setSnackOpen(true);
