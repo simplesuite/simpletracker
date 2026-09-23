@@ -47,6 +47,7 @@ import { useProjectStore } from '@simpletracker/core';
 import { CSVLink } from 'react-csv';
 import IosShareIcon from '@mui/icons-material/IosShare';
 import Divider from '@mui/material/Divider';
+import ConnectionCard from './subcomponents/ConnectionCard';
 
 function getInitials(name: string | null): string {
     if (!name) return '?';
@@ -271,6 +272,9 @@ export default function SettingsPage() {
         <>
             <Box display="flex" flexDirection="column" alignItems="center" sx={{ pb: 4 }}>
                 <Stack spacing={2.5} alignItems="stretch" sx={{ maxWidth: 560, width: '100%' }}>
+
+                    {/* ─── Connection Card ─── */}
+                    <ConnectionCard />
 
                     {/* ─── Profile Card ─── */}
                     <Paper elevation={4} sx={{ borderRadius: "20px", p: 3 }}>
