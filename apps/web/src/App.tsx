@@ -28,6 +28,7 @@ import { usePwaStore } from "./store/pwaStore";
 import { hasSupabaseSession, supabase } from "./lib/supabase";
 import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from "@simpletracker/core";
 import { checkAndNotify } from "./lib/notifications";
+import { useIsPwa } from "./lib/useIsPwa";
 
 const Alert = React.forwardRef<HTMLDivElement, AlertProps>(function Alert(
   props,
@@ -54,6 +55,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = React.useState(() => hasSupabaseSession());
   const [isAuthenticated, setIsAuthenticated] = React.useState(() => hasSupabaseSession());
   const isLargeScreen = useMediaQuery(actTheme.breakpoints.up('md'));
+  const isPwa = useIsPwa();
 
   // Listen for auth state changes to handle login/logout properly
   React.useEffect(() => {
@@ -156,6 +158,9 @@ export default function App() {
   // detail pages are full-screen, so we hide the chrome as before.
   const isDetailRoute = /^\/(notes|tasks|projects)\/.+/.test(location.pathname);
   const isDetailPage = isDetailRoute && !isLargeScreen;
+  // Hide the top app bar when running as an installed PWA (the OS provides its
+  // own chrome), in addition to the existing full-screen detail-page behavior.
+  const hideToolbar = isDetailPage || isPwa;
 
   const snackClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
     if (reason === 'clickaway') { return }
@@ -172,10 +177,10 @@ export default function App() {
           minHeight: window.innerHeight,
           bgcolor: 'background.default',
         }}>
-          <Box sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>{!isDetailPage && <AppToolbar />}</Box>
+          <Box sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>{!hideToolbar && <AppToolbar />}</Box>
           <Box component="main"
             sx={{ width: '100%', p: 2, mb: isDetailPage ? 0 : 11, height: '100%', paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))' }}>
-            {!isDetailPage && <Toolbar />}<Outlet />
+            {!hideToolbar && <Toolbar />}<Outlet />
           </Box>
           {!isDetailPage && <FloatingTabBar />}
         </Box>
