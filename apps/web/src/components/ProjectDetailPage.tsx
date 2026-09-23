@@ -651,7 +651,7 @@ export default function ProjectDetailPage({ id: idProp, onBack }: ProjectDetailP
                                 elevation={4}
                                 sx={{
                                     borderColor: note.pinned ? 'primary.main' : 'divider',
-                                    borderRadius: 5,
+                                    borderRadius: "12px",
                                     cursor: 'pointer',
                                     height: '100%',
                                 }}
@@ -750,7 +750,7 @@ export default function ProjectDetailPage({ id: idProp, onBack }: ProjectDetailP
                                     <Paper
                                         elevation={4}
                                         sx={{
-                                            borderRadius: 5,
+                                            borderRadius: "12px",
                                             cursor: 'pointer',
                                             height: '100%',
                                             opacity: 0.7,

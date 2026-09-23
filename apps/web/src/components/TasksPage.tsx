@@ -30,7 +30,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTaskStore } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
 import { useGlobalStore } from '../store/globalStore';
@@ -52,6 +52,7 @@ export default function TasksPage() {
     const setSnackOpen = useGlobalStore((s) => s.setSnackBarOpen);
     const setSnackAction = useGlobalStore((s) => s.setSnackBarAction);
     const navigate = useNavigate();
+    const { id: selectedTaskID } = useParams<{ id: string }>();
 
     const handleCompleteTask = async (taskId: string) => {
         const task = tasks.find((t) => t.recordID === taskId);
@@ -393,7 +394,7 @@ export default function TasksPage() {
                                         </Menu>
                                     </Box>
                                     <Collapse in={overdueExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {overdueTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -403,7 +404,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -455,7 +477,7 @@ export default function TasksPage() {
                                         </Typography>
                                     </Box>
                                     <Collapse in={dueTodayExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {dueTodayTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -465,7 +487,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -517,7 +560,7 @@ export default function TasksPage() {
                                         </Typography>
                                     </Box>
                                     <Collapse in={dueTomorrowExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {dueTomorrowTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -527,7 +570,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -579,7 +643,7 @@ export default function TasksPage() {
                                         </Typography>
                                     </Box>
                                     <Collapse in={dueThisWeekExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {dueThisWeekTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -589,7 +653,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -641,7 +726,7 @@ export default function TasksPage() {
                                         </Typography>
                                     </Box>
                                     <Collapse in={upcomingExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {upcomingTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -651,7 +736,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -703,7 +809,7 @@ export default function TasksPage() {
                                         </Typography>
                                     </Box>
                                     <Collapse in={noDueDateExpanded}>
-                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                        <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                             <TransitionGroup component={List} disablePadding dense>
                                                 {noDueDateTasks.map((task, index) => (
                                                     <Collapse key={task.recordID}>
@@ -713,7 +819,28 @@ export default function TasksPage() {
                                                                     <RadioButtonUncheckedIcon color="action" />
                                                                 </IconButton>
                                                             </ListItemIcon>
-                                                            <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                            <ListItemButton
+                                                                selected={task.recordID === selectedTaskID}
+                                                                onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                                sx={{
+                                                                    position: 'relative',
+                                                                    transition: 'background-color 0.15s ease',
+                                                                    '&::before': {
+                                                                        content: '""',
+                                                                        position: 'absolute',
+                                                                        left: 0,
+                                                                        top: 4,
+                                                                        bottom: 4,
+                                                                        width: 4,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: 'primary.main',
+                                                                        transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                        transformOrigin: 'left center',
+                                                                        opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                        transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                                    },
+                                                                }}
+                                                            >
                                                                 <ListItemText
                                                                     primary={task.title}
                                                                     secondary={
@@ -794,7 +921,7 @@ export default function TasksPage() {
                                 </Menu>
                             </Box>
                             <Collapse in={completedExpanded} sx={{ mb: 7 }}>
-                                <Paper elevation={4} sx={{ width: '100%', borderRadius: 3 }}>
+                                <Paper elevation={4} sx={{ width: '100%', borderRadius: "15px" }}>
                                     <TransitionGroup component={List} disablePadding dense>
                                         {completedTasks.map((task, index) => (
                                             <Collapse key={task.recordID}>
@@ -809,7 +936,28 @@ export default function TasksPage() {
                                                             <CheckCircleIcon color="success" />
                                                         </IconButton>
                                                     </ListItemIcon>
-                                                    <ListItemButton onClick={() => navigate(`/tasks/${task.recordID}`)}>
+                                                    <ListItemButton
+                                                        selected={task.recordID === selectedTaskID}
+                                                        onClick={() => navigate(`/tasks/${task.recordID}`)}
+                                                        sx={{
+                                                            position: 'relative',
+                                                            transition: 'background-color 0.15s ease',
+                                                            '&::before': {
+                                                                content: '""',
+                                                                position: 'absolute',
+                                                                left: 0,
+                                                                top: 4,
+                                                                bottom: 4,
+                                                                width: 4,
+                                                                borderRadius: 2,
+                                                                bgcolor: 'primary.main',
+                                                                transform: task.recordID === selectedTaskID ? 'scaleX(1)' : 'scaleX(0)',
+                                                                transformOrigin: 'left center',
+                                                                opacity: task.recordID === selectedTaskID ? 1 : 0,
+                                                                transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                                            },
+                                                        }}
+                                                    >
                                                         <ListItemText
                                                             primary={task.title}
                                                             secondary={

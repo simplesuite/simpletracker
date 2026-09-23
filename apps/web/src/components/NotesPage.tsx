@@ -20,7 +20,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import NoteOutlinedIcon from "@mui/icons-material/NoteOutlined";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useNoteStore } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
 import { useGlobalStore } from "../store/globalStore";
@@ -60,6 +60,7 @@ function formatTimestamp(ts: number): string {
 
 export default function NotesPage() {
   const navigate = useNavigate();
+  const { id: selectedNoteID } = useParams<{ id: string }>();
   const notes = useNoteStore((s) => s.notes);
   const archivedNotes = useNoteStore((s) => s.archivedNotes);
   const sharedNotes = useNoteStore((s) => s.sharedNotes);
@@ -237,18 +238,44 @@ export default function NotesPage() {
       {noteList.map((note) => {
         const listPreview =
           note.noteType === "list" ? listItems[note.recordID] : undefined;
+        const selected = note.recordID === selectedNoteID;
         return (
           <Paper
             key={note.recordID}
+            aria-current={selected ? "true" : undefined}
             sx={{
-              borderRadius: 4,
+              position: "relative",
+              borderRadius: "20px",
               border: "1px solid",
-              borderColor: note.pinned ? "primary.main" : "divider",
-              boxShadow: "none",
+              borderColor: selected
+                ? "primary.main"
+                : note.pinned
+                  ? "primary.main"
+                  : "divider",
+              boxShadow: selected
+                ? (theme) => `0 0 0 1px ${theme.palette.primary.main}`
+                : "none",
               cursor: "pointer",
               overflow: "hidden",
-              transition: "background-color 0.15s ease",
-              "&:hover": { bgcolor: "action.hover" },
+              transition: "background-color 0.15s ease, box-shadow 0.15s ease",
+              bgcolor: selected ? "action.selected" : undefined,
+              "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+              // Sliding accent bar on the left edge of the selected item.
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                bgcolor: "primary.main",
+                borderTopLeftRadius: "20px",
+                borderBottomLeftRadius: "20px",
+                transform: selected ? "scaleX(1)" : "scaleX(0)",
+                transformOrigin: "left center",
+                opacity: selected ? 1 : 0,
+                transition: "transform 0.2s ease, opacity 0.2s ease",
+              },
             }}
             onClick={() => navigate(`/notes/${note.recordID}`)}
           >
@@ -258,7 +285,7 @@ export default function NotesPage() {
                   flexShrink: 0,
                   width: 44,
                   height: 44,
-                  borderRadius: 2.5,
+                  borderRadius: "15px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",

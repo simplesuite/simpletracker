@@ -32,8 +32,8 @@ const createTokenTheme = (mode: 'light' | 'dark', tokens: UiThemeTokens): Theme 
             divider: tokens.outlineVariant,
         },
         shape: {
-            // Mobile uses large, soft corners (rounded-2xl ≈ 16px on inputs/buttons).
-            borderRadius: 16,
+            // Soft, but not pill-round. ~12px matches the mobile list/card feel.
+            borderRadius: 12,
         },
         components: {
             MuiAutocomplete: {
@@ -51,7 +51,7 @@ const createTokenTheme = (mode: 'light' | 'dark', tokens: UiThemeTokens): Theme 
             MuiCard: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 20,
+                        borderRadius: 12,
                         border: `1px solid ${tokens.outlineVariant}`,
                         boxShadow: 'none',
                     },
@@ -60,7 +60,7 @@ const createTokenTheme = (mode: 'light' | 'dark', tokens: UiThemeTokens): Theme 
             MuiButton: {
                 styleOverrides: {
                     root: {
-                        borderRadius: 16,
+                        borderRadius: 10,
                         textTransform: 'none',
                         fontWeight: 700,
                     },
@@ -203,7 +203,7 @@ export const appName = 'simpleTracker';
 export const dialogPaperStyles = {
     style: {
         bgColor: 'background.paper',
-        borderRadius: 24,
+        borderRadius: 16,
         borderColor: darkTokens.outlineVariant,
         borderStyle: 'solid',
         borderWidth: 1.4,
