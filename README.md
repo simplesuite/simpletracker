@@ -175,7 +175,33 @@ src/
 └── index.tsx            # Entry point, routing, SW registration
 ```
 
+## Building the Android APK
+
+The mobile app (`apps/mobile`) is an Expo project with a prebuilt native `android/` directory, so the APK is built with the Gradle wrapper.
+
+```bash
+# From the mobile app's android directory
+cd apps/mobile/android
+
+# Build a release APK
+./gradlew assembleRelease
+```
+
+The APK is written to:
+
+```
+apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+Notes:
+
+- For a debug build, run `./gradlew assembleDebug` instead (output under `apk/debug/`).
+- To build and install directly onto a connected device or emulator, run `npm run android` from `apps/mobile`.
+- The release build is currently signed with the debug keystore. Before publishing to the Play Store, generate your own keystore and update the `release` `signingConfig` in `apps/mobile/android/app/build.gradle`. See the [React Native signed APK guide](https://reactnative.dev/docs/signed-apk-android).
+
 ## Scripts
+
+### Web (root)
 
 | Command | Description |
 |---------|-------------|
@@ -183,6 +209,17 @@ src/
 | `npm run build` | Production build |
 | `npm run preview` | Preview production build locally |
 | `npm test` | Run unit tests |
+
+### Mobile (`apps/mobile`)
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start the Expo dev server |
+| `npm run android` | Build and run on Android device/emulator |
+| `npm run ios` | Build and run on iOS simulator |
+| `npm run typecheck` | Type-check with `tsc --noEmit` |
+| `./gradlew assembleRelease` | Build a release APK (run from `apps/mobile/android`) |
+| `./gradlew assembleDebug` | Build a debug APK (run from `apps/mobile/android`) |
 
 ## Contributing
 
