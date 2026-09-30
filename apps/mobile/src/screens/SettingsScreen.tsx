@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, ScrollView, Share, Switch, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, ScrollView, Share, Switch, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useFocusEffect } from '@react-navigation/native';
+import DateTimePicker from '@expo/ui/community/datetime-picker';
 import * as Clipboard from 'expo-clipboard';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -13,7 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useEntitlement, redirectToBillingPortal, redirectToCheckout } from '../lib/entitlement';
-import { getNotificationsEnabled, setTaskNotificationsEnabled } from '../lib/notifications';
+import { getEffectiveNotificationsEnabled, getNotificationsEnabled, getReminderPreferences, getReminderSoundEnabled, getReminderTime, setTaskNotificationsEnabled, setTaskReminderKindEnabled, setTaskReminderSoundEnabled, setTaskReminderTime, type ReminderPreferences, type ReminderTime } from '../lib/notifications';
 import { toCsv } from '../lib/csv';
 
 const appUrl = 'https://tracker.simplesuite.dev';
@@ -84,6 +86,12 @@ export function SettingsScreen() {
     const [qrDialogOpen, setQrDialogOpen] = useState(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [reminderPrefs, setReminderPrefs] = useState<ReminderPreferences>({ day_of: true, before_due: true, overdue_daily: true });
+    const [pendingKind, setPendingKind] = useState<keyof ReminderPreferences | null>(null);
+    const [reminderTime, setReminderTimeState] = useState<ReminderTime>({ hour: 9, minute: 0 });
+    const [soundEnabled, setSoundEnabled] = useState(false);
+    const [timeDialogOpen, setTimeDialogOpen] = useState(false);
+    const [savingTime, setSavingTime] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -93,8 +101,33 @@ export function SettingsScreen() {
         getNotificationsEnabled().then((enabled) => {
             if (mounted) setNotificationsEnabled(enabled);
         });
+        getReminderPreferences().then((prefs) => {
+            if (mounted) setReminderPrefs(prefs);
+        });
+        getReminderTime().then((time) => {
+            if (mounted) setReminderTimeState(time);
+        });
+        getReminderSoundEnabled().then((enabled) => {
+            if (mounted) setSoundEnabled(enabled);
+        });
         return () => { mounted = false; };
     }, []);
+
+    // Detect permission revoked in the OS settings while the app was elsewhere:
+    // re-check whenever this screen regains focus and reconcile the master toggle.
+    useFocusEffect(useCallback(() => {
+        let active = true;
+        getEffectiveNotificationsEnabled().then((effective) => {
+            if (!active) return;
+            setNotificationsEnabled((prev) => {
+                if (prev && !effective) {
+                    setStatusMessage('Notifications are off in system settings. Re-enable them there, then turn this on.');
+                }
+                return effective;
+            });
+        });
+        return () => { active = false; };
+    }, []));
 
     const signOut = async () => {
         try { await clearLocalData(); } catch { /* best effort */ }
@@ -137,6 +170,47 @@ export function SettingsScreen() {
             ? 'Task reminders enabled on this device.'
             : 'Task notifications disabled.');
     };
+
+    const handleReminderKind = async (kind: keyof ReminderPreferences, enabled: boolean) => {
+        setPendingKind(kind);
+        // Optimistic update so the switch feels responsive; reconcile persists it.
+        setReminderPrefs((prev) => ({ ...prev, [kind]: enabled }));
+        try {
+            const next = await setTaskReminderKindEnabled(kind, enabled, tasks);
+            setReminderPrefs(next);
+        } finally {
+            setPendingKind(null);
+        }
+    };
+
+    const handleSound = async (enabled: boolean) => {
+        setSoundEnabled(enabled);
+        await setTaskReminderSoundEnabled(enabled, tasks);
+    };
+
+    const handleReminderTimeChange = async (date: Date) => {
+        const time: ReminderTime = { hour: date.getHours(), minute: date.getMinutes() };
+        setReminderTimeState(time);
+        setSavingTime(true);
+        try {
+            const next = await setTaskReminderTime(time, tasks);
+            setReminderTimeState(next);
+        } finally {
+            setSavingTime(false);
+        }
+    };
+
+    const reminderTimeLabel = useMemo(() => {
+        const d = new Date();
+        d.setHours(reminderTime.hour, reminderTime.minute, 0, 0);
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }, [reminderTime]);
+
+    const reminderTimeValue = useMemo(() => {
+        const d = new Date();
+        d.setHours(reminderTime.hour, reminderTime.minute, 0, 0);
+        return d;
+    }, [reminderTime]);
 
     const exportData = async (kind: CsvKind) => {
         if (subscriptionState === 'free' || entitlementLoading) {
@@ -205,7 +279,29 @@ export function SettingsScreen() {
 
                 <Card className="overflow-hidden p-5">
                     <View className="mb-3 flex-row items-center justify-between gap-3"><View><Text variant="titleLarge">Task notifications</Text></View><Switch value={notificationsEnabled} onValueChange={handleNotifications} disabled={notificationsLoading} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={notificationsEnabled ? theme.primary : theme.surface} /></View>
-                    {notificationsLoading ? <ActivityIndicator color={theme.primary} /> : <Text variant="bodySmall">Each open task with a due date gets a day-of reminder, a 15-minute reminder for timed tasks, and a daily overdue reminder.</Text>}
+                    {notificationsLoading ? <ActivityIndicator color={theme.primary} /> : <Text variant="bodySmall">Reminders for open tasks with a due date. Choose which reminders you want below.</Text>}
+                    {notificationsEnabled ? (
+                        <View className="mt-3 border-t border-outline-variant pt-1 dark:border-outline-variant-dark">
+                            {([
+                                ['day_of', 'Due-day reminder', `At ${reminderTimeLabel} on the day a task is due.`],
+                                ['before_due', 'Before-due reminder', '15 minutes before a task with a specific time is due.'],
+                                ['overdue_daily', 'Overdue reminder', `Every day at ${reminderTimeLabel} while a task remains overdue.`],
+                            ] as const).map(([kind, title, description]) => (
+                                <View key={kind} className="min-h-16 flex-row items-center justify-between gap-3 border-b border-outline-variant py-2 dark:border-outline-variant-dark">
+                                    <View className="min-w-0 flex-1 gap-0.5"><Text variant="bodyLarge">{title}</Text><Text variant="bodySmall">{description}</Text></View>
+                                    <Switch value={reminderPrefs[kind]} onValueChange={(value) => handleReminderKind(kind, value)} disabled={pendingKind !== null} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={reminderPrefs[kind] ? theme.primary : theme.surface} />
+                                </View>
+                            ))}
+                            <View className="min-h-16 flex-row items-center justify-between gap-3 border-b border-outline-variant py-2 dark:border-outline-variant-dark">
+                                <View className="min-w-0 flex-1 gap-0.5"><Text variant="bodyLarge">Reminder time</Text><Text variant="bodySmall">When due-day and overdue reminders fire.</Text></View>
+                                <Button variant="outlined" compact loading={savingTime} onPress={() => setTimeDialogOpen(true)} icon={<MaterialCommunityIcons name="clock-outline" size={18} color={theme.primary} />}>{reminderTimeLabel}</Button>
+                            </View>
+                            <View className="min-h-16 flex-row items-center justify-between gap-3 py-2">
+                                <View className="min-w-0 flex-1 gap-0.5"><Text variant="bodyLarge">Sound</Text><Text variant="bodySmall">Play a sound with each reminder.</Text></View>
+                                <Switch value={soundEnabled} onValueChange={handleSound} trackColor={{ false: theme.outline, true: theme.primary }} thumbColor={soundEnabled ? theme.primary : theme.surface} />
+                            </View>
+                        </View>
+                    ) : null}
                 </Card>
 
                 <Card className="overflow-hidden p-5">
@@ -234,6 +330,40 @@ export function SettingsScreen() {
             <Dialog visible={qrDialogOpen} onDismiss={() => setQrDialogOpen(false)} title="My user ID" actions={<><Button variant="text" compact onPress={() => setQrDialogOpen(false)}>Close</Button><Button compact onPress={copyUserId}>Copy ID</Button></>}>
                 <View className="items-center gap-3"><QRCode value={userId || ''} size={190} backgroundColor={theme.surface} color={theme.onSurface} /><Text variant="bodySmall" className="text-center">{userId}</Text></View>
             </Dialog>
+            {Platform.OS === 'android' && timeDialogOpen ? (
+                <DateTimePicker
+                    mode="time"
+                    display="default"
+                    presentation="dialog"
+                    value={reminderTimeValue}
+                    accentColor={theme.primary}
+                    onValueChange={(_, value) => {
+                        setTimeDialogOpen(false);
+                        void handleReminderTimeChange(value);
+                    }}
+                    onDismiss={() => setTimeDialogOpen(false)}
+                />
+            ) : null}
+            {Platform.OS !== 'android' ? (
+                <Dialog
+                    visible={timeDialogOpen}
+                    onDismiss={() => setTimeDialogOpen(false)}
+                    title="Reminder time"
+                    actions={<Button compact onPress={() => setTimeDialogOpen(false)}>Done</Button>}
+                >
+                    <View className="items-center">
+                        <DateTimePicker
+                            mode="time"
+                            display="inline"
+                            presentation="inline"
+                            value={reminderTimeValue}
+                            accentColor={theme.primary}
+                            themeVariant={effectiveTheme}
+                            onValueChange={(_, value) => { void handleReminderTimeChange(value); }}
+                        />
+                    </View>
+                </Dialog>
+            ) : null}
             <Snackbar visible={!!statusMessage} onDismiss={() => setStatusMessage('')} onAction={() => setStatusMessage('')} bottomOffset={tabBarHeight + 24}>{statusMessage}</Snackbar>
         </View>
     );
