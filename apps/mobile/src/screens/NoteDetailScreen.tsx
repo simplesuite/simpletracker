@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -10,10 +10,78 @@ import { Button, Card, Checkbox, Dialog, Pill, Snackbar, Text, TextField, getUiT
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NotesStackParamList } from '../navigation/types';
 import { ShareNoteDialog } from '../components/ShareNoteDialog';
+import { MarkdownPreview } from '../components/MarkdownPreview';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 
 const collapseKey = (noteId: string) => `simpletracker.note.${noteId}.completedCollapsed`;
+
+type BodyMode = 'edit' | 'preview';
+
+/**
+ * Segmented "slider" that toggles the markdown body between an editor and a
+ * rendered preview. The active pill slides between the two options.
+ */
+function MarkdownModeToggle({ mode, onChange, tokens }: { mode: BodyMode; onChange: (mode: BodyMode) => void; tokens: ReturnType<typeof getUiTheme> }) {
+    const [trackWidth, setTrackWidth] = useState(0);
+    const slide = useRef(new Animated.Value(mode === 'edit' ? 0 : 1)).current;
+
+    useEffect(() => {
+        Animated.timing(slide, {
+            toValue: mode === 'edit' ? 0 : 1,
+            duration: 180,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start();
+    }, [mode, slide]);
+
+    const options: { value: BodyMode; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
+        { value: 'edit', label: 'Edit', icon: 'pencil-outline' },
+        { value: 'preview', label: 'Preview', icon: 'eye-outline' },
+    ];
+    const segmentWidth = trackWidth > 0 ? (trackWidth - 8) / options.length : 0;
+    const translateX = slide.interpolate({ inputRange: [0, 1], outputRange: [0, segmentWidth] });
+
+    return (
+        <View
+            className="flex-row rounded-full p-1"
+            style={{ backgroundColor: tokens.surfaceVariant }}
+            onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+        >
+            {segmentWidth > 0 ? (
+                <Animated.View
+                    pointerEvents="none"
+                    style={{
+                        position: 'absolute',
+                        top: 4,
+                        bottom: 4,
+                        left: 4,
+                        width: segmentWidth,
+                        borderRadius: 999,
+                        backgroundColor: tokens.primary,
+                        transform: [{ translateX }],
+                    }}
+                />
+            ) : null}
+            {options.map((option) => {
+                const active = mode === option.value;
+                return (
+                    <Pressable
+                        key={option.value}
+                        onPress={() => onChange(option.value)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={`${option.label} note`}
+                        className="flex-1 flex-row items-center justify-center gap-1.5 py-1.5"
+                    >
+                        <MaterialCommunityIcons name={option.icon} size={16} color={active ? tokens.onPrimary : tokens.onSurfaceVariant} />
+                        <Text style={{ color: active ? tokens.onPrimary : tokens.onSurfaceVariant, fontWeight: '600' }}>{option.label}</Text>
+                    </Pressable>
+                );
+            })}
+        </View>
+    );
+}
 
 export function NoteDetailScreen() {
     const tabBarHeight = useBottomTabBarHeight();
@@ -53,6 +121,8 @@ export function NoteDetailScreen() {
     const [deletingCompleted, setDeletingCompleted] = useState(false);
     const [completedCollapsed, setCompletedCollapsed] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
+    // Editor/viewer toggle for markdown text notes.
+    const [bodyMode, setBodyMode] = useState<'edit' | 'preview'>('edit');
 
     const titleRef = useRef(title);
     const bodyRef = useRef(body);
@@ -121,9 +191,19 @@ export function NoteDetailScreen() {
             event.preventDefault();
             handlingBackRef.current = true;
             void (async () => {
-                const blank = titleRef.current.trim().length === 0
-                    && bodyRef.current.trim().length === 0
-                    && (noteType !== 'list' || listItems.length === 0);
+                // Read the freshest grouped items straight from the store rather
+                // than the render-captured `listItems`. Right after switching into
+                // a note, the RAF-batched bridge may not have grouped this note's
+                // items yet, so the captured array is transiently empty. Treating
+                // that as "no items" would delete a populated checklist. Only
+                // consider a list note blank when its items are known-loaded (the
+                // key exists in the map) AND there are none.
+                const groupedItems = useNoteStore.getState().listItems[id];
+                const listItemsLoaded = groupedItems !== undefined;
+                const listIsEmpty = listItemsLoaded && groupedItems.length === 0;
+                const textIsBlank = titleRef.current.trim().length === 0
+                    && bodyRef.current.trim().length === 0;
+                const blank = textIsBlank && (noteType !== 'list' ? true : listIsEmpty);
                 const success = blank
                     ? await deleteNote(id)
                     : await updateNote(id, { title: titleRef.current, body: bodyRef.current, projectID: projectIDRef.current || null });
@@ -135,7 +215,7 @@ export function NoteDetailScreen() {
             })();
         });
         return unsubscribe;
-    }, [navigation, note, id, noteType, listItems.length, deleteNote, updateNote]);
+    }, [navigation, note, id, noteType, deleteNote, updateNote]);
 
     useEffect(() => {
         if (id && noteType === 'list') void fetchListItems(id);
@@ -294,8 +374,17 @@ export function NoteDetailScreen() {
 
                 {noteType === 'text'
                     ?
-                    <View className="-mx-4">
-                        <TextField placeholder="Write something…" value={body} onChangeText={setBody} multiline borderless inputClassName="min-h-56 mx-3" />
+                    <View className="gap-2">
+                        <View className="px-1"><MarkdownModeToggle mode={bodyMode} onChange={setBodyMode} tokens={theme} /></View>
+                        {bodyMode === 'edit'
+                            ?
+                            <View className="-mx-4">
+                                <TextField placeholder="Write something in Markdown…" value={body} onChangeText={setBody} multiline borderless inputClassName="min-h-56 mx-3" />
+                            </View>
+                            :
+                            <View className="min-h-56 px-1">
+                                <MarkdownPreview content={body} emptyText="Nothing to preview yet. Switch to Edit to start writing." />
+                            </View>}
                     </View>
                     :
                     <View className="-mx-4">
