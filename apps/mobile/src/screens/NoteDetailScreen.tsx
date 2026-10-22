@@ -370,7 +370,17 @@ export function NoteDetailScreen() {
     return (
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: tabBarHeight + 24, gap: 12 }} keyboardShouldPersistTaps="handled">
-                <View className="gap-1"><Text variant="label">Project</Text><Pressable onPress={() => setProjectDialogOpen(true)}><TextField placeholder="No project" value={projects.find((project) => project.recordID === projectID)?.name ?? ''} editable={false} trailing={<MaterialCommunityIcons name="folder-outline" size={20} color={theme.onSurfaceVariant} />} /></Pressable><Text variant="label" className="mt-2">Title</Text><TextField placeholder="Title" value={title} onChangeText={setTitle} inputClassName="text-2xl font-semibold" className="border-0" /></View>
+                <View className="gap-3">
+                    <Pressable onPress={() => setProjectDialogOpen(true)}>
+                        <TextField
+                            placeholder="Project"
+                            value={projects.find((project) => project.recordID === projectID)?.name ?? ''}
+                            editable={false}
+                            trailing={<MaterialCommunityIcons name="chevron-down" size={20} color={theme.onSurfaceVariant} />}
+                        />
+                    </Pressable>
+                    <TextField placeholder="Untitled" value={title} onChangeText={setTitle} borderless inputClassName="text-2xl font-semibold" />
+                </View>
 
                 {noteType === 'text'
                     ?

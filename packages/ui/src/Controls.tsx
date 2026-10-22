@@ -107,6 +107,7 @@ export function Button({
 type TextFieldProps = Omit<TextInputProps, 'style'> & {
     className?: string;
     inputClassName?: string;
+    fieldClassName?: string;
     inputStyle?: StyleProp<TextStyle>;
     label?: string;
     error?: boolean;
@@ -119,6 +120,7 @@ type TextFieldProps = Omit<TextInputProps, 'style'> & {
 export function TextField({
     className = '',
     inputClassName = '',
+    fieldClassName = '',
     inputStyle,
     label,
     error = false,
@@ -139,14 +141,25 @@ export function TextField({
     return (
         <View className={`w-full ${className}`}>
             {label ? <NativeText className="mb-2 text-sm font-semibold text-on-surface-variant dark:text-on-surface-variant-dark">{label}</NativeText> : null}
-            <View className={`${fieldClasses} ${!editable ? 'opacity-70' : ''}`}>
+            <View className={`${fieldClasses} ${fieldClassName} ${!editable ? 'opacity-70' : ''}`}>
                 {leading ? <View className="mr-3">{leading}</View> : null}
                 <NativeTextInput
                     {...props}
                     editable={editable}
                     multiline={multiline}
                     placeholderTextColor={placeholderTextColor ?? theme.onSurfaceVariant}
-                    className={`min-w-0 flex-1 ${borderless ? 'py-0' : 'py-3'} text-base text-on-surface dark:text-on-surface-dark ${multiline ? 'min-h-28' : ''} ${inputClassName}`}
+                    // Only apply the default font size / multiline min-height when the
+                    // caller hasn't overridden them via inputClassName. NativeWind merges
+                    // conflicting utilities by specificity (not string order), so leaving
+                    // both in would let the base values win over caller overrides.
+                    className={[
+                        'min-w-0 flex-1',
+                        borderless ? 'py-0' : 'py-3',
+                        'text-on-surface dark:text-on-surface-dark',
+                        /\btext-(xs|sm|base|lg|xl|\dxl)\b/.test(inputClassName) ? '' : 'text-base',
+                        multiline && !/\bmin-h-/.test(inputClassName) ? 'min-h-28' : '',
+                        inputClassName,
+                    ].filter(Boolean).join(' ')}
                     style={inputStyle}
                 />
                 {trailing ? <View className="ml-3">{trailing}</View> : null}
