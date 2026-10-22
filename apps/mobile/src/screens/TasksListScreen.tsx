@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, SectionList, Text as NativeText, TextInput, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text as NativeText, TextInput, View } from 'react-native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,8 +23,10 @@ async function waitForStoreRecord(isPresent: () => boolean): Promise<boolean> {
 }
 
 type TaskSection = {
+    key: string;
     title: string;
     data: Task[];
+    tone?: 'error' | 'warning';
     action?: 'reschedule' | 'delete-completed';
 };
 
@@ -48,6 +50,17 @@ export function TasksListScreen() {
     const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
     const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    // Collapsed section keys. Completed starts collapsed to mirror the web app.
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(['completed']));
+
+    const toggleSection = (key: string) => {
+        setCollapsedSections((previous) => {
+            const next = new Set(previous);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
 
     useEffect(() => {
         setColorScheme(effectiveTheme);
@@ -130,13 +143,13 @@ export function TasksListScreen() {
     })();
 
     const sections: TaskSection[] = [
-        ...(overdueTasks.length > 0 ? [{ title: 'Overdue', data: overdueTasks, action: 'reschedule' as const }] : []),
-        ...(dueTodayTasks.length > 0 ? [{ title: 'Today', data: dueTodayTasks }] : []),
-        ...(dueTomorrowTasks.length > 0 ? [{ title: 'Tomorrow', data: dueTomorrowTasks }] : []),
-        ...(dueThisWeekTasks.length > 0 ? [{ title: 'This week', data: dueThisWeekTasks }] : []),
-        ...(upcomingTasks.length > 0 ? [{ title: 'Upcoming', data: upcomingTasks }] : []),
-        ...(noDueDateTasks.length > 0 ? [{ title: 'No due date', data: noDueDateTasks }] : []),
-        ...(filteredCompletedTasks.length > 0 ? [{ title: `Completed · ${filteredCompletedTasks.length}`, data: filteredCompletedTasks, action: 'delete-completed' as const }] : []),
+        ...(overdueTasks.length > 0 ? [{ key: 'overdue', title: 'Overdue', data: overdueTasks, tone: 'error' as const, action: 'reschedule' as const }] : []),
+        ...(dueTodayTasks.length > 0 ? [{ key: 'today', title: 'Due Today', data: dueTodayTasks, tone: 'warning' as const }] : []),
+        ...(dueTomorrowTasks.length > 0 ? [{ key: 'tomorrow', title: 'Tomorrow', data: dueTomorrowTasks }] : []),
+        ...(dueThisWeekTasks.length > 0 ? [{ key: 'week', title: 'This Week', data: dueThisWeekTasks }] : []),
+        ...(upcomingTasks.length > 0 ? [{ key: 'upcoming', title: 'Upcoming', data: upcomingTasks }] : []),
+        ...(noDueDateTasks.length > 0 ? [{ key: 'nodue', title: 'No Due Date', data: noDueDateTasks }] : []),
+        ...(filteredCompletedTasks.length > 0 ? [{ key: 'completed', title: 'Completed', data: filteredCompletedTasks, action: 'delete-completed' as const }] : []),
     ];
 
     const sortedProjects = [...projects].sort((a, b) => {
@@ -146,7 +159,6 @@ export function TasksListScreen() {
     });
 
     const hasFilters = searchQuery.trim().length > 0 || selectedProjectIDs.size > 0;
-    const dueSoonCount = dueTodayTasks.length + dueTomorrowTasks.length;
     const placeholderColor = theme.onSurfaceVariant;
 
     const toggleProjectFilter = (projectID: string) => {
@@ -165,11 +177,13 @@ export function TasksListScreen() {
         const timeSuffix = date.hour() !== 0 || date.minute() !== 0
             ? ` ${date.toDate().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
             : '';
-        if (diffDays < 0) return `Overdue${timeSuffix}`;
+        // Show the actual date (with year when it differs), matching the web app.
+        const dateLabel = date.year() !== today.year() ? date.format('MMM D, YYYY') : date.format('MMM D');
+        if (diffDays < 0) return `${dateLabel}${timeSuffix}`;
         if (diffDays === 0) return `Today${timeSuffix}`;
         if (diffDays === 1) return `Tomorrow${timeSuffix}`;
         if (diffDays <= 7) return `${date.format('ddd')}${timeSuffix}`;
-        return `${date.format('MMM D')}${timeSuffix}`;
+        return `${dateLabel}${timeSuffix}`;
     };
 
     const rescheduleOverdue = async () => {
@@ -198,121 +212,156 @@ export function TasksListScreen() {
         if (!success) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
     };
 
-    const renderTask = ({ item }: { item: Task }) => {
+    // Small outlined chip used for due-date / recurring / project metadata,
+    // mirroring the web task list's secondary-row chips.
+    const MetaChip = ({ label, tone = 'default', icon }: { label: string; tone?: 'default' | 'error' | 'warning' | 'secondary'; icon?: keyof typeof MaterialCommunityIcons.glyphMap }) => {
+        // The design system has no dedicated "warning" token; the amber `primary`
+        // is the closest analog to the web app's warning color.
+        const toneClasses = {
+            default: 'border-outline-variant dark:border-outline-variant-dark',
+            error: 'border-error dark:border-error-dark',
+            warning: 'border-primary dark:border-primary',
+            secondary: 'border-secondary dark:border-secondary',
+        }[tone];
+        const toneText = {
+            default: 'text-on-surface-variant dark:text-on-surface-variant-dark',
+            error: 'text-error dark:text-error-dark',
+            warning: 'text-primary dark:text-primary',
+            secondary: 'text-secondary dark:text-secondary',
+        }[tone];
+        const iconColor = { default: theme.onSurfaceVariant, error: theme.error, warning: theme.primary, secondary: theme.secondary }[tone];
+        return (
+            <View className={`flex-row items-center self-start rounded-full border px-2 py-0.5 ${toneClasses}`}>
+                {icon ? <MaterialCommunityIcons name={icon} size={12} color={iconColor} style={{ marginRight: 3 }} /> : null}
+                <NativeText numberOfLines={1} className={`text-xs font-medium ${toneText}`}>{label}</NativeText>
+            </View>
+        );
+    };
+
+    const renderTask = (item: Task, showDivider: boolean) => {
         const isCompleted = item.status === 'completed';
         const projectName = item.projectID
             ? projects.find((project) => project.recordID === item.projectID)?.name
             : undefined;
         const isOverdue = !isCompleted && item.dueDate != null && item.dueDate < new Date().setHours(0, 0, 0, 0);
+        const hasMeta = item.dueDate != null || item.isRecurring || !!projectName;
 
         return (
-            <Surface className={`mx-4 mb-3 overflow-hidden ${isCompleted ? 'opacity-70' : ''}`}>
-                <View className="flex-row items-center px-4 py-3">
-                    <Pressable
-                        accessibilityLabel={`${isCompleted ? 'Reopen' : 'Complete'} ${item.title || 'task'}`}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: isCompleted }}
-                        onPress={() => toggleTask(item)}
-                        className={`mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 ${isCompleted ? 'border-primary bg-primary dark:border-primary dark:bg-primary' : 'border-outline bg-transparent dark:border-outline-dark'}`}
-                    >
-                        {isCompleted ? <NativeText className="font-bold text-on-primary dark:text-on-primary-dark">✓</NativeText> : <MaterialCommunityIcons name="check" size={17} color="transparent" />}
-                    </Pressable>
+            <View key={item.recordID} className={`flex-row items-center px-3 py-2.5 ${showDivider ? 'border-t border-outline-variant dark:border-outline-variant-dark' : ''}`}>
+                <Pressable
+                    accessibilityLabel={`${isCompleted ? 'Reopen' : 'Complete'} ${item.title || 'task'}`}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: isCompleted }}
+                    onPress={() => toggleTask(item)}
+                    className={`mr-3 h-7 w-7 items-center justify-center rounded-lg border-2 ${isCompleted ? 'border-primary bg-primary dark:border-primary dark:bg-primary' : 'border-outline bg-transparent dark:border-outline-dark'}`}
+                >
+                    {isCompleted ? <NativeText className="font-bold text-on-primary dark:text-on-primary-dark">✓</NativeText> : <MaterialCommunityIcons name="check" size={17} color="transparent" />}
+                </Pressable>
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={() => navigation.navigate('TaskDetail', { id: item.recordID })}
+                    className="min-w-0 flex-1 active:opacity-70"
+                >
+                    <NativeText numberOfLines={1} className={`text-base font-medium text-on-surface dark:text-on-surface-dark ${isCompleted ? 'line-through opacity-60' : ''}`}>
+                        {item.title || '(untitled)'}
+                    </NativeText>
+                    {hasMeta && (
+                        <View className="mt-1 flex-row items-center justify-between gap-2">
+                            <View className="min-w-0 flex-shrink flex-row flex-wrap items-center gap-1.5">
+                                {item.dueDate != null && (
+                                    <MetaChip label={formatDueDate(item.dueDate)} tone={isOverdue ? 'error' : 'default'} icon="calendar-outline" />
+                                )}
+                                {item.isRecurring && <MetaChip label="Recurring" tone="secondary" icon="repeat" />}
+                            </View>
+                            {projectName && (
+                                <View className="min-w-0 flex-shrink">
+                                    <MetaChip label={projectName} />
+                                </View>
+                            )}
+                        </View>
+                    )}
+                </Pressable>
+            </View>
+        );
+    };
+
+    const renderSection = (section: TaskSection) => {
+        const collapsed = collapsedSections.has(section.key);
+        const toneText = section.tone === 'error'
+            ? 'text-error dark:text-error-dark'
+            : section.tone === 'warning'
+                ? 'text-primary dark:text-primary'
+                : 'text-on-surface dark:text-on-surface-dark';
+        const chevronColor = section.tone === 'error' ? theme.error : section.tone === 'warning' ? theme.primary : theme.onSurface;
+
+        return (
+            <View key={section.key} className="mb-4">
+                <View className="flex-row items-center justify-between px-2">
                     <Pressable
                         accessibilityRole="button"
-                        onPress={() => navigation.navigate('TaskDetail', { id: item.recordID })}
-                        className="min-w-0 flex-1 flex-row items-center active:opacity-70"
+                        accessibilityState={{ expanded: !collapsed }}
+                        onPress={() => toggleSection(section.key)}
+                        className="min-w-0 flex-1 flex-row items-center py-1 active:opacity-70"
                     >
-                        <View className="min-w-0 flex-1">
-                            <NativeText numberOfLines={1} className={`text-base font-semibold text-on-surface dark:text-on-surface-dark ${isCompleted ? 'line-through' : ''}`}>
-                                {item.title || '(untitled)'}
-                            </NativeText>
-                            <View className="mt-1 flex-row items-center gap-2">
-                                {projectName && (
-                                    <NativeText numberOfLines={1} className="max-w-[55%] text-xs font-medium text-primary dark:text-primary">
-                                        {projectName}
-                                    </NativeText>
-                                )}
-                                {item.isRecurring && (
-                                    <NativeText className="text-xs text-secondary">Recurring</NativeText>
-                                )}
-                            </View>
-                        </View>
-                        {item.dueDate != null && (
-                            <View className={`ml-3 flex-row items-center rounded-full px-3 py-2 ${isOverdue ? 'bg-error-container dark:bg-error-container-dark' : 'bg-primary-container dark:bg-primary-container-dark'}`}>
-                                <MaterialCommunityIcons name="calendar-outline" size={14} color={isOverdue ? theme.error : theme.primary} />
-                                <NativeText className={`ml-1 text-xs font-semibold ${isOverdue ? 'text-error dark:text-error-dark' : 'text-on-primary-container dark:text-on-primary-container-dark'}`}>
-                                    {formatDueDate(item.dueDate)}
-                                </NativeText>
-                            </View>
-                        )}
+                        <MaterialCommunityIcons name={collapsed ? 'chevron-right' : 'chevron-down'} size={20} color={chevronColor} />
+                        <NativeText className={`ml-0.5 text-sm font-bold ${toneText}`}>
+                            {section.title} ({section.data.length})
+                        </NativeText>
                     </Pressable>
+                    {section.action === 'reschedule' ? (
+                        <Button variant="text" compact onPress={() => setRescheduleDialogOpen(true)}>Move to today</Button>
+                    ) : section.action === 'delete-completed' ? (
+                        <Button variant="danger" compact onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all</Button>
+                    ) : null}
                 </View>
-            </Surface>
+                {!collapsed && (
+                    <Surface className="mt-1.5 overflow-hidden">
+                        {section.data.map((task, index) => renderTask(task, index > 0))}
+                    </Surface>
+                )}
+            </View>
         );
     };
 
     return (
         <View className="flex-1 bg-background dark:bg-background-dark">
-            <SectionList
+            <ScrollView
                 style={{ flex: 1 }}
-                sections={sections}
-                keyExtractor={(item) => item.recordID}
-                ListHeaderComponent={(
-                    <>
-                        <View className="px-4 pb-1 pt-4">
-                            <View className="relative">
-                                <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
-                                <TextInput
-                                    placeholder="Search your tasks"
-                                    placeholderTextColor={placeholderColor}
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                    autoCapitalize="none"
-                                    className="h-14 rounded-2xl border border-outline-variant bg-surface pl-12 pr-4 text-base text-on-surface dark:border-outline-variant-dark dark:bg-surface-dark dark:text-on-surface-dark"
-                                />
-                            </View>
-                        </View>
-                        <View className="flex-row items-center justify-between px-4 py-4">
-                            <View>
-                                <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your tasks</NativeText>
-                                <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
-                                    {filteredTasks.length} open · {filteredCompletedTasks.length} completed · {dueSoonCount} due soon
-                                </NativeText>
-                            </View>
-                            {hasFilters && (
-                                <Pill
-                                    selected={false}
-                                    onPress={() => {
-                                        setSearchQuery('');
-                                        setSelectedProjectIDs(new Set());
-                                    }}
-                                    className="min-h-9 px-3"
-                                >
-                                    Clear filters
-                                </Pill>
-                            )}
-                        </View>
-                        {sortedProjects.length > 0 && (
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 11 }}>
-                                <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
-                                    All tasks
-                                </Pill>
-                                {sortedProjects.map((project) => (
-                                    <Pill
-                                        key={project.recordID}
-                                        selected={selectedProjectIDs.has(project.recordID)}
-                                        onPress={() => toggleProjectFilter(project.recordID)}
-                                    >
-                                        {project.name} · {tasks.filter((task) => task.projectID === project.recordID).length}
-                                    </Pill>
-                                ))}
-                            </ScrollView>
-                        )}
-                    </>
-                )}
                 contentContainerStyle={{ paddingTop: 4, paddingBottom: tabBarHeight + 96, ...(sections.length === 0 ? { flexGrow: 1 } : {}) }}
+                keyboardShouldPersistTaps="handled"
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-                ListEmptyComponent={
+            >
+                <View className="px-4 pb-4 pt-4">
+                    <View className="relative">
+                        <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
+                        <TextInput
+                            placeholder="Search your tasks"
+                            placeholderTextColor={placeholderColor}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoCapitalize="none"
+                            className="h-14 rounded-2xl border border-outline-variant bg-surface pl-12 pr-4 text-base text-on-surface dark:border-outline-variant-dark dark:bg-surface-dark dark:text-on-surface-dark"
+                        />
+                    </View>
+                </View>
+                {sortedProjects.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 11 }}>
+                        <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
+                            All tasks
+                        </Pill>
+                        {sortedProjects.map((project) => (
+                            <Pill
+                                key={project.recordID}
+                                selected={selectedProjectIDs.has(project.recordID)}
+                                onPress={() => toggleProjectFilter(project.recordID)}
+                            >
+                                {project.name} ({tasks.filter((task) => task.projectID === project.recordID).length})
+                            </Pill>
+                        ))}
+                    </ScrollView>
+                )}
+
+                {sections.length === 0 ? (
                     <View className="flex-1 items-center justify-center px-8 pt-16">
                         <View className="mb-4 h-16 w-16 items-center justify-center rounded-3xl bg-primary-container dark:bg-primary-container-dark">
                             <MaterialCommunityIcons name={hasFilters ? 'magnify' : 'checkbox-marked-circle-outline'} size={30} color={theme.primary} />
@@ -324,21 +373,12 @@ export function TasksListScreen() {
                             {hasFilters ? 'Try a different search or clear your filters.' : 'Add a task to keep your next steps in view.'}
                         </NativeText>
                     </View>
-                }
-                renderSectionHeader={({ section }) => (
-                    <View className="flex-row items-center justify-between px-5 pb-2 pt-4">
-                        <NativeText className="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-surface-variant-dark">
-                            {section.title}
-                        </NativeText>
-                        {section.action === 'reschedule' ? (
-                            <Button variant="text" compact onPress={() => setRescheduleDialogOpen(true)}>Move to today</Button>
-                        ) : section.action === 'delete-completed' ? (
-                            <Button variant="danger" compact onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all</Button>
-                        ) : null}
+                ) : (
+                    <View className="px-4 pt-2">
+                        {sections.map(renderSection)}
                     </View>
                 )}
-                renderItem={renderTask}
-            />
+            </ScrollView>
 
             <Dialog
                 visible={rescheduleDialogOpen}

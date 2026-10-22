@@ -2,7 +2,7 @@ import './global.css';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { createNavigationContainerRef, NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
+import { createNavigationContainerRef, getFocusedRouteNameFromRoute, NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme, type RouteProp } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'nativewind';
 import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
@@ -22,6 +22,19 @@ import { cancelLocalTaskNotifications, subscribeToTaskNotificationResponses, syn
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const navigationRef = createNavigationContainerRef<RootTabParamList>();
+
+// Nested stack routes on which the floating tab bar should hide, matching the
+// web app where the bar disappears on the task/note/project detail pages.
+const DETAIL_ROUTES = new Set(['TaskDetail', 'NoteDetail', 'ProjectDetail']);
+
+// Hide the tab bar when a tab's nested stack is focused on a detail screen.
+// FloatingTabBar returns null when it sees tabBarStyle display:'none'.
+function tabScreenOptions({ route }: { route: RouteProp<RootTabParamList> }) {
+    const focused = getFocusedRouteNameFromRoute(route);
+    return focused && DETAIL_ROUTES.has(focused)
+        ? { tabBarStyle: { display: 'none' as const } }
+        : {};
+}
 
 export default function App() {
     const { effectiveTheme } = useThemeStore();
@@ -138,9 +151,9 @@ export default function App() {
                             tabBarHideOnKeyboard: true,
                         }}
                     >
-                        <Tab.Screen name="Notes" component={NotesStack} options={{ tabBarAccessibilityLabel: 'Notes', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="note-text-outline" color={color} size={size} /> }} />
-                        <Tab.Screen name="Tasks" component={TasksStack} options={{ tabBarAccessibilityLabel: 'Tasks', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="format-list-checks" color={color} size={size} /> }} />
-                        <Tab.Screen name="Projects" component={ProjectsStack} options={{ tabBarAccessibilityLabel: 'Projects', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="folder-outline" color={color} size={size} /> }} />
+                        <Tab.Screen name="Notes" component={NotesStack} options={(props) => ({ tabBarAccessibilityLabel: 'Notes', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="note-text-outline" color={color} size={size} />, ...tabScreenOptions(props) })} />
+                        <Tab.Screen name="Tasks" component={TasksStack} options={(props) => ({ tabBarAccessibilityLabel: 'Tasks', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="format-list-checks" color={color} size={size} />, ...tabScreenOptions(props) })} />
+                        <Tab.Screen name="Projects" component={ProjectsStack} options={(props) => ({ tabBarAccessibilityLabel: 'Projects', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="folder-outline" color={color} size={size} />, ...tabScreenOptions(props) })} />
                         <Tab.Screen name="Settings" component={SettingsStack} options={{ tabBarAccessibilityLabel: 'Settings', tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="cog-outline" color={color} size={size} /> }} />
                     </Tab.Navigator>
                 ) : <AuthStack />}

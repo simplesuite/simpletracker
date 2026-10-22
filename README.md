@@ -175,6 +175,44 @@ src/
 └── index.tsx            # Entry point, routing, SW registration
 ```
 
+## Mobile Development
+
+The mobile app (`apps/mobile`) is an [Expo](https://expo.dev) / React Native project using the bare (prebuild) workflow — it has a native `android/` directory and native-only dependencies (e.g. `expo-notifications`), so it requires a **development build**. Expo Go is not supported.
+
+### Prerequisites
+
+- Node.js and the monorepo dependencies installed. Run `npm install` from the **repo root**, since the mobile app depends on workspace packages (`@simpletracker/core`, `@simpletracker/ui`).
+- **Android:** [Android Studio](https://developer.android.com/studio) with the Android SDK and an emulator (or a physical device with USB debugging enabled).
+- **iOS:** macOS with Xcode and the iOS Simulator.
+
+### First run
+
+The first run compiles and installs the native development client on your device/emulator:
+
+```bash
+cd apps/mobile
+
+# Android
+npm run android
+
+# iOS (macOS only)
+npm run ios
+```
+
+### Subsequent runs
+
+Once the dev client is installed, start the Metro bundler for fast JS-only reloads with Fast Refresh:
+
+```bash
+cd apps/mobile
+npm start
+# then press 'a' for Android or 'i' for iOS
+```
+
+### Backend configuration
+
+By default the app connects to the production Supabase backend. To point at your own instance, either set `extra.supabaseUrl` and `extra.supabaseAnonKey` in `apps/mobile/app.json`, or use the in-app backend config screen. See [Self-Hosting](#self-hosting) for more.
+
 ## Building the Android APK
 
 The mobile app (`apps/mobile`) is an Expo project with a prebuilt native `android/` directory, so the APK is built with the Gradle wrapper.

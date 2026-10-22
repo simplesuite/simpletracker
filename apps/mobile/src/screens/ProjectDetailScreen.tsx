@@ -7,7 +7,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNoteStore, useProjectStore, useTaskStore } from '@simpletracker/core';
 import type { Note, Task } from '@simpletracker/core';
-import { Button, Card, Checkbox, Dialog, Divider, Pill, Snackbar, Text, TextField, getUiTheme } from '@simpletracker/ui';
+import { Button, Card, Checkbox, Dialog, Divider, Snackbar, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ProjectsStackParamList, RootTabParamList } from '../navigation/types';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
@@ -33,10 +33,18 @@ function formatDueDate(dueDate: number) {
     const date = new Date(dueDate);
     const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const diffDays = Math.round((dateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return `Overdue · ${date.toLocaleDateString()}`;
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const hasTime = date.getHours() !== 0 || date.getMinutes() !== 0;
+    const timeSuffix = hasTime ? ` ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : '';
+    const dateLabel = date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    });
+    if (diffDays < 0) return `${dateLabel}${timeSuffix}`;
+    if (diffDays === 0) return `Today${timeSuffix}`;
+    if (diffDays === 1) return `Tomorrow${timeSuffix}`;
+    if (diffDays <= 7) return `${date.toLocaleDateString(undefined, { weekday: 'short' })}${timeSuffix}`;
+    return `${dateLabel}${timeSuffix}`;
 }
 
 async function waitForStoreRecord(isPresent: () => boolean): Promise<boolean> {
@@ -236,35 +244,67 @@ export function ProjectDetailScreen() {
         if (failed > 0) setActionError(`Unable to delete ${failed} ${failed === 1 ? 'task' : 'tasks'}.`);
     };
 
+    // Compact note card for the 2-column grid, mirroring the web project page.
     const renderNote = (note: Note, archived = false) => {
         const items = listItems[note.recordID] ?? [];
         return (
-            <Card key={note.recordID} onPress={() => openNote(note.recordID)} className={`mb-1 p-4 ${archived ? 'opacity-60' : ''}`}>
-                <View className="flex-row items-center justify-between">
-                    <View className="min-w-0 flex-1 flex-row items-center">
-                        <MaterialCommunityIcons name={note.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'} size={22} color={theme.primary} />
-                        <Text variant="title" numberOfLines={1} className="min-w-0 flex-1 pl-2">{note.title || '(untitled)'}</Text>
-                    </View>
-                    {note.pinned ? <Pill compact icon={<MaterialCommunityIcons name="pin" size={14} color={theme.primary} />}>Pinned</Pill> : null}
+            <Card key={note.recordID} onPress={() => openNote(note.recordID)} className={`w-[48%] p-3 ${archived ? 'opacity-60' : ''}`}>
+                <View className="flex-row items-center gap-1">
+                    {note.pinned ? <MaterialCommunityIcons name="pin" size={13} color={theme.primary} /> : null}
+                    <MaterialCommunityIcons name={note.noteType === 'list' ? 'format-list-checks' : 'note-text-outline'} size={13} color={theme.onSurfaceVariant} />
+                    <Text variant="bodySmall" numberOfLines={1} className="min-w-0 flex-1 font-semibold text-on-surface dark:text-on-surface-dark">{note.title || 'Untitled'}</Text>
                 </View>
-                {note.noteType === 'list' ? items.slice(0, 2).map((item) => (
-                    <Text key={item.recordID} variant="bodySmall" numberOfLines={1} className={item.isCompleted ? 'line-through' : ''}>{item.isCompleted ? '☑' : '☐'} {item.title || '(untitled)'}</Text>
-                )) : <Text variant="bodySmall" numberOfLines={2} className="mt-1">{note.body || 'No note content'}</Text>}
-                <Text variant="bodySmall" className="mt-1">Updated {new Date(note.updatedAt).toLocaleDateString()}</Text>
+                {note.noteType === 'list' ? (
+                    <View className="mt-1">
+                        {items.slice(0, 2).map((item) => (
+                            <Text key={item.recordID} variant="bodySmall" numberOfLines={1} className={`text-xs ${item.isCompleted ? 'line-through opacity-60' : ''}`}>{item.isCompleted ? '☑' : '☐'} {item.title || 'Untitled'}</Text>
+                        ))}
+                    </View>
+                ) : note.body ? (
+                    <Text variant="bodySmall" numberOfLines={2} className="mt-1 text-xs">{note.body}</Text>
+                ) : null}
+                <Text variant="bodySmall" className="mt-1 text-xs">{new Date(note.updatedAt).toLocaleDateString()}</Text>
             </Card>
         );
     };
 
-    const renderTask = (task: Task, completed = false) => (
-        <Pressable key={task.recordID} onPress={() => openTask(task.recordID)} className="flex-row items-center border-b border-outline-variant py-2 active:opacity-70 dark:border-outline-variant-dark">
-            <Checkbox status={completed ? 'checked' : 'unchecked'} onPress={() => toggleTask(task, completed)} accessibilityLabel={`Mark ${task.title || 'task'} ${completed ? 'open' : 'complete'}`} />
-            <View className="min-w-0 flex-1 pl-3">
-                <Text className={completed ? 'line-through text-on-surface-variant dark:text-on-surface-variant-dark' : ''} numberOfLines={1}>{task.title || '(untitled)'}</Text>
-                {task.dueDate || task.isRecurring ? <Text variant="bodySmall">{task.dueDate ? formatDueDate(task.dueDate) : 'Recurring'}</Text> : null}
+    const MetaChip = ({ label, tone = 'default', icon }: { label: string; tone?: 'default' | 'error' | 'secondary'; icon?: keyof typeof MaterialCommunityIcons.glyphMap }) => {
+        const toneClasses = {
+            default: 'border-outline-variant dark:border-outline-variant-dark',
+            error: 'border-error dark:border-error-dark',
+            secondary: 'border-secondary dark:border-secondary',
+        }[tone];
+        const toneText = {
+            default: 'text-on-surface-variant dark:text-on-surface-variant-dark',
+            error: 'text-error dark:text-error-dark',
+            secondary: 'text-secondary dark:text-secondary',
+        }[tone];
+        const iconColor = { default: theme.onSurfaceVariant, error: theme.error, secondary: theme.secondary }[tone];
+        return (
+            <View className={`flex-row items-center self-start rounded-full border px-2 py-0.5 ${toneClasses}`}>
+                {icon ? <MaterialCommunityIcons name={icon} size={12} color={iconColor} style={{ marginRight: 3 }} /> : null}
+                <Text numberOfLines={1} className={`text-xs font-medium ${toneText}`}>{label}</Text>
             </View>
+        );
+    };
 
-        </Pressable>
-    );
+    const renderTask = (task: Task, completed = false) => {
+        const isOverdue = !completed && task.dueDate != null && task.dueDate < new Date().setHours(0, 0, 0, 0);
+        return (
+            <View key={task.recordID} className="flex-row items-center border-b border-outline-variant py-2 dark:border-outline-variant-dark">
+                <Checkbox status={completed ? 'checked' : 'unchecked'} onPress={() => toggleTask(task, completed)} accessibilityLabel={`Mark ${task.title || 'task'} ${completed ? 'open' : 'complete'}`} />
+                <Pressable onPress={() => openTask(task.recordID)} className="min-w-0 flex-1 pl-3 active:opacity-70">
+                    <Text className={completed ? 'line-through text-on-surface-variant dark:text-on-surface-variant-dark' : ''} numberOfLines={1}>{task.title || '(untitled)'}</Text>
+                    {task.dueDate != null || task.isRecurring ? (
+                        <View className="mt-1 flex-row flex-wrap items-center gap-1.5">
+                            {task.dueDate != null && <MetaChip label={formatDueDate(task.dueDate)} tone={isOverdue ? 'error' : 'default'} icon="calendar-outline" />}
+                            {task.isRecurring && <MetaChip label="Recurring" tone="secondary" icon="repeat" />}
+                        </View>
+                    ) : null}
+                </Pressable>
+            </View>
+        );
+    };
 
     if (!project) {
         return <View className="flex-1 items-center justify-center p-6" style={{ backgroundColor: theme.background }}><Text>Project not found.</Text></View>;
@@ -281,28 +321,30 @@ export function ProjectDetailScreen() {
                     leading={<MaterialCommunityIcons name="magnify" size={19} color={theme.onSurfaceVariant} />}
                     trailing={searchQuery ? <Pressable accessibilityLabel="Clear project search" onPress={() => setSearchQuery('')}><MaterialCommunityIcons name="close" size={18} color={theme.onSurfaceVariant} /></Pressable> : null}
                 />
-                <Card className="rounded-3xl p-4">
-                    <TextField placeholder="Project name" value={name} onChangeText={setName} onBlur={() => updateProject(id, { name })} inputClassName="text-2xl font-semibold" className="border-0" />
-                    <TextField placeholder="Add a short description" value={description} onChangeText={setDescription} onBlur={() => updateProject(id, { description })} multiline inputClassName="min-h-20" className="mt-2 border-0" />
-                </Card>
+                <View className="gap-1">
+                    <TextField placeholder="Untitled" value={name} onChangeText={setName} onBlur={() => updateProject(id, { name })} borderless inputClassName="text-3xl font-bold" />
+                    <TextField placeholder="Add a short description" value={description} onChangeText={setDescription} onBlur={() => updateProject(id, { description })} multiline borderless inputClassName="min-h-0" />
+                </View>
 
                 <Divider className="my-2" />
                 <SectionHeader title="Notes" subtitle={`${projectNotes.length} active ${projectNotes.length === 1 ? 'note' : 'notes'}`} onAdd={addNote} />
-                {projectNotes.length === 0 ? <EmptySection icon={query ? 'magnify' : 'note-plus-outline'} text={query ? 'No matching notes.' : 'No notes in this project yet.'} themeColor={theme.primary} /> : projectNotes.map((note) => renderNote(note))}
+                {projectNotes.length === 0 ? <EmptySection icon={query ? 'magnify' : 'note-plus-outline'} text={query ? 'No matching notes.' : 'No notes in this project yet.'} themeColor={theme.primary} /> : (
+                    <View className="flex-row flex-wrap gap-2">{projectNotes.map((note) => renderNote(note))}</View>
+                )}
 
                 {projectArchivedNotes.length > 0 ? (
-                    <Card className="mb-1 p-2">
+                    <View>
                         <DisclosureRow title={`Archived notes (${projectArchivedNotes.length})`} open={showArchived} onPress={() => setShowArchived((value) => !value)} iconColor={theme.onSurfaceVariant} />
-                        {showArchived ? projectArchivedNotes.map((note) => renderNote(note, true)) : null}
-                    </Card>
+                        {showArchived ? <View className="flex-row flex-wrap gap-2">{projectArchivedNotes.map((note) => renderNote(note, true))}</View> : null}
+                    </View>
                 ) : null}
 
                 <SectionHeader title="Tasks" subtitle={`${openTasks.length} open · ${completedTasks.length} completed`} onAdd={addTask} />
                 {projectTasks.length === 0 ? <EmptySection icon={query ? 'magnify' : 'checkbox-outline'} text={query ? 'No matching tasks.' : 'No tasks in this project yet.'} themeColor={theme.primary} /> : (
-                    <Card className="mb-2 p-4">
+                    <View>
                         {openTasks.map((task) => renderTask(task))}
                         {completedTasks.length > 0 ? (
-                            <View className="mt-1 border-t border-outline-variant pt-1 dark:border-outline-variant-dark">
+                            <View className="mt-1">
                                 <View className="flex-row items-center justify-between">
                                     <DisclosureRow title={`Completed (${completedTasks.length})`} open={showCompleted} onPress={() => setShowCompleted((value) => !value)} iconColor={theme.onSurfaceVariant} />
                                     <Button variant="danger" compact onPress={() => setDeleteCompletedDialogOpen(true)}>Delete all</Button>
@@ -310,7 +352,7 @@ export function ProjectDetailScreen() {
                                 {showCompleted ? completedTasks.map((task) => renderTask(task, true)) : null}
                             </View>
                         ) : null}
-                    </Card>
+                    </View>
                 )}
             </ScrollView>
 
@@ -373,10 +415,6 @@ export function ProjectDetailScreen() {
             <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
         </View>
     );
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-    return <View className="gap-0.5"><Text variant="title">{value}</Text><Text variant="bodySmall">{label}</Text></View>;
 }
 
 function SectionHeader({ title, subtitle, onAdd }: { title: string; subtitle: string; onAdd: () => void }) {

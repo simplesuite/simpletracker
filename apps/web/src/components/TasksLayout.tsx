@@ -10,11 +10,17 @@ import TaskDetailPage from './TaskDetailPage';
 const COLUMN_MAX_WIDTH = 600;
 
 /**
- * Height of the split-view container so each column scrolls on its own.
- * Subtracts the fixed top chrome (dense AppBar toolbar + the main element's top
- * padding) and safe-area insets from the viewport height.
+ * Top offset for the sticky detail column. Keeps the detail pane pinned just
+ * below the fixed top chrome (dense AppBar toolbar + the main element's top
+ * padding) while the page scrolls normally.
  */
-const SPLIT_VIEW_HEIGHT = 'calc(100vh - 96px - env(safe-area-inset-top, 0px))';
+const STICKY_TOP = 'calc(80px + env(safe-area-inset-top, 0px))';
+
+/**
+ * Max height for the sticky detail column so, if the detail content is taller
+ * than the viewport, it scrolls on its own rather than being cut off.
+ */
+const DETAIL_MAX_HEIGHT = 'calc(100vh - 96px - env(safe-area-inset-top, 0px))';
 
 /**
  * Responsive layout for Tasks.
@@ -46,6 +52,9 @@ export default function TasksLayout() {
         return <TasksPage />;
     }
 
+    // The whole page scrolls normally; the detail column is sticky so it stays
+    // pinned to the top while the list scrolls past it. No inner scrollbars in
+    // the middle of the page.
     return (
         <Box
             sx={{
@@ -54,7 +63,6 @@ export default function TasksLayout() {
                 alignItems: 'flex-start',
                 justifyContent: 'center',
                 width: '100%',
-                height: SPLIT_VIEW_HEIGHT,
             }}
         >
             <Box
@@ -62,10 +70,6 @@ export default function TasksLayout() {
                     flex: 1,
                     minWidth: 0,
                     maxWidth: COLUMN_MAX_WIDTH,
-                    height: '100%',
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    pb: '96px',
                 }}
             >
                 <TasksPage />
@@ -75,10 +79,12 @@ export default function TasksLayout() {
                     flex: 1,
                     minWidth: 0,
                     maxWidth: COLUMN_MAX_WIDTH,
-                    height: '100%',
+                    position: 'sticky',
+                    top: STICKY_TOP,
+                    alignSelf: 'flex-start',
+                    maxHeight: DETAIL_MAX_HEIGHT,
                     overflowY: 'auto',
                     overflowX: 'hidden',
-                    pb: '96px',
                 }}
             >
                 <TaskDetailPage key={id} id={id} onBack={handleCloseDetail} />

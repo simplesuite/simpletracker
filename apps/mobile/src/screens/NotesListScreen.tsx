@@ -111,7 +111,7 @@ export function NotesListScreen() {
                 keyExtractor={(item) => item.recordID}
                 ListHeaderComponent={(
                     <>
-                        <View className="px-4 pb-1 pt-4">
+                        <View className="px-4 pb-4 pt-4">
                             <View className="relative">
                                 <MaterialCommunityIcons name="magnify" size={21} color={placeholderColor} style={{ position: 'absolute', left: 16, top: 16, zIndex: 1 }} />
                                 <TextInput
@@ -133,27 +133,6 @@ export function NotesListScreen() {
                                 )}
                             </View>
                         </View>
-                        <View className="flex-row items-center justify-between px-4 py-4">
-                            <View>
-                                <NativeText className="text-lg font-bold text-on-surface dark:text-on-surface-dark">Your notes</NativeText>
-                                <NativeText className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
-                                    {filteredNotes.length} active · {filteredArchivedNotes.length} archived
-                                </NativeText>
-                            </View>
-                            {hasFilters && (
-                                <Pressable
-                                    accessibilityLabel="Clear note filters"
-                                    onPress={() => {
-                                        setSearchQuery('');
-                                        setSelectedProjectIDs(new Set());
-                                    }}
-                                    className="flex-row items-center rounded-full border border-outline-variant bg-surface px-3 py-2 active:bg-surface-variant dark:border-outline-dark dark:bg-surface-dark dark:active:bg-surface-variant-dark"
-                                >
-                                    <MaterialCommunityIcons name="close" size={14} color={placeholderColor} />
-                                    <NativeText className="ml-1 text-xs font-semibold text-on-surface-variant dark:text-on-surface-dark">Clear filters</NativeText>
-                                </Pressable>
-                            )}
-                        </View>
                         {sortedProjects.length > 0 && (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 11 }}>
                                 <Pill selected={selectedProjectIDs.size === 0} onPress={() => setSelectedProjectIDs(new Set())}>
@@ -165,7 +144,7 @@ export function NotesListScreen() {
                                         selected={selectedProjectIDs.has(project.recordID)}
                                         onPress={() => toggleProjectFilter(project.recordID)}
                                     >
-                                        {project.name} · {activeNotes.filter((note) => note.projectID === project.recordID).length}
+                                        {project.name} ({activeNotes.filter((note) => note.projectID === project.recordID).length})
                                     </Pill>
                                 ))}
                             </ScrollView>
@@ -224,14 +203,16 @@ export function NotesListScreen() {
                                         <NativeText numberOfLines={1} className="mt-1 text-sm text-on-surface-variant dark:text-on-surface-variant-dark">
                                             {description}
                                         </NativeText>
-                                        <View className="mt-2 flex-row items-center">
-                                            <NativeText className="text-xs text-on-surface-variant dark:text-on-surface-variant-dark">
+                                        <View className="mt-2 flex-row items-center justify-between gap-2">
+                                            <NativeText className="min-w-0 flex-1 text-xs text-on-surface-variant dark:text-on-surface-variant-dark">
                                                 Updated {formatUpdatedAt(item.updatedAt)}
                                             </NativeText>
                                             {projectName && (
-                                                <NativeText numberOfLines={1} className="ml-2 max-w-[48%] text-xs font-medium text-primary dark:text-primary">
-                                                    {projectName}
-                                                </NativeText>
+                                                <View className="min-w-0 flex-shrink rounded-full border border-outline-variant px-2 py-0.5 dark:border-outline-variant-dark">
+                                                    <NativeText numberOfLines={1} className="text-xs font-medium text-on-surface-variant dark:text-on-surface-variant-dark">
+                                                        {projectName}
+                                                    </NativeText>
+                                                </View>
                                             )}
                                         </View>
                                     </View>
