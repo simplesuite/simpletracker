@@ -1,6 +1,6 @@
 {
   "name": "simpletracker-monorepo",
-  "version": "v1.0.7-beta",
+  "version": "v1.0.11-beta",
   "private": true,
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@11.13.1",
