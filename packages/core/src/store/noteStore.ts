@@ -35,6 +35,14 @@ interface NoteStore {
 
     fetchNotes: () => Promise<void>;
     fetchArchivedNotes: () => Promise<void>;
+    /**
+     * Read a single note straight from the synced observable (the source of
+     * truth) rather than the rAF-batched arrays. Returns a just-created note
+     * immediately, before the bridge projects it into `notes`, which avoids the
+     * "Note not found" race when navigating to a new note's detail page right
+     * after creating it.
+     */
+    getNoteById: (id: string) => Note | undefined;
     createNote: (projectID?: string | null, noteType?: 'text' | 'list') => Promise<Note | null>;
     updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID' | 'noteType'>>) => Promise<boolean>;
     togglePinNote: (id: string) => Promise<boolean>;
@@ -96,6 +104,17 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
     fetchArchivedNotes: async () => {
         notes$.get();
+    },
+
+    getNoteById: (id) => {
+        // Prefer the already-projected local buckets (keeps reference identity
+        // for records the bridge has processed), then fall back to peeking the
+        // observable for a record written this frame but not yet bridged.
+        const s = get();
+        const fromState = [...s.notes, ...s.sharedNotes, ...s.archivedNotes].find((n) => n.recordID === id);
+        if (fromState) return fromState;
+        const fromObservable = notes$[id]?.peek?.();
+        return (fromObservable as Note | undefined) || undefined;
     },
 
     createNote: async (projectID, noteType) => {

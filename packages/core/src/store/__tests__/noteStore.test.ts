@@ -645,3 +645,36 @@ describe('Property 12: Mutations Update Timestamp', () => {
         );
     });
 });
+
+/**
+ * Regression: getNoteById resolves a just-created note from the synced
+ * observable even before the rAF bridge projects it into the local arrays.
+ *
+ * This guards the "Note not found" race: the detail page navigates to a new
+ * note's id immediately after creation, so the lookup must not depend on the
+ * (asynchronously-batched) Zustand arrays being up to date.
+ */
+describe('getNoteById resolves records before the bridge runs', () => {
+    beforeEach(() => {
+        seedNotes([]);
+        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+    });
+
+    it('returns a freshly createNote-ed note while the local arrays are still empty', async () => {
+        const note = await useNoteStore.getState().createNote();
+        expect(note).not.toBeNull();
+
+        // Simulate the pre-bridge state: the rAF-batched projection has not run,
+        // so the local arrays are empty even though the observable has the note.
+        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [] });
+        expect(useNoteStore.getState().notes).toHaveLength(0);
+
+        const found = useNoteStore.getState().getNoteById(note!.recordID);
+        expect(found).toBeDefined();
+        expect(found!.recordID).toBe(note!.recordID);
+    });
+
+    it('returns undefined for an unknown id', () => {
+        expect(useNoteStore.getState().getNoteById('does-not-exist')).toBeUndefined();
+    });
+});
