@@ -5,7 +5,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNoteStore, useProjectStore, useTaskStore } from '@simpletracker/core';
+import { useNoteStore, useProjectStore, useTaskStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import type { Note, Task } from '@simpletracker/core';
 import { Button, Card, Checkbox, Dialog, Divider, Snackbar, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -89,6 +89,7 @@ export function ProjectDetailScreen() {
     const [deletingCompleted, setDeletingCompleted] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [actionError, setActionError] = useState<string | null>(null);
+    const [actionNotice, setActionNotice] = useState<string | null>(null);
     const handlingBackRef = useRef(false);
     const nameRef = useRef(name);
     const descriptionRef = useRef(description);
@@ -202,8 +203,17 @@ export function ProjectDetailScreen() {
     };
 
     const toggleTask = async (task: Task, completed: boolean) => {
-        const success = completed ? await reopenTask(task.recordID) : await completeTask(task.recordID);
-        if (!success) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+        if (completed) {
+            const reopened = await reopenTask(task.recordID);
+            if (!reopened) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+            return;
+        }
+        const { success, spawnedTask } = await completeTask(task.recordID);
+        if (!success) {
+            setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+        } else if (spawnedTask) {
+            setActionNotice(recurringSpawnConfirmation(spawnedTask.dueDate));
+        }
     };
 
     const handleShareProject = async () => {
@@ -413,6 +423,7 @@ export function ProjectDetailScreen() {
 
             {isCreator ? <ShareProjectDialog visible={shareDialogOpen} projectId={id} onClose={() => setShareDialogOpen(false)} /> : null}
             <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
+            <Snackbar visible={!!actionNotice} onDismiss={() => setActionNotice(null)} onAction={() => setActionNotice(null)} bottomOffset={tabBarHeight + 24}>{actionNotice}</Snackbar>
         </View>
     );
 }

@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useColorScheme } from 'nativewind';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { refreshAllData, useProjectStore, useTaskStore } from '@simpletracker/core';
+import { refreshAllData, useProjectStore, useTaskStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import type { Task } from '@simpletracker/core';
 import type { TasksStackParamList } from '../navigation/types';
 import { useThemeStore } from '../store/themeStore';
@@ -50,6 +50,8 @@ export function TasksListScreen() {
     const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
     const [deleteCompletedDialogOpen, setDeleteCompletedDialogOpen] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    // Transient success confirmation (e.g. a recurring task's next occurrence).
+    const [actionNotice, setActionNotice] = useState<string | null>(null);
     // Collapsed section keys. Completed starts collapsed to mirror the web app.
     const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set(['completed']));
 
@@ -206,10 +208,17 @@ export function TasksListScreen() {
     };
 
     const toggleTask = async (task: Task) => {
-        const success = task.status === 'completed'
-            ? await reopenTask(task.recordID)
-            : await completeTask(task.recordID);
-        if (!success) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+        if (task.status === 'completed') {
+            const reopened = await reopenTask(task.recordID);
+            if (!reopened) setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+            return;
+        }
+        const { success, spawnedTask } = await completeTask(task.recordID);
+        if (!success) {
+            setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+        } else if (spawnedTask) {
+            setActionNotice(recurringSpawnConfirmation(spawnedTask.dueDate));
+        }
     };
 
     // Small outlined chip used for due-date / recurring / project metadata,
@@ -411,6 +420,7 @@ export function TasksListScreen() {
                 </NativeText>
             </Dialog>
             <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
+            <Snackbar visible={!!actionNotice} onDismiss={() => setActionNotice(null)} onAction={() => setActionNotice(null)} bottomOffset={tabBarHeight + 24}>{actionNotice}</Snackbar>
 
             <Pressable
                 accessibilityLabel="New task"

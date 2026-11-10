@@ -51,7 +51,7 @@ import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import { useProjectStore } from '@simpletracker/core';
 import { useNoteStore } from '@simpletracker/core';
-import { useTaskStore } from '@simpletracker/core';
+import { useTaskStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import { dialogPaperStyles, useGlobalStore } from '../store/globalStore';
 import { validateProjectName } from '@simpletracker/core';
 import { supabase } from '../lib/supabase';
@@ -152,10 +152,14 @@ export default function ProjectDetailPage({ id: idProp, onBack }: ProjectDetailP
 
     const handleCompleteTask = async (taskId: string) => {
         const task = tasks.find((t) => t.recordID === taskId);
-        const success = await completeTask(taskId);
+        const { success, spawnedTask } = await completeTask(taskId);
         if (success) {
             setSnackSev('success');
-            setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackText(
+                spawnedTask
+                    ? `"${task?.title || 'Task'}" completed — ${recurringSpawnConfirmation(spawnedTask.dueDate)}`
+                    : `"${task?.title || 'Task'}" completed`
+            );
             setSnackAction(() => { reopenTask(taskId); });
             setSnackOpen(true);
         }

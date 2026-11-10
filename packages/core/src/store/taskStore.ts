@@ -1,14 +1,32 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { observe, syncState } from '@legendapp/state';
+import { observe } from '@legendapp/state';
 import { getCurrentUserId } from '../runtime';
 import { syncedTable } from '../legend/syncedTable';
+import {
+    waitForPersistenceReady,
+    waitForWritesToSettle,
+    clearSyncError,
+    writeErrorMessage,
+    type WriteResult,
+} from '../legend/syncWrites';
 import { validateTaskTitle, validateSubtaskTitle } from '../lib/validation';
 import { spawnRecurringTask } from '../lib/recurrence';
 import { isTaskSharedLocally } from '../lib/sharing';
 import { useOfflineStore } from './offlineStore';
 import { useProjectStore } from './projectStore';
 import type { Task, Subtask } from '../types';
+
+/**
+ * Outcome of completeTask. `success` keeps the old boolean semantics callers
+ * check; `spawnedTask` is the freshly created next occurrence when the completed
+ * task was recurring, so the UI can confirm "next occurrence created for <date>".
+ * It is undefined for a non-recurring task or a failed/no-op completion.
+ */
+export interface CompleteTaskResult {
+    success: boolean;
+    spawnedTask?: Task;
+}
 
 // ─── Synced observables (Legend-State) ──────────────────────────────────────
 // RLS returns own tasks + shared-project tasks, synced into tasks$. Subtasks are
@@ -33,10 +51,18 @@ interface TaskStore {
 
     setStatusFilter: (filter: 'open' | 'completed' | 'all') => void;
     fetchTasks: () => Promise<void>;
+    /**
+     * Read a single task straight from the synced observable (the source of
+     * truth) rather than the rAF-batched `tasks` array. Returns a just-created
+     * task immediately, before the bridge projects it into `tasks`, which
+     * avoids the "Task not found" race when navigating to a new task's detail
+     * page right after creating it.
+     */
+    getTaskById: (id: string) => Task | undefined;
     createTask: (title: string, projectID?: string | null) => Promise<Task | null>;
     createBlankTask: (projectID?: string | null) => Promise<Task>;
     updateTask: (id: string, fields: Partial<Pick<Task, 'title' | 'body' | 'dueDate' | 'projectID' | 'isRecurring' | 'recurrenceInterval' | 'recurrenceUnit' | 'recurrenceAnchor'>>) => Promise<boolean>;
-    completeTask: (id: string) => Promise<boolean>;
+    completeTask: (id: string) => Promise<CompleteTaskResult>;
     reopenTask: (id: string) => Promise<boolean>;
     deleteTask: (id: string) => Promise<boolean>;
 
@@ -57,85 +83,14 @@ function currentUserID(): string {
     return getCurrentUserId();
 }
 
-/**
- * Writes made before Legend-State has loaded its local table are not observed
- * by the persistence/sync listener. Wait only while a real local load is in
- * progress; the plain observable used by the core unit tests has no load to
- * await.
- */
-async function waitForTasksPersistenceReady(): Promise<void> {
-    const state = syncState(tasks$) as any;
-    const isPersistLoaded = state?.isPersistLoaded;
-    const pendingLocalLoads = state?.numPendingLocalLoads;
-    const pendingLoadCount = pendingLocalLoads?.peek?.();
-    if (!isPersistLoaded || isPersistLoaded.peek() !== false || pendingLoadCount === undefined || pendingLoadCount <= 0) return;
+type TaskWriteResult = WriteResult;
 
-    await new Promise<void>((resolve) => {
-        let unsubscribe = () => undefined;
-        const finish = () => {
-            unsubscribe();
-            resolve();
-        };
-        unsubscribe = isPersistLoaded.onChange(({ value }: { value: boolean }) => {
-            if (value) finish();
-        });
-        if (isPersistLoaded.peek()) finish();
-    });
-}
-
-type TaskWriteResult = {
-    saved: boolean;
-    error: string | null;
-};
-
-function getTaskSyncError(): string | null {
-    const state = syncState(tasks$) as any;
-    const error = state?.error?.peek?.();
-    if (!error) return null;
-    return error instanceof Error ? error.message : String(error);
-}
-
-function clearTaskSyncError(): void {
-    const state = syncState(tasks$) as any;
-    state?.error?.set?.(undefined);
-}
-
-async function waitForTaskWritesToSettle(): Promise<TaskWriteResult> {
-    if (!useOfflineStore.getState().isOnline) return { saved: true, error: null };
-
-    // Let Legend-State process the observable change before inspecting its
-    // pending-set counter. This also catches a create queued immediately before
-    // an update for the same record.
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    const state = syncState(tasks$) as any;
-    const pendingSets = state?.numPendingSets;
-    const pendingCount = pendingSets?.peek?.();
-    if (typeof pendingCount !== 'number' || pendingCount <= 0) {
-        const error = getTaskSyncError();
-        return { saved: !error, error };
-    }
-
-    return new Promise<TaskWriteResult>((resolve) => {
-        let finished = false;
-        let unsubscribe = () => undefined;
-        const timeout = setTimeout(() => finish(false), 10000);
-        const finish = (saved: boolean) => {
-            if (finished) return;
-            finished = true;
-            clearTimeout(timeout);
-            unsubscribe();
-            const error = getTaskSyncError();
-            resolve({ saved: saved && !error, error });
-        };
-        unsubscribe = pendingSets.onChange(({ value }: { value: number }) => {
-            if (value <= 0) finish(true);
-        });
-        if ((pendingSets.peek() || 0) <= 0) finish(true);
-    });
-}
+const waitForTasksPersistenceReady = () => waitForPersistenceReady(tasks$);
+const waitForTaskWritesToSettle = () => waitForWritesToSettle(tasks$);
+const clearTaskSyncError = () => clearSyncError(tasks$);
 
 function setTaskWriteError(set: (state: { error: string }) => void, action: string, result: TaskWriteResult): void {
-    set({ error: result.error ? `Unable to ${action}: ${result.error}` : `Unable to ${action}. Check your connection and try again.` });
+    set({ error: writeErrorMessage(action, result) });
 }
 
 function findTask(id: string): Task | undefined {
@@ -165,6 +120,16 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
     fetchTasks: async () => {
         tasks$.get();
+    },
+
+    getTaskById: (id) => {
+        // Prefer the already-projected Zustand array (keeps reference identity
+        // for records the bridge has processed), then fall back to peeking the
+        // observable for a record written this frame but not yet bridged.
+        const fromState = get().tasks.find((t) => t.recordID === id);
+        if (fromState) return fromState;
+        const fromObservable = tasks$[id]?.peek?.();
+        return (fromObservable as Task | undefined) || undefined;
     },
 
     createTask: async (title, projectID) => {
@@ -289,18 +254,20 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
         const task = findTask(id);
         if (!task) {
             set({ error: 'Task not found' });
-            return false;
+            return { success: false };
         }
 
         // Idempotency guard: only an OPEN task can be completed. Prevents a
-        // double-tap / double-invoke from spawning duplicate recurring children.
+        // double-tap / double-invoke on THIS client from spawning duplicate
+        // recurring children. Cross-device duplicates are handled separately by
+        // the deterministic child recordID below (see spawnRecurringTask).
         if (task.status !== 'open') {
-            return true;
+            return { success: true };
         }
 
         if (checkTaskIsShared(task, currentUserID()) && !useOfflineStore.getState().isOnline) {
             set({ error: 'Shared items require an internet connection' });
-            return false;
+            return { success: false };
         }
 
         const now = Date.now();
@@ -314,31 +281,37 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
             const spawned = spawnRecurringTask(completedTask, subtasks);
 
             const spawnedNow = Date.now();
-            const newRecordID = uuidv4();
+            const newRecordID = spawned.task.recordID;
+
+            // If an occurrence with this deterministic id already exists (the
+            // other device completed the same parent and synced first), do NOT
+            // overwrite it — that would clobber edits or reset its timestamps.
+            // The row already represents this occurrence, so just report it.
+            const existing = tasks$[newRecordID]?.peek?.() as Task | undefined;
+            if (existing) {
+                return { success: true, spawnedTask: existing };
+            }
+
             const newTask: Task = {
                 ...spawned.task,
-                recordID: newRecordID,
                 createdAt: spawnedNow,
                 updatedAt: spawnedNow,
             };
 
             tasks$[newRecordID].set(newTask as any);
 
-            if (spawned.subtasks.length > 0) {
-                for (const st of spawned.subtasks) {
-                    const subRecordID = uuidv4();
-                    subtasks$[subRecordID].set({
-                        ...st,
-                        recordID: subRecordID,
-                        taskID: newRecordID,
-                        createdAt: spawnedNow,
-                        updatedAt: spawnedNow,
-                    } as any);
-                }
+            for (const st of spawned.subtasks) {
+                subtasks$[st.recordID].set({
+                    ...st,
+                    createdAt: spawnedNow,
+                    updatedAt: spawnedNow,
+                } as any);
             }
+
+            return { success: true, spawnedTask: newTask };
         }
 
-        return true;
+        return { success: true };
     },
 
     reopenTask: async (id) => {

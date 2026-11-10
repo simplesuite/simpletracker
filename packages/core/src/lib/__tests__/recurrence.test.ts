@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import dayjs from 'dayjs';
-import { calculateNextDueDate, spawnRecurringTask } from '../recurrence';
+import {
+    calculateNextDueDate,
+    spawnRecurringTask,
+    recurringChildRecordID,
+    recurringChildSubtaskRecordID,
+} from '../recurrence';
 import type { Task, Subtask } from '../../types';
 
 describe('calculateNextDueDate', () => {
@@ -137,5 +142,29 @@ describe('spawnRecurringTask', () => {
     it('copies creatorID from the completed task', () => {
         const result = spawnRecurringTask(completedTask, subtasks);
         expect(result.task.creatorID).toBe(completedTask.creatorID);
+    });
+
+    it('derives a DETERMINISTIC child recordID from the parent (cross-device dedup)', () => {
+        // Two independent clients completing the same parent must agree on the
+        // child id so the server collapses them into one occurrence.
+        const a = spawnRecurringTask(completedTask, subtasks);
+        const b = spawnRecurringTask(completedTask, subtasks);
+        expect(a.task.recordID).toBe(b.task.recordID);
+        expect(a.task.recordID).toBe(recurringChildRecordID(completedTask.recordID));
+        // Different parents must yield different child ids.
+        const other = spawnRecurringTask({ ...completedTask, recordID: 'task-999' }, subtasks);
+        expect(other.task.recordID).not.toBe(a.task.recordID);
+    });
+
+    it('derives deterministic, parent-scoped subtask recordIDs', () => {
+        const a = spawnRecurringTask(completedTask, subtasks);
+        const b = spawnRecurringTask(completedTask, subtasks);
+        expect(a.subtasks.map((s) => s.recordID)).toEqual(b.subtasks.map((s) => s.recordID));
+        expect(a.subtasks[0].recordID).toBe(recurringChildSubtaskRecordID(a.task.recordID, 0));
+        expect(a.subtasks[1].recordID).toBe(recurringChildSubtaskRecordID(a.task.recordID, 1));
+        // Every copied subtask belongs to the spawned child.
+        for (const st of a.subtasks) expect(st.taskID).toBe(a.task.recordID);
+        // Positional ids are distinct.
+        expect(a.subtasks[0].recordID).not.toBe(a.subtasks[1].recordID);
     });
 });

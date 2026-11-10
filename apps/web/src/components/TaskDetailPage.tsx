@@ -40,7 +40,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import type { Theme } from "@mui/material/styles";
 
-import { useTaskStore } from '@simpletracker/core';
+import { useTaskStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
 import { dialogPaperStyles, useGlobalStore } from "../store/globalStore";
 import { useOfflineStore } from '@simpletracker/core';
@@ -127,9 +127,11 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
   useEffect(() => {
     if (!id) return;
 
-    // Read latest store state directly to avoid stale closure from render
-    const storeState = useTaskStore.getState();
-    const foundTask = storeState.tasks.find((t) => t.recordID === id);
+    // Read directly from the synced observable (source of truth) so a task
+    // created moments ago is found even before the rAF bridge projects it into
+    // the `tasks` array — this is what previously caused a spurious
+    // "Task not found" after creating a task and navigating to it.
+    const foundTask = useTaskStore.getState().getTaskById(id);
     if (foundTask) {
       loadTaskData(foundTask);
       setLoading(false);
@@ -378,8 +380,11 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
   const handleCompleteReopen = async () => {
     if (!id || !task) return;
     let success: boolean;
+    let spawnedTask: Task | undefined;
     if (task.status === "open") {
-      success = await completeTask(id);
+      const result = await completeTask(id);
+      success = result.success;
+      spawnedTask = result.spawnedTask;
     } else {
       success = await reopenTask(id);
     }
@@ -389,7 +394,11 @@ export default function TaskDetailPage({ id: idProp, onBack }: TaskDetailPagePro
       setNetworkError(null);
       if (task.status === "open") {
         setSnackSev('success');
-        setSnackText(`"${task.title || 'Task'}" completed`);
+        setSnackText(
+          spawnedTask
+            ? `"${task.title || 'Task'}" completed — ${recurringSpawnConfirmation(spawnedTask.dueDate)}`
+            : `"${task.title || 'Task'}" completed`
+        );
         setSnackAction(() => { reopenTask(id); });
         setSnackOpen(true);
         closeDetail();

@@ -132,6 +132,47 @@ describe('Property 4: Task Creation Defaults', () => {
 });
 
 /**
+ * Regression: getTaskById resolves a just-created task from the synced
+ * observable even before the rAF bridge projects it into the `tasks` array.
+ *
+ * This guards the "Task not found" race: the detail page navigates to a new
+ * task's id immediately after creation, so the lookup must not depend on the
+ * (asynchronously-batched) Zustand array being up to date.
+ */
+describe('getTaskById resolves records before the bridge runs', () => {
+    beforeEach(() => {
+        resetStoreState();
+    });
+
+    it('returns a freshly createBlankTask-ed task while the tasks array is still empty', async () => {
+        const task = await useTaskStore.getState().createBlankTask();
+
+        // Simulate the pre-bridge state: the rAF-batched projection has not run,
+        // so the Zustand array is empty even though the observable has the task.
+        useTaskStore.setState({ tasks: [] });
+        expect(useTaskStore.getState().tasks).toHaveLength(0);
+
+        const found = useTaskStore.getState().getTaskById(task.recordID);
+        expect(found).toBeDefined();
+        expect(found!.recordID).toBe(task.recordID);
+    });
+
+    it('returns a freshly createTask-ed task while the tasks array is still empty', async () => {
+        const task = await useTaskStore.getState().createTask('Buy milk');
+        expect(task).not.toBeNull();
+
+        useTaskStore.setState({ tasks: [] });
+        const found = useTaskStore.getState().getTaskById(task!.recordID);
+        expect(found).toBeDefined();
+        expect(found!.title).toBe('Buy milk');
+    });
+
+    it('returns undefined for an unknown id', () => {
+        expect(useTaskStore.getState().getTaskById('does-not-exist')).toBeUndefined();
+    });
+});
+
+/**
  * Feature: simpletracker-notes-tasks, Property 8: Task Status Round-Trip
  *
  * For any open task, marking it complete SHALL set status="completed" and completedAt
@@ -170,7 +211,9 @@ describe('Property 8: Task Status Round-Trip', () => {
 
                 // Complete the task
                 const result = await useTaskStore.getState().completeTask(task!.recordID);
-                expect(result).toBe(true);
+                expect(result.success).toBe(true);
+                // Non-recurring task spawns nothing.
+                expect(result.spawnedTask).toBeUndefined();
 
                 // Verify status change
                 const completedTask = useTaskStore.getState().tasks.find((t) => t.recordID === task!.recordID);
@@ -485,5 +528,91 @@ describe('Property 12: Mutations Update Timestamp', () => {
             }),
             { numRuns: NUM_RUNS }
         );
+    });
+});
+
+describe('completeTask recurring-occurrence spawning', () => {
+    beforeEach(() => {
+        resetStoreState();
+    });
+
+    const dueDate = new Date('2024-01-15T12:00:00Z').getTime();
+
+    function seedRecurringTask(recordID = 'rec-1'): void {
+        const now = Date.now();
+        seedTasks([
+            {
+                recordID,
+                creatorID: TEST_USER_ID,
+                projectID: null,
+                title: 'Water plants',
+                body: '',
+                status: 'open',
+                dueDate,
+                isRecurring: true,
+                recurrenceInterval: 1,
+                recurrenceUnit: 'weeks',
+                recurrenceAnchor: 'due_date',
+                completedAt: null,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ]);
+    }
+
+    it('returns the spawned next occurrence for a recurring task', async () => {
+        seedRecurringTask();
+        const result = await useTaskStore.getState().completeTask('rec-1');
+
+        expect(result.success).toBe(true);
+        expect(result.spawnedTask).toBeDefined();
+        expect(result.spawnedTask!.status).toBe('open');
+        expect(result.spawnedTask!.completedAt).toBeNull();
+        expect(result.spawnedTask!.recordID).not.toBe('rec-1');
+        // due_date anchor: next due is one week after the original due date.
+        expect(result.spawnedTask!.dueDate).toBe(
+            new Date('2024-01-22T12:00:00Z').getTime()
+        );
+
+        // The spawned task actually landed in the store.
+        const spawned = useTaskStore.getState().tasks.find(
+            (t) => t.recordID === result.spawnedTask!.recordID
+        );
+        expect(spawned).toBeDefined();
+    });
+
+    it('spawns the SAME occurrence id when the same parent is completed again (no duplicate)', async () => {
+        // First device completes.
+        seedRecurringTask();
+        const first = await useTaskStore.getState().completeTask('rec-1');
+        expect(first.spawnedTask).toBeDefined();
+        const childId = first.spawnedTask!.recordID;
+        const spawnedCreatedAt = first.spawnedTask!.createdAt;
+
+        // Simulate the parent coming back as OPEN (e.g. an unsynced second
+        // device still sees it open) while the already-spawned child is present,
+        // then complete again. The deterministic id means we recognize the
+        // existing child and do NOT overwrite it.
+        (tasks$ as any)['rec-1'].status.set('open');
+        (tasks$ as any)['rec-1'].completedAt.set(null);
+
+        const second = await useTaskStore.getState().completeTask('rec-1');
+        expect(second.success).toBe(true);
+        expect(second.spawnedTask!.recordID).toBe(childId);
+        // Existing child preserved (same createdAt, not reset).
+        expect(second.spawnedTask!.createdAt).toBe(spawnedCreatedAt);
+
+        // Exactly one child exists in the store.
+        const children = useTaskStore
+            .getState()
+            .tasks.filter((t) => t.recordID === childId);
+        expect(children).toHaveLength(1);
+    });
+
+    it('does not spawn anything for a non-recurring task', async () => {
+        const task = await useTaskStore.getState().createTask('one-off');
+        const result = await useTaskStore.getState().completeTask(task!.recordID);
+        expect(result.success).toBe(true);
+        expect(result.spawnedTask).toBeUndefined();
     });
 });
