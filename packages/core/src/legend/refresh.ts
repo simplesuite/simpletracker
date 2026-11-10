@@ -77,7 +77,43 @@ export async function refreshAllData(): Promise<void> {
 
     await Promise.all(
         allSynced.map(async (observable) => {
+            // If writes are STILL unconfirmed after the bounded wait (offline, or
+            // a write the server keeps rejecting), skip the replacing read for
+            // this collection. Forcing it would silently drop those local rows
+            // (upstream Legend-State #666). It retries on the next refresh.
+            if (pendingSetCount(observable) > 0) return;
             await (syncState(observable) as unknown as SyncController).sync({ resetLastSync: true });
         })
     );
+}
+
+function pendingSetCount(observable: unknown): number {
+    const state = syncState(observable as any) as any;
+    return state?.numPendingSets?.peek?.() || 0;
+}
+
+const RESUME_MIN_INTERVAL_MS = 15000;
+let lastResumeRefreshAt = 0;
+let resumeRefreshInFlight: Promise<void> | null = null;
+
+/**
+ * Pull the latest server state when the app returns to the foreground.
+ *
+ * Realtime is off, and the stores' fetch actions only activate an observable
+ * (a no-op once active), so without this a device never sees changes made on
+ * another device until a manual refresh. Throttled and de-duplicated so rapid
+ * tab/app switching doesn't hammer the backend; failures are swallowed since
+ * the next resume simply tries again.
+ */
+export function refreshOnResume(minIntervalMs: number = RESUME_MIN_INTERVAL_MS): Promise<void> {
+    if (resumeRefreshInFlight) return resumeRefreshInFlight;
+    const now = Date.now();
+    if (now - lastResumeRefreshAt < minIntervalMs) return Promise.resolve();
+    lastResumeRefreshAt = now;
+    resumeRefreshInFlight = refreshAllData()
+        .catch(() => undefined)
+        .finally(() => {
+            resumeRefreshInFlight = null;
+        });
+    return resumeRefreshInFlight;
 }

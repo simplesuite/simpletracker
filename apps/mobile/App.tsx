@@ -5,7 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import { createNavigationContainerRef, getFocusedRouteNameFromRoute, NavigationContainer, DefaultTheme as NavigationLightTheme, DarkTheme as NavigationDarkTheme, type RouteProp } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useColorScheme } from 'nativewind';
-import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import NetInfo from '@react-native-community/netinfo';
+import { setSyncEnabled, refreshOnResume, useNoteStore, useOfflineStore, useTaskStore, useProjectStore } from '@simpletracker/core';
 import { getUiTheme } from '@simpletracker/ui';
 import { supabase } from './src/lib/supabase';
 import { useAuthStore } from './src/store/authStore';
@@ -18,6 +20,7 @@ import { AuthStack } from './src/navigation/AuthStack';
 import type { RootTabParamList } from './src/navigation/types';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FloatingTabBar } from './src/components/ui/FloatingTabBar';
+import { SyncStatusBanner } from './src/components/ui/SyncStatusBanner';
 import { cancelLocalTaskNotifications, subscribeToTaskNotificationResponses, syncLocalTaskNotifications } from './src/lib/notifications';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -116,6 +119,19 @@ export default function App() {
         }
     }, [isAuthenticated]);
 
+    // React Native has no navigator.onLine, so without this isOnline was always
+    // true on mobile. "Reachable" is null while NetInfo is still probing; only
+    // an explicit false counts as offline so a slow probe doesn't block writes.
+    useEffect(() => {
+        return NetInfo.addEventListener((state) => {
+            const online = state.isConnected !== false && state.isInternetReachable !== false;
+            const store = useOfflineStore.getState();
+            const cameBack = online && !store.isOnline;
+            if (store.isOnline !== online) store.setIsOnline(online);
+            if (cameBack && useAuthStore.getState().isAuthenticated) void refreshOnResume();
+        });
+    }, []);
+
     useEffect(() => {
         if (isAuthenticated) void syncLocalTaskNotifications(tasks);
         else void cancelLocalTaskNotifications();
@@ -124,7 +140,11 @@ export default function App() {
     useEffect(() => {
         if (!isAuthenticated) return;
         const subscription = AppState.addEventListener('change', (state) => {
-            if (state === 'active') void syncLocalTaskNotifications(useTaskStore.getState().tasks);
+            if (state !== 'active') return;
+            // Realtime is off: pull changes made on other devices whenever the
+            // app returns to the foreground (throttled in core).
+            void refreshOnResume();
+            void syncLocalTaskNotifications(useTaskStore.getState().tasks);
         });
         return () => subscription.remove();
     }, [isAuthenticated]);
@@ -139,8 +159,9 @@ export default function App() {
     }
 
     return (
-        <>
+        <SafeAreaProvider>
             <StatusBar style={effectiveTheme === 'dark' ? 'light' : 'dark'} />
+            {isAuthenticated ? <SyncStatusBanner /> : null}
             <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
                 {isAuthenticated ? (
                     <Tab.Navigator
@@ -158,6 +179,6 @@ export default function App() {
                     </Tab.Navigator>
                 ) : <AuthStack />}
             </NavigationContainer>
-        </>
+        </SafeAreaProvider>
     );
 }

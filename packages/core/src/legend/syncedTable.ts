@@ -17,7 +17,59 @@
 import { observable, type Observable } from '@legendapp/state';
 import { syncedSupabase } from '@legendapp/state/sync-plugins/supabase';
 import { syncEnabled$ } from './config';
-import { getSupabase, getPersistPlugin } from '../runtime';
+import { getSupabase, getPersistPlugin, getCurrentUserId } from '../runtime';
+import { shouldAbandonWrite } from './syncErrors';
+import { useOfflineStore } from '../store/offlineStore';
+
+/**
+ * Stop retrying a write the server will never accept, roll the device back to
+ * the server's state, and record it so the UI can say what wasn't saved.
+ *
+ * Each step leans on Legend-State v3 internals (verified against
+ * 3.0.0-beta.48):
+ *  - `retry.cancelRetry` ends the CRUD plugin's per-item retry loop.
+ *  - `setParams.update({ changes: [] })` makes the engine run its post-set
+ *    bookkeeping. Without it, a batch whose only item failed never
+ *    decrements `numPendingSets`, which leaves the collection "pending"
+ *    for the whole session and blocks refresh from pulling it.
+ *  - `revert()` restores the pre-write local value as a remote change, so
+ *    it doesn't re-queue. The next full refresh then clears the leftover
+ *    persisted pending entry, so the write doesn't replay on later launches.
+ */
+function handlePoisonWrite(collection: string, message: string, params: any, input: any): void {
+    if (!params) return;
+    let isAuthenticated = false;
+    try {
+        isAuthenticated = !!getCurrentUserId();
+    } catch {
+        isAuthenticated = false;
+    }
+    if (!shouldAbandonWrite({ message, type: params.type, isAuthenticated })) return;
+
+    if (params.retry) params.retry.cancelRetry = true;
+    try {
+        params.setParams?.update?.({ value: {}, mode: 'merge', changes: [] });
+    } catch {
+        /* best-effort: worst case the pending counter stays up until reload */
+    }
+    try {
+        params.revert?.();
+    } catch {
+        /* best-effort */
+    }
+
+    const label = typeof input?.title === 'string' && input.title.trim()
+        ? `"${input.title.trim()}"`
+        : typeof input?.name === 'string' && input.name.trim()
+            ? `"${input.name.trim()}"`
+            : null;
+    useOfflineStore.getState().addRejectedWrite({
+        collection,
+        recordID: input?.recordID ?? null,
+        action: String(params.source ?? 'set'),
+        message: label ? `${label}: ${message}` : message,
+    });
+}
 
 export type SyncedActions = ('create' | 'read' | 'update' | 'delete')[];
 
@@ -69,6 +121,7 @@ export function syncedTable<TRow extends Record<string, any>>(
                     recordID,
                     retryNum: params?.retry?.retryNum,
                 });
+                handlePoisonWrite(collection, message, params, input);
             },
             // Only sync while authenticated; flipped by the auth flow.
             enabled: syncEnabled$,

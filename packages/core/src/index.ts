@@ -36,11 +36,20 @@ export { ensureSession } from './lib/ensureSession';
 // Legend-State sync layer
 export { syncEnabled$, setSyncEnabled } from './legend/config';
 export { syncedTable, type SyncedTableOptions, type SyncedActions } from './legend/syncedTable';
+export {
+    waitForPersistenceReady,
+    waitForWritesToSettle,
+    clearSyncError,
+    getSyncError,
+    writeErrorMessage,
+    type WriteResult,
+} from './legend/syncWrites';
 export { clearLocalData } from './legend/reset';
-export { refreshAllData } from './legend/refresh';
+export { refreshAllData, refreshOnResume } from './legend/refresh';
 
 // Stores (Zustand facades over synced observables) + the observables themselves
 export { useNoteStore, notes$, noteListItems$ } from './store/noteStore';
 export { useTaskStore, tasks$, subtasks$ } from './store/taskStore';
 export { useProjectStore, projects$, projectShares$ } from './store/projectStore';
-export { useOfflineStore } from './store/offlineStore';
+export { useOfflineStore, summarizeSyncStates, describeRejectedWrites, type RejectedWrite } from './store/offlineStore';
+export { classifySyncError, shouldAbandonWrite, type SyncErrorKind } from './legend/syncErrors';
