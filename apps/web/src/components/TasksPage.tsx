@@ -31,7 +31,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useTaskStore } from '@simpletracker/core';
+import { useTaskStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import { useProjectStore } from '@simpletracker/core';
 import { useGlobalStore } from '../store/globalStore';
 import IconButton from '@mui/material/IconButton';
@@ -56,10 +56,14 @@ export default function TasksPage() {
 
     const handleCompleteTask = async (taskId: string) => {
         const task = tasks.find((t) => t.recordID === taskId);
-        const success = await completeTask(taskId);
+        const { success, spawnedTask } = await completeTask(taskId);
         if (success) {
             setSnackSev('success');
-            setSnackText(`"${task?.title || 'Task'}" completed`);
+            setSnackText(
+                spawnedTask
+                    ? `"${task?.title || 'Task'}" completed — ${recurringSpawnConfirmation(spawnedTask.dueDate)}`
+                    : `"${task?.title || 'Task'}" completed`
+            );
             setSnackAction(() => { reopenTask(taskId); });
             setSnackOpen(true);
         }

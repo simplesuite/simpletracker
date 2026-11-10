@@ -4,7 +4,7 @@ import DateTimePicker from '@expo/ui/community/datetime-picker';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useTaskStore, useProjectStore } from '@simpletracker/core';
+import { useTaskStore, useProjectStore, recurringSpawnConfirmation } from '@simpletracker/core';
 import { Button, Checkbox, Dialog, Pill, Snackbar, Text, TextField, getUiTheme } from '@simpletracker/ui';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { TasksStackParamList } from '../navigation/types';
@@ -62,6 +62,7 @@ export function TaskDetailScreen() {
     const [timePickerValue, setTimePickerValue] = useState<Date>(new Date());
     const [nativePickerMode, setNativePickerMode] = useState<'date' | 'time' | null>(null);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [actionNotice, setActionNotice] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
 
     const titleRef = useRef(title);
@@ -247,12 +248,32 @@ export function TaskDetailScreen() {
     };
 
     const handleTaskCompletion = async () => {
-        const success = isCompleted ? await reopenTask(id) : await completeTask(id);
-        if (success) {
-            handlingBackRef.current = true;
+        if (isCompleted) {
+            const reopened = await reopenTask(id);
+            if (reopened) {
+                handlingBackRef.current = true;
+                navigation.goBack();
+            } else {
+                setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+            }
+            return;
+        }
+
+        const { success, spawnedTask } = await completeTask(id);
+        if (!success) {
+            setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
+            return;
+        }
+        handlingBackRef.current = true;
+        if (spawnedTask) {
+            // Confirm the newly created occurrence before leaving the screen.
+            // The list we return to does not re-run completion, so showing it
+            // here (then navigating back shortly after) is the reliable surface.
+            setActionNotice(recurringSpawnConfirmation(spawnedTask.dueDate));
+            setTimeout(() => navigation.goBack(), 1400);
+        } else {
             navigation.goBack();
         }
-        else setActionError(useTaskStore.getState().error ?? 'Unable to update task.');
     };
 
     const isTaskBlank = () => title.trim().length === 0 && body.trim().length === 0;
@@ -538,6 +559,7 @@ export function TaskDetailScreen() {
                 <Text>{isTaskBlank() ? 'This task is empty. Are you sure you want to delete it?' : 'Are you sure you want to delete this task?'}</Text>
             </Dialog>
             <Snackbar visible={!!actionError} onDismiss={() => setActionError(null)} onAction={() => setActionError(null)} bottomOffset={tabBarHeight + 24}>{actionError}</Snackbar>
+            <Snackbar visible={!!actionNotice} onDismiss={() => setActionNotice(null)} onAction={() => setActionNotice(null)} bottomOffset={tabBarHeight + 24}>{actionNotice}</Snackbar>
         </View>
     );
 }

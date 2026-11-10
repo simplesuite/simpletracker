@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
-import { useNoteStore, notes$ } from '../noteStore';
-import type { Note } from '../../types/index';
+import { useNoteStore, notes$, noteListItems$ } from '../noteStore';
+import type { Note, NoteListItem } from '../../types/index';
 
 /**
  * Seed the source-of-truth observable (not the derived Zustand array). The
@@ -643,5 +643,101 @@ describe('Property 12: Mutations Update Timestamp', () => {
             ),
             { numRuns: NUM_RUNS }
         );
+    });
+});
+
+/**
+ * Regression: getNoteById resolves a just-created note from the synced
+ * observable even before the rAF bridge projects it into the local arrays.
+ *
+ * This guards the "Note not found" race: the detail page navigates to a new
+ * note's id immediately after creation, so the lookup must not depend on the
+ * (asynchronously-batched) Zustand arrays being up to date.
+ */
+describe('getNoteById resolves records before the bridge runs', () => {
+    beforeEach(() => {
+        seedNotes([]);
+        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [], loading: false, error: null });
+    });
+
+    it('returns a freshly createNote-ed note while the local arrays are still empty', async () => {
+        const note = await useNoteStore.getState().createNote();
+        expect(note).not.toBeNull();
+
+        // Simulate the pre-bridge state: the rAF-batched projection has not run,
+        // so the local arrays are empty even though the observable has the note.
+        useNoteStore.setState({ notes: [], archivedNotes: [], sharedNotes: [] });
+        expect(useNoteStore.getState().notes).toHaveLength(0);
+
+        const found = useNoteStore.getState().getNoteById(note!.recordID);
+        expect(found).toBeDefined();
+        expect(found!.recordID).toBe(note!.recordID);
+    });
+
+    it('returns undefined for an unknown id', () => {
+        expect(useNoteStore.getState().getNoteById('does-not-exist')).toBeUndefined();
+    });
+});
+
+/**
+ * List-item ordering must be deterministic across devices. Two devices adding
+ * an item offline can land on the same indexOrder; the bridge sort tie-breaks
+ * by recordID so both render the items in the same order regardless.
+ */
+describe('list item ordering is deterministic on indexOrder ties', () => {
+    function seedListItems(items: NoteListItem[]): void {
+        (noteListItems$ as any).set({});
+        for (const it of items) {
+            (noteListItems$ as any)[it.recordID].set(it);
+        }
+    }
+
+    // Let the rAF-batched bridge run and project the observable into the store.
+    const flushBridge = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
+
+    beforeEach(() => {
+        seedListItems([]);
+        useNoteStore.setState({ listItems: {} });
+    });
+
+    it('breaks an indexOrder tie by recordID, ascending', async () => {
+        const now = Date.now();
+        const mk = (recordID: string, indexOrder: number): NoteListItem => ({
+            recordID,
+            noteID: 'note-1',
+            title: recordID,
+            isCompleted: false,
+            indexOrder,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // Two items collide on indexOrder 5; one sits below. Seed out of order.
+        seedListItems([mk('ccc', 5), mk('aaa', 5), mk('bbb', 1)]);
+        await flushBridge();
+
+        const items = useNoteStore.getState().listItems['note-1'];
+        expect(items.map((i) => i.recordID)).toEqual(['bbb', 'aaa', 'ccc']);
+    });
+
+    it('addListItem leaves a wide gap above the current max order', async () => {
+        const now = Date.now();
+        seedListItems([
+            {
+                recordID: 'existing',
+                noteID: 'note-1',
+                title: 'existing',
+                isCompleted: false,
+                indexOrder: 3,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ]);
+        await flushBridge();
+
+        const added = await useNoteStore.getState().addListItem('note-1', 'new item');
+        expect(added).not.toBeNull();
+        // 3 + 1000 gap, not 3 + 1 — reduces cross-device collisions on append.
+        expect(added!.indexOrder).toBe(1003);
     });
 });

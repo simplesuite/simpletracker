@@ -10,10 +10,7 @@ import Chip from '@mui/material/Chip';
 import Badge from '@mui/material/Badge';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
-import { useOfflineStore } from '@simpletracker/core';
-import { useNoteStore } from '@simpletracker/core';
-import { useTaskStore } from '@simpletracker/core';
-import { useProjectStore } from '@simpletracker/core';
+import { useOfflineStore, refreshAllData } from '@simpletracker/core';
 import { keyframes } from '@mui/system';
 
 const spin = keyframes`
@@ -32,12 +29,9 @@ export default function AppToolbar() {
     async function handleRefresh() {
         setRefreshing(true);
         try {
-            await Promise.all([
-                useNoteStore.getState().fetchNotes(),
-                useNoteStore.getState().fetchArchivedNotes(),
-                useTaskStore.getState().fetchTasks(),
-                useProjectStore.getState().fetchProjects(),
-            ]);
+            // refreshAllData does a real server reconcile; the fetch* actions
+            // only activate observables and are a no-op once active.
+            await refreshAllData();
         } catch (err) {
             console.warn('Refresh failed:', err);
         }

@@ -23,6 +23,8 @@ export function OfflineBanner() {
     const isOnline = useOfflineStore(s => s.isOnline);
     const pendingCount = useOfflineStore(s => s.pendingCount);
     const lastSyncError = useOfflineStore(s => s.lastSyncError);
+    const hasRejected = useOfflineStore(s => s.rejectedWrites.length > 0);
+    const clearRejectedWrites = useOfflineStore(s => s.clearRejectedWrites);
 
     if (isOnline && !lastSyncError) return null;
 
@@ -35,11 +37,19 @@ export function OfflineBanner() {
         );
     }
 
-    // Online but sync is failing
-    if (lastSyncError && pendingCount > 0) {
+    // Online but sync is failing (shown even with nothing queued: a failed
+    // download leaves devices out of step just as much as a failed upload).
+    // Rejected writes are sticky until dismissed; engine errors clear on their own.
+    if (lastSyncError) {
         return (
-            <Alert severity="error" variant="filled" sx={{ borderRadius: 0, py: 0 }}>
-                Sync error: {lastSyncError} ({pendingCount} pending)
+            <Alert
+                severity="error"
+                variant="filled"
+                sx={{ borderRadius: 0, py: 0 }}
+                onClose={hasRejected ? clearRejectedWrites : undefined}
+            >
+                Sync error: {lastSyncError}
+                {pendingCount > 0 && ` (${pendingCount} pending)`}
             </Alert>
         );
     }

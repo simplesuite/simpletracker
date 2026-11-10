@@ -259,10 +259,12 @@ export default function NoteDetailPage({ id: idProp, onBack }: NoteDetailPagePro
             setError(null);
             setOfflineMessage(null);
 
-            // Read latest store state directly to avoid stale closure from render
-            const storeState = useNoteStore.getState();
-            const allLocalNotes = [...storeState.notes, ...storeState.sharedNotes, ...storeState.archivedNotes];
-            const localNote = allLocalNotes.find((n) => n.recordID === id);
+            // Read directly from the synced observable (source of truth) so a
+            // note created moments ago is found even before the rAF bridge
+            // projects it into the local arrays — this is what previously
+            // caused a spurious "Note not found" after creating a note and
+            // navigating to it.
+            const localNote = useNoteStore.getState().getNoteById(id);
 
             if (localNote) {
                 // Check if this is a shared item

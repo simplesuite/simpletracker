@@ -26,7 +26,7 @@ import UpdatePrompt from "./components/subcomponents/UpdatePrompt";
 import NotificationPrompt from "./components/subcomponents/NotificationPrompt";
 import { usePwaStore } from "./store/pwaStore";
 import { hasSupabaseSession, supabase } from "./lib/supabase";
-import { setSyncEnabled, useNoteStore, useTaskStore, useProjectStore } from "@simpletracker/core";
+import { setSyncEnabled, refreshOnResume, useNoteStore, useTaskStore, useProjectStore } from "@simpletracker/core";
 import { checkAndNotify } from "./lib/notifications";
 import { useIsPwa } from "./lib/useIsPwa";
 
@@ -103,6 +103,22 @@ export default function App() {
     useNoteStore.getState().fetchArchivedNotes();
     useTaskStore.getState().fetchTasks();
     useProjectStore.getState().fetchProjects();
+  }, [isAuthenticated]);
+
+  // Realtime is off, so pull the latest server state whenever the tab/PWA
+  // returns to the foreground (throttled in core). Without this, changes made
+  // on another device never appear until a manual refresh.
+  React.useEffect(() => {
+    if (!isAuthenticated) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshOnResume();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onVisible);
+    };
   }, [isAuthenticated]);
 
   // Activate Legend-State synced observables on startup. Legend rehydrates each

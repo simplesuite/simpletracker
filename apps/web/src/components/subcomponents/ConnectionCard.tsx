@@ -9,7 +9,7 @@ import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import SyncIcon from '@mui/icons-material/Sync';
 import { keyframes } from '@mui/system';
-import { useOfflineStore, useNoteStore, useTaskStore, useProjectStore } from '@simpletracker/core';
+import { useOfflineStore, refreshAllData } from '@simpletracker/core';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -31,12 +31,7 @@ export default function ConnectionCard() {
     async function handleRefresh() {
         setRefreshing(true);
         try {
-            await Promise.all([
-                useNoteStore.getState().fetchNotes(),
-                useNoteStore.getState().fetchArchivedNotes(),
-                useTaskStore.getState().fetchTasks(),
-                useProjectStore.getState().fetchProjects(),
-            ]);
+            await refreshAllData();
         } catch (err) {
             console.warn('Refresh failed:', err);
         }

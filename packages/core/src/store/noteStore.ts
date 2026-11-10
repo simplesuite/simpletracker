@@ -3,6 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { observe } from '@legendapp/state';
 import { getSupabase, getCurrentUserId } from '../runtime';
 import { syncedTable } from '../legend/syncedTable';
+import {
+    waitForPersistenceReady,
+    waitForWritesToSettle,
+    clearSyncError,
+    writeErrorMessage,
+    type WriteResult,
+} from '../legend/syncWrites';
 import { isNoteSharedLocally, lookupUserByID } from '../lib/sharing';
 import { validateNoteTitle } from '../lib/validation';
 import { useOfflineStore } from './offlineStore';
@@ -35,6 +42,14 @@ interface NoteStore {
 
     fetchNotes: () => Promise<void>;
     fetchArchivedNotes: () => Promise<void>;
+    /**
+     * Read a single note straight from the synced observable (the source of
+     * truth) rather than the rAF-batched arrays. Returns a just-created note
+     * immediately, before the bridge projects it into `notes`, which avoids the
+     * "Note not found" race when navigating to a new note's detail page right
+     * after creating it.
+     */
+    getNoteById: (id: string) => Note | undefined;
     createNote: (projectID?: string | null, noteType?: 'text' | 'list') => Promise<Note | null>;
     updateNote: (id: string, fields: Partial<Pick<Note, 'title' | 'body' | 'projectID' | 'noteType'>>) => Promise<boolean>;
     togglePinNote: (id: string) => Promise<boolean>;
@@ -80,6 +95,19 @@ function findNote(id: string): Note | undefined {
     return [...s.notes, ...s.sharedNotes, ...s.archivedNotes].find((n) => n.recordID === id);
 }
 
+// ─── Write-settlement helpers (see legend/syncWrites) ───────────────────────
+const waitForNotesPersistenceReady = () => waitForPersistenceReady(notes$);
+const waitForNoteWritesToSettle = () => waitForWritesToSettle(notes$);
+const waitForListItemWritesToSettle = () => waitForWritesToSettle(noteListItems$);
+
+function setNoteWriteError(
+    set: (state: { error: string }) => void,
+    action: string,
+    result: WriteResult
+): void {
+    set({ error: writeErrorMessage(action, result) });
+}
+
 export const useNoteStore = create<NoteStore>((set, get) => ({
     notes: [],
     archivedNotes: [],
@@ -98,8 +126,20 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         notes$.get();
     },
 
+    getNoteById: (id) => {
+        // Prefer the already-projected local buckets (keeps reference identity
+        // for records the bridge has processed), then fall back to peeking the
+        // observable for a record written this frame but not yet bridged.
+        const s = get();
+        const fromState = [...s.notes, ...s.sharedNotes, ...s.archivedNotes].find((n) => n.recordID === id);
+        if (fromState) return fromState;
+        const fromObservable = notes$[id]?.peek?.();
+        return (fromObservable as Note | undefined) || undefined;
+    },
+
     createNote: async (projectID, noteType) => {
         const uid = currentUserID();
+        await waitForNotesPersistenceReady();
         const now = Date.now();
         const newNote: Note = {
             recordID: uuidv4(),
@@ -123,8 +163,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
 
         // Single local write — Legend-State persists + uploads (offline-safe).
+        clearSyncError(notes$);
         notes$[newNote.recordID].set(newNote as any);
-        set({ error: null });
+        const saved = await waitForNoteWritesToSettle();
+        if (!saved.saved) setNoteWriteError(set, 'create note', saved);
+        else set({ error: null });
         return newNote;
     },
 
@@ -149,7 +192,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
 
         const payload = { ...fields, updatedAt: Date.now() };
+        clearSyncError(notes$);
         notes$[id].set({ ...note, ...payload } as any);
+        const saved = await waitForNoteWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'save note', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -166,7 +215,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(notes$);
         notes$[id].set({ ...note, pinned: !note.pinned, updatedAt: Date.now() } as any);
+        const saved = await waitForNoteWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'update note', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -183,7 +238,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(notes$);
         notes$[id].set({ ...note, archived: true, updatedAt: Date.now() } as any);
+        const saved = await waitForNoteWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'archive note', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -200,7 +261,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(notes$);
         notes$[id].set({ ...note, archived: false, updatedAt: Date.now() } as any);
+        const saved = await waitForNoteWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'unarchive note', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -215,6 +282,7 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
         // Single delete. The DB ON DELETE CASCADE removes notes_listitems rows,
         // and those deletions replicate back down — no per-child delete loop.
+        clearSyncError(notes$);
         notes$[id].delete();
 
         // Drop any locally-synced list items for this note from their observable
@@ -226,6 +294,14 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             }
         }
 
+        // Wait for the note DELETE to settle so callers do not navigate away or
+        // report success while the server row is still present or the request
+        // has failed.
+        const deleted = await waitForNoteWritesToSettle();
+        if (!deleted.saved) {
+            setNoteWriteError(set, 'delete note', deleted);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -267,6 +343,14 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
 
             const { error } = await getSupabase().from('notes_shared').insert(shareRecord);
             if (error) {
+                // Unique-violation (23505): a concurrent/duplicate share won the
+                // race (check-then-insert is not atomic). Report it as the
+                // already-shared case so a unique index on (noteID, sharedToID)
+                // closes the race cleanly instead of showing a raw DB error.
+                if ((error as { code?: string }).code === '23505') {
+                    set({ error: 'Already shared with this user' });
+                    return false;
+                }
                 set({ error: error.message });
                 return false;
             }
@@ -347,17 +431,23 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
         }
 
         const now = Date.now();
+        // Order with a wide gap above the current max so two devices appending
+        // offline are very unlikely to land on the same indexOrder; the bridge
+        // sort also tie-breaks deterministically by recordID so any residual tie
+        // still renders identically on every device. (A real guarantee needs a
+        // server-assigned fractional order; this removes the common collision.)
         const maxOrder = existing.reduce((max, item) => Math.max(max, item.indexOrder), 0);
         const newItem: NoteListItem = {
             recordID: uuidv4(),
             noteID,
             title: title.trim(),
             isCompleted: false,
-            indexOrder: maxOrder + 1,
+            indexOrder: maxOrder + 1000,
             createdAt: now,
             updatedAt: now,
         };
 
+        clearSyncError(noteListItems$);
         noteListItems$[newItem.recordID].set(newItem as any);
 
         // Bump parent note's updatedAt
@@ -365,6 +455,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             notes$[noteID].set({ ...parentNote, updatedAt: now } as any);
         }
 
+        const saved = await waitForListItemWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'add list item', saved);
+            return null;
+        }
         set({ error: null });
         return newItem;
     },
@@ -382,11 +477,17 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(noteListItems$);
         noteListItems$[itemID].set({
             ...item,
             isCompleted: !item.isCompleted,
             updatedAt: Date.now(),
         } as any);
+        const saved = await waitForListItemWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'update list item', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -409,7 +510,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(noteListItems$);
         noteListItems$[itemID].set({ ...item, title, updatedAt: Date.now() } as any);
+        const saved = await waitForListItemWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'update list item', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -427,7 +534,13 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        clearSyncError(noteListItems$);
         noteListItems$[itemID].delete();
+        const saved = await waitForListItemWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'delete list item', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -439,7 +552,10 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             return false;
         }
 
+        // Explicit reorder sets a dense 1..N order, overriding the wide-gap
+        // append ordering with the user's intended sequence.
         const now = Date.now();
+        clearSyncError(noteListItems$);
         reorderedItems.forEach((item, index) => {
             const existing = (noteListItems$.get() || {})[item.recordID];
             if (existing) {
@@ -451,6 +567,11 @@ export const useNoteStore = create<NoteStore>((set, get) => ({
             }
         });
 
+        const saved = await waitForListItemWritesToSettle();
+        if (!saved.saved) {
+            setNoteWriteError(set, 'reorder list items', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -513,7 +634,14 @@ function processListItemsUpdate() {
         (grouped[item.noteID] ||= []).push(item);
     }
     for (const noteID of Object.keys(grouped)) {
-        grouped[noteID].sort((a, b) => a.indexOrder - b.indexOrder);
+        // Sort by indexOrder, then recordID as a stable, device-independent
+        // tie-break so two items that collided on indexOrder still order the
+        // same everywhere.
+        grouped[noteID].sort((a, b) =>
+            a.indexOrder !== b.indexOrder
+                ? a.indexOrder - b.indexOrder
+                : a.recordID < b.recordID ? -1 : a.recordID > b.recordID ? 1 : 0
+        );
     }
 
     useNoteStore.setState({ listItems: grouped });
