@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
-import { useNoteStore, notes$ } from '../noteStore';
-import type { Note } from '../../types/index';
+import { useNoteStore, notes$, noteListItems$ } from '../noteStore';
+import type { Note, NoteListItem } from '../../types/index';
 
 /**
  * Seed the source-of-truth observable (not the derived Zustand array). The
@@ -676,5 +676,68 @@ describe('getNoteById resolves records before the bridge runs', () => {
 
     it('returns undefined for an unknown id', () => {
         expect(useNoteStore.getState().getNoteById('does-not-exist')).toBeUndefined();
+    });
+});
+
+/**
+ * List-item ordering must be deterministic across devices. Two devices adding
+ * an item offline can land on the same indexOrder; the bridge sort tie-breaks
+ * by recordID so both render the items in the same order regardless.
+ */
+describe('list item ordering is deterministic on indexOrder ties', () => {
+    function seedListItems(items: NoteListItem[]): void {
+        (noteListItems$ as any).set({});
+        for (const it of items) {
+            (noteListItems$ as any)[it.recordID].set(it);
+        }
+    }
+
+    // Let the rAF-batched bridge run and project the observable into the store.
+    const flushBridge = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
+
+    beforeEach(() => {
+        seedListItems([]);
+        useNoteStore.setState({ listItems: {} });
+    });
+
+    it('breaks an indexOrder tie by recordID, ascending', async () => {
+        const now = Date.now();
+        const mk = (recordID: string, indexOrder: number): NoteListItem => ({
+            recordID,
+            noteID: 'note-1',
+            title: recordID,
+            isCompleted: false,
+            indexOrder,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // Two items collide on indexOrder 5; one sits below. Seed out of order.
+        seedListItems([mk('ccc', 5), mk('aaa', 5), mk('bbb', 1)]);
+        await flushBridge();
+
+        const items = useNoteStore.getState().listItems['note-1'];
+        expect(items.map((i) => i.recordID)).toEqual(['bbb', 'aaa', 'ccc']);
+    });
+
+    it('addListItem leaves a wide gap above the current max order', async () => {
+        const now = Date.now();
+        seedListItems([
+            {
+                recordID: 'existing',
+                noteID: 'note-1',
+                title: 'existing',
+                isCompleted: false,
+                indexOrder: 3,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ]);
+        await flushBridge();
+
+        const added = await useNoteStore.getState().addListItem('note-1', 'new item');
+        expect(added).not.toBeNull();
+        // 3 + 1000 gap, not 3 + 1 — reduces cross-device collisions on append.
+        expect(added!.indexOrder).toBe(1003);
     });
 });

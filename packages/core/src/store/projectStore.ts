@@ -3,6 +3,13 @@ import { v4 as uuid } from 'uuid';
 import { observe } from '@legendapp/state';
 import { getSupabase, getCurrentUserId } from '../runtime';
 import { syncedTable } from '../legend/syncedTable';
+import {
+    waitForPersistenceReady,
+    waitForWritesToSettle,
+    clearSyncError,
+    writeErrorMessage,
+    type WriteResult,
+} from '../legend/syncWrites';
 import { validateProjectName } from '../lib/validation';
 import { lookupUserByID, isProjectSharedLocally } from '../lib/sharing';
 import { useOfflineStore } from './offlineStore';
@@ -56,6 +63,18 @@ function projectIsShared(project: Project | undefined): boolean {
     return isProjectSharedLocally(project.creatorID, project.recordID, currentUserID(), sharedProjectIDs);
 }
 
+// ─── Write-settlement helpers (see legend/syncWrites) ───────────────────────
+const waitForProjectsPersistenceReady = () => waitForPersistenceReady(projects$);
+const waitForProjectWritesToSettle = () => waitForWritesToSettle(projects$);
+
+function setProjectWriteError(
+    set: (state: { error: string }) => void,
+    action: string,
+    result: WriteResult
+): void {
+    set({ error: writeErrorMessage(action, result) });
+}
+
 export const useProjectStore = create<ProjectStore>((set, get) => ({
     projects: [],
     sharedProjectIDs: new Set<string>(),
@@ -74,6 +93,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             return null;
         }
 
+        await waitForProjectsPersistenceReady();
         const now = Date.now();
         const project: Project = {
             recordID: uuid(),
@@ -84,12 +104,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             updatedAt: now,
         };
 
+        clearSyncError(projects$);
         projects$[project.recordID].set(project as any);
-        set({ error: null });
+        const saved = await waitForProjectWritesToSettle();
+        if (!saved.saved) setProjectWriteError(set, 'create project', saved);
+        else set({ error: null });
         return project;
     },
 
     createBlankProject: async () => {
+        await waitForProjectsPersistenceReady();
         const now = Date.now();
         const project: Project = {
             recordID: uuid(),
@@ -100,8 +124,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             updatedAt: now,
         };
 
+        clearSyncError(projects$);
         projects$[project.recordID].set(project as any);
-        set({ error: null });
+        const saved = await waitForProjectWritesToSettle();
+        if (!saved.saved) setProjectWriteError(set, 'create project', saved);
+        else set({ error: null });
         return project;
     },
 
@@ -129,7 +156,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         if (fields.name !== undefined) payload.name = fields.name.trim();
         if (fields.description !== undefined) payload.description = fields.description.trim();
 
+        clearSyncError(projects$);
         projects$[id].set({ ...project, ...payload } as any);
+        const saved = await waitForProjectWritesToSettle();
+        if (!saved.saved) {
+            setProjectWriteError(set, 'save project', saved);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -145,7 +178,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         // Projects are OPTIONAL parents: deleting a project must NOT delete its
         // notes/tasks (no cascade on those FKs). We only delete the project row;
         // orphaned notes/tasks simply become project-less, which is valid.
+        clearSyncError(projects$);
         projects$[id].delete();
+        const deleted = await waitForProjectWritesToSettle();
+        if (!deleted.saved) {
+            setProjectWriteError(set, 'delete project', deleted);
+            return false;
+        }
         set({ error: null });
         return true;
     },
@@ -188,6 +227,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
         const { error } = await getSupabase().from('task_projects_shared').insert(shareRecord);
         if (error) {
+            // A unique-violation (Postgres 23505) means a concurrent/duplicate
+            // share beat us to it — the check-then-insert above is not atomic.
+            // Treat it as the already-shared case rather than a hard failure, so
+            // the (recommended) unique index on (projectID, sharedToID) closes
+            // the race instead of surfacing a raw DB error.
+            if ((error as { code?: string }).code === '23505') {
+                set((state) => ({
+                    sharedProjectIDs: new Set([...state.sharedProjectIDs, projectID]),
+                    error: 'Already shared with this user',
+                }));
+                return false;
+            }
             set({ error: error.message || 'Failed to share project' });
             return false;
         }
