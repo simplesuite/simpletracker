@@ -372,7 +372,7 @@ export function NoteDetailScreen() {
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
             <ScrollView
                 className="flex-1"
-                contentContainerStyle={{ padding: 16, paddingBottom: windowHeight * 0.8 + tabBarHeight + 24, gap: 12 }}
+                contentContainerStyle={{ padding: 16, paddingBottom: windowHeight * 0.7 + tabBarHeight + 10, gap: 12 }}
                 keyboardShouldPersistTaps="handled"
             >
                 <View className="gap-3">

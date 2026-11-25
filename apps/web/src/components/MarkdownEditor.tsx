@@ -561,15 +561,21 @@ export default function MarkdownEditor({ value, onChange, placeholder, disabled 
         };
 
         const minBottom = BOTTOM_NAV_HEIGHT + getSafeAreaBottom();
-
+        // Tallest viewport seen while the keyboard was closed. Android Chrome shrinks
+        // the layout viewport with the keyboard, so innerHeight alone can't detect it.
+        let maxHeight = Math.max(window.innerHeight, viewport.height + viewport.offsetTop);
         const updatePosition = () => {
-            // The visual viewport height shrinks when the keyboard is open.
-            // Position the toolbar at the bottom of the visible area.
             const offsetTop = viewport.offsetTop;
-            const bottom = window.innerHeight - (viewport.height + offsetTop);
-            setToolbarBottom(Math.max(bottom, minBottom));
+            const visibleBottom = viewport.height + offsetTop;
+            maxHeight = Math.max(maxHeight, window.innerHeight);
+            const keyboardOpen = maxHeight - visibleBottom > 120;
+            if (keyboardOpen) {
+                // Keyboard covers the bottom nav, so sit directly on top of the keyboard.
+                setToolbarBottom(Math.max(window.innerHeight - visibleBottom, 0));
+            } else {
+                setToolbarBottom(minBottom);
+            }
         };
-
         updatePosition();
         viewport.addEventListener('resize', updatePosition);
         viewport.addEventListener('scroll', updatePosition);
