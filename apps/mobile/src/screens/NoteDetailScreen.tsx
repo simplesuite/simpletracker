@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, ScrollView, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 import type { RouteProp } from '@react-navigation/native';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
@@ -85,6 +85,7 @@ function MarkdownModeToggle({ mode, onChange, tokens }: { mode: BodyMode; onChan
 
 export function NoteDetailScreen() {
     const tabBarHeight = useBottomTabBarHeight();
+    const { height: windowHeight } = useWindowDimensions();
     const { effectiveTheme } = useThemeStore();
     const theme = getUiTheme(effectiveTheme);
     const route = useRoute<RouteProp<NotesStackParamList, 'NoteDetail'>>();
@@ -369,7 +370,11 @@ export function NoteDetailScreen() {
 
     return (
         <View className="flex-1" style={{ backgroundColor: theme.background }}>
-            <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: tabBarHeight + 24, gap: 12 }} keyboardShouldPersistTaps="handled">
+            <ScrollView
+                className="flex-1"
+                contentContainerStyle={{ padding: 16, paddingBottom: windowHeight * 0.8 + tabBarHeight + 24, gap: 12 }}
+                keyboardShouldPersistTaps="handled"
+            >
                 <View className="gap-3">
                     <Pressable onPress={() => setProjectDialogOpen(true)}>
                         <TextField

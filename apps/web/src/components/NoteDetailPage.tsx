@@ -770,7 +770,16 @@ export default function NoteDetailPage({ id: idProp, onBack }: NoteDetailPagePro
     const embedded = idProp != null;
 
     return (
-        <Box sx={{ maxWidth: embedded ? '100%' : 600, mx: 'auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: embedded ? 0 : 'calc(100vh - 120px)' }}>
+        <Box sx={{
+            maxWidth: embedded ? '100%' : 600,
+            mx: 'auto',
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: embedded ? 0 : 'calc(100vh - 120px)',
+            boxSizing: { xs: 'content-box', md: 'border-box' },
+            pb: { xs: '80svh', md: 0 },
+        }}>
             {/* Header with back button and menu */}
             <Box display="flex" alignItems="flex-start" justifyContent="space-between" sx={{ mb: 2 }}>
                 <IconButton onClick={handleBack} aria-label="Back to notes">
